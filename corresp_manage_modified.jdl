@@ -1,0 +1,164 @@
+application {
+  config {
+    baseName correspManage
+    packageName com.africom.correspmanage
+    serverPort 8081
+    applicationType microservice
+    authenticationType jwt
+    prodDatabaseType postgresql
+    cacheProvider hazelcast
+    buildTool maven
+    databaseType sql
+    devDatabaseType postgresql
+    dtoSuffix DTO
+    embeddableLaunchScript false
+    enableHibernateCache false
+    enableSwaggerCodegen false
+    jhiPrefix jhi
+    serviceDiscoveryType eureka
+  }
+  entities Corresp, Note, Pj, Tasks, Bordereaux, Dossier,HistAction
+}
+
+entity HistAction {
+  id Long,
+  dateTransaction ZonedDateTime,
+  loginUser String,
+  transaction String,
+  actionRef String,
+  actionJson String
+}
+
+entity Note {
+    idinstance UUID required,
+    reference String,
+    subject String required,
+    dateCreated ZonedDateTime required,
+    datePublication ZonedDateTime required,
+    dateEndPublication ZonedDateTime required,
+    status CorrespStatus required,
+    createdBy String,
+    updatedBy String,
+    updatedDate ZonedDateTime
+}
+
+entity Corresp {
+    idinstance UUID required,
+    reference String,
+    subject String required,
+    dateCreated ZonedDateTime required,
+    courrierDate ZonedDateTime required,
+    status CorrespStatus required,
+    priority Boolean,
+    body TextBlob,
+    corresptype CorrespType required,
+    sender String required,
+    needsResponse Boolean,
+    responseTo String,
+    step String,
+    stepCode String,
+    processId Long,
+    processVersion String,
+    contact String,
+    senderReference String,
+    dispatchType DispatchType required,
+    contactCompany String,
+    personCompany String,
+    contactAddress String,
+    contactEmail String,
+    contactEmailCc String,
+    createdBy String,
+    updatedBy String,
+    updatedDate ZonedDateTime
+}
+
+enum CorrespStatus {
+    DRAFT, IN_PROGRESS, CLOSED, CANCELLED
+}
+
+enum CorrespType {
+    INCOMING, OUTGOING, INTERNAL
+}
+
+enum DispatchType {
+    LETTER, REGISTERED_LETTER, EMAIL, FAX
+}
+
+entity Pj {
+    name String,
+    fileType String,
+    path String,
+    creationDate ZonedDateTime,
+    password String,
+    transferable Boolean,
+    uniqueName String,
+    status UsualStatus,
+    createdBy String,
+    updatedBy String,
+    updatedDate ZonedDateTime
+}
+
+entity Tasks {
+    object String required,
+    content Blob,
+    creationDate ZonedDateTime,
+    startDate ZonedDateTime,
+    dueDate ZonedDateTime,
+    closeDate ZonedDateTime,
+    responsible String,
+    status CorrespStatus,
+    createdBy String,
+    updatedBy String,
+    updatedDate ZonedDateTime
+}
+
+entity Bordereaux {
+    reference String required unique,
+    description String,
+    amount BigDecimal required,
+    currency String,
+    status String required,
+    issuedDate ZonedDateTime required,
+    dueDate ZonedDateTime,
+    createdDate ZonedDateTime,
+    updatedDate ZonedDateTime,
+    createdBy String,
+    updatedBy String
+}
+
+entity Dossier {
+    name String,
+    isPublic Boolean,
+    responsible String,
+    status UsualStatus,
+    dossierList Blob,
+    createdBy String,
+    updatedBy String,
+    updatedDate ZonedDateTime
+}
+
+enum UsualStatus {
+    ACTIVE, DELETED, DISABLED
+}
+
+relationship ManyToMany {
+    Corresp{dossiers} to Dossier{corresps}
+    Corresp{bordereaux} to Bordereaux{corresps}
+    Corresp{attachments} to Pj{corresps}
+    Corresp{tasks} to Tasks{corresps}
+}
+
+relationship OneToOne {
+    Note{attachment} to Pj
+}
+
+relationship ManyToOne {
+    Tasks{parentDoc} to Corresp,
+    Tasks{parentTask} to Tasks
+}
+
+dto * with mapstruct
+paginate * with pagination
+service * with serviceClass
+
+microservice Corresp, Note, Pj, Tasks, Bordereaux, Dossier,HistAction with correspManage

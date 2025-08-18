@@ -1,0 +1,43 @@
+{
+  "applications": ["correspManage"],
+  "changelogDate": "20250818134301",
+  "clientRootFolder": "correspManage",
+  "databaseType": "sql",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "hist_action",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "dateTransaction",
+      "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "loginUser",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "transaction",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "actionRef",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "actionJson",
+      "fieldType": "String"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "microserviceName": "correspManage",
+  "name": "HistAction",
+  "pagination": "pagination",
+  "readOnly": false,
+  "relationships": [],
+  "service": "serviceClass"
+}

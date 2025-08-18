@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        Added the constraints for entity Corresp.
+    -->
+    <changeSet id="20250818133701-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="corresp_id"
+                                 baseTableName="rel_corresp__dossiers"
+                                 constraintName="fk_rel_corresp__dossiers__corresp_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="corresp"/>
+
+        <addForeignKeyConstraint baseColumnNames="dossiers_id"
+                                 baseTableName="rel_corresp__dossiers"
+                                 constraintName="fk_rel_corresp__dossiers__dossiers_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="dossier"/>
+
+        <addForeignKeyConstraint baseColumnNames="corresp_id"
+                                 baseTableName="rel_corresp__bordereaux"
+                                 constraintName="fk_rel_corresp__bordereaux__corresp_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="corresp"/>
+
+        <addForeignKeyConstraint baseColumnNames="bordereaux_id"
+                                 baseTableName="rel_corresp__bordereaux"
+                                 constraintName="fk_rel_corresp__bordereaux__bordereaux_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="bordereaux"/>
+
+        <addForeignKeyConstraint baseColumnNames="corresp_id"
+                                 baseTableName="rel_corresp__attachments"
+                                 constraintName="fk_rel_corresp__attachments__corresp_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="corresp"/>
+
+        <addForeignKeyConstraint baseColumnNames="attachments_id"
+                                 baseTableName="rel_corresp__attachments"
+                                 constraintName="fk_rel_corresp__attachments__attachments_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="pj"/>
+
+        <addForeignKeyConstraint baseColumnNames="corresp_id"
+                                 baseTableName="rel_corresp__tasks"
+                                 constraintName="fk_rel_corresp__tasks__corresp_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="corresp"/>
+
+        <addForeignKeyConstraint baseColumnNames="tasks_id"
+                                 baseTableName="rel_corresp__tasks"
+                                 constraintName="fk_rel_corresp__tasks__tasks_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tasks"/>
+    </changeSet>
+</databaseChangeLog>

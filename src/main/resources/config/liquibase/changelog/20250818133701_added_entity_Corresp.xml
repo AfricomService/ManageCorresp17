@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity Corresp.
+    -->
+    <changeSet id="20250818133701-1" author="jhipster">
+        <createTable tableName="corresp">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="idinstance" type="${uuidType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="reference" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="subject" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="date_created" type="${datetimeType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="courrier_date" type="${datetimeType}">
+                <constraints nullable="false" />
+            </column>
+            <column name="status" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="priority" type="boolean">
+                <constraints nullable="true" />
+            </column>
+            <column name="body" type="${clobType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="corresptype" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="sender" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="needs_response" type="boolean">
+                <constraints nullable="true" />
+            </column>
+            <column name="response_to" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="step" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="step_code" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="process_id" type="bigint">
+                <constraints nullable="true" />
+            </column>
+            <column name="process_version" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="sender_reference" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="dispatch_type" type="varchar(255)">
+                <constraints nullable="false" />
+            </column>
+            <column name="contact_company" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="person_company" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact_address" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact_email" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="contact_email_cc" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="created_by" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="updated_by" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="updated_date" type="${datetimeType}">
+                <constraints nullable="true" />
+            </column>
+            <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
+        </createTable>
+        <dropDefaultValue tableName="corresp" columnName="date_created" columnDataType="${datetimeType}"/>
+        <dropDefaultValue tableName="corresp" columnName="courrier_date" columnDataType="${datetimeType}"/>
+        <dropDefaultValue tableName="corresp" columnName="updated_date" columnDataType="${datetimeType}"/>
+    </changeSet>
+
+    <changeSet id="20250818133701-1-relations" author="jhipster">
+
+        <createTable tableName="rel_corresp__dossiers">
+            <column name="dossiers_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="corresp_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey columnNames="corresp_id, dossiers_id" tableName="rel_corresp__dossiers"/>
+
+        <createTable tableName="rel_corresp__bordereaux">
+            <column name="bordereaux_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="corresp_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey columnNames="corresp_id, bordereaux_id" tableName="rel_corresp__bordereaux"/>
+
+        <createTable tableName="rel_corresp__attachments">
+            <column name="attachments_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="corresp_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey columnNames="corresp_id, attachments_id" tableName="rel_corresp__attachments"/>
+
+        <createTable tableName="rel_corresp__tasks">
+            <column name="tasks_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="corresp_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey columnNames="corresp_id, tasks_id" tableName="rel_corresp__tasks"/>
+    </changeSet>
+
+    <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
+
+    <!--
+        Load sample data generated with Faker.js
+        - This data can be easily edited using a CSV editor (or even MS Excel) and
+          is located in the 'src/main/resources/config/liquibase/fake-data' directory
+        - By default this data is applied when running with the JHipster 'dev' profile.
+          This can be customized by adding or removing 'faker' in the 'spring.liquibase.contexts'
+          Spring Boot configuration key.
+    -->
+    <changeSet id="20250818133701-1-data" author="jhipster" context="faker">
+        <loadData
+                  file="config/liquibase/fake-data/corresp.csv"
+                  separator=";"
+                  tableName="corresp"
+                  usePreparedStatements="true">
+            <column name="id" type="numeric"/>
+            <column name="idinstance" type="${uuidType}"/>
+            <column name="reference" type="string"/>
+            <column name="subject" type="string"/>
+            <column name="date_created" type="date"/>
+            <column name="courrier_date" type="date"/>
+            <column name="status" type="string"/>
+            <column name="priority" type="boolean"/>
+            <column name="body" type="clob"/>
+            <column name="corresptype" type="string"/>
+            <column name="sender" type="string"/>
+            <column name="needs_response" type="boolean"/>
+            <column name="response_to" type="string"/>
+            <column name="step" type="string"/>
+            <column name="step_code" type="string"/>
+            <column name="process_id" type="numeric"/>
+            <column name="process_version" type="string"/>
+            <column name="contact" type="string"/>
+            <column name="sender_reference" type="string"/>
+            <column name="dispatch_type" type="string"/>
+            <column name="contact_company" type="string"/>
+            <column name="person_company" type="string"/>
+            <column name="contact_address" type="string"/>
+            <column name="contact_email" type="string"/>
+            <column name="contact_email_cc" type="string"/>
+            <column name="created_by" type="string"/>
+            <column name="updated_by" type="string"/>
+            <column name="updated_date" type="date"/>
+            <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
+        </loadData>
+    </changeSet>
+</databaseChangeLog>

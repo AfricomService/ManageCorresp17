@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        Added the constraints for entity Tasks.
+    -->
+    <changeSet id="20250818134001-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="parent_doc_id"
+                                 baseTableName="tasks"
+                                 constraintName="fk_tasks__parent_doc_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="corresp"/>
+
+        <addForeignKeyConstraint baseColumnNames="parent_task_id"
+                                 baseTableName="tasks"
+                                 constraintName="fk_tasks__parent_task_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tasks"/>
+    </changeSet>
+</databaseChangeLog>
