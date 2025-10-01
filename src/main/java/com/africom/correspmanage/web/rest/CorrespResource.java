@@ -4,6 +4,7 @@ import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.service.CorrespService;
 import com.africom.correspmanage.service.dto.CorrespDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -14,6 +15,7 @@ import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.configurationprocessor.json.JSONException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -172,6 +174,38 @@ public class CorrespResource {
         log.debug("REST request to get Corresp : {}", id);
         Optional<CorrespDTO> correspDTO = correspService.findOne(id);
         return ResponseUtil.wrapOrNotFound(correspDTO);
+    }
+
+    @GetMapping("/correspsByType-page")
+    public Page<CorrespDTO> getCorrespByType(
+        @RequestParam(name = "correspType") String correspType,
+        @RequestParam(name = "pageIndex") Integer pageIndex,
+        @RequestParam(name = "pageSize") Integer pageSize
+    ) {
+        log.debug("REST request to get Corresps by type : {}", correspType);
+        return correspService.findAllCorrespByType(correspType, pageIndex, pageSize);
+    }
+
+    @GetMapping("/corresps-page")
+    public Page<CorrespDTO> getCorrespPage(
+        @RequestParam(name = "pageIndex") Integer pageIndex,
+        @RequestParam(name = "pageSize") Integer pageSize
+    ) {
+        log.debug("REST request to get Corresps by type");
+        return correspService.findAllCorresps(pageIndex, pageSize);
+    }
+
+    @GetMapping("/corresps-filter")
+    public Page<CorrespDTO> getRapportRequestSpec(
+        @RequestParam(name = "pageIndex") Integer pageIndex,
+        @RequestParam(name = "pageSize") Integer pageSize,
+        @RequestParam(name = "reference", required = false) String reference,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "dispatchType", required = false) String dispatchType,
+        @RequestParam(name = "startDate", required = false) String startDate,
+        @RequestParam(name = "endDate", required = false) String endDate
+    ) throws JsonProcessingException, JSONException {
+        return correspService.findAllCorrespByFilter(reference, status, dispatchType, startDate, endDate, pageIndex, pageSize);
     }
 
     /**
