@@ -18,6 +18,7 @@
     <include file="config/liquibase/changelog/20250818134101_added_entity_Bordereaux.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20250818134201_added_entity_Dossier.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20250818134301_added_entity_HistAction.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20251001074012_added_entity_CustomSearch.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20250818133701_added_entity_constraints_Corresp.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20250818133801_added_entity_constraints_Note.xml" relativeToChangelogFile="false"/>

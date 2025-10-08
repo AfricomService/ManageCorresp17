@@ -1,6 +1,7 @@
 package com.africom.correspmanage.repository;
 
 import com.africom.correspmanage.domain.Pj;
+import java.util.List;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.stereotype.Repository;
 
