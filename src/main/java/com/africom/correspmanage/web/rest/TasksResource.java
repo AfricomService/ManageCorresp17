@@ -165,6 +165,12 @@ public class TasksResource {
         return ResponseUtil.wrapOrNotFound(tasksDTO);
     }
 
+    @GetMapping("/tasks/tasksByEtat")
+    public List<TasksDTO> getAllTasksByEtat(@RequestParam(name = "etat") String etat) {
+        log.debug("REST request to get a page of Tasks");
+        return tasksService.findAllByEtat(etat);
+    }
+
     /**
      * {@code DELETE  /tasks/:id} : delete the "id" tasks.
      *
