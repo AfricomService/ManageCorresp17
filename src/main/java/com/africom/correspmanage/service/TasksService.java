@@ -1,10 +1,14 @@
 package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.domain.Tasks;
+import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -54,6 +58,34 @@ public class TasksService {
         Tasks tasks = tasksMapper.toEntity(tasksDTO);
         tasks = tasksRepository.save(tasks);
         return tasksMapper.toDto(tasks);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TasksDTO> findAllByEtat(String etat) {
+        log.debug("Request to get all Tasks");
+
+        CorrespStatus correspStatus = CorrespStatus.DRAFT;
+
+        switch (etat) {
+            case "DRAFT":
+                correspStatus = CorrespStatus.DRAFT;
+                break;
+            case "IN_PROGRESS":
+                correspStatus = CorrespStatus.IN_PROGRESS;
+                break;
+            case "CANCELLED":
+                correspStatus = CorrespStatus.CANCELLED;
+                break;
+            case "CLOSED":
+                correspStatus = CorrespStatus.CLOSED;
+                break;
+        }
+
+        return tasksRepository
+            .findAllByStatusEquals(correspStatus)
+            .stream()
+            .map(tasksMapper::toDto)
+            .collect(Collectors.toCollection(LinkedList::new));
     }
 
     /**
