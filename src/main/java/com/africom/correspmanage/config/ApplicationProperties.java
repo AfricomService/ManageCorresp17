@@ -10,7 +10,23 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "application", ignoreUnknownFields = false)
 public class ApplicationProperties {
-    // jhipster-needle-application-properties-property
-    // jhipster-needle-application-properties-property-getter
-    // jhipster-needle-application-properties-property-class
+
+    private String slash;
+    private String dir_pj;
+
+    public String getSlash() {
+        return slash;
+    }
+
+    public void setSlash(String slash) {
+        this.slash = slash;
+    }
+
+    public String getDir_pj() {
+        return dir_pj;
+    }
+
+    public void setDir_pj(String dir_pj) {
+        this.dir_pj = dir_pj;
+    }
 }

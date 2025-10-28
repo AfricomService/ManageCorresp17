@@ -1,11 +1,17 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.config.ApplicationProperties;
 import com.africom.correspmanage.repository.PjRepository;
 import com.africom.correspmanage.service.PjService;
 import com.africom.correspmanage.service.dto.PjDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
+import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Paths;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,6 +24,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.PaginationUtil;
@@ -41,9 +48,12 @@ public class PjResource {
 
     private final PjRepository pjRepository;
 
-    public PjResource(PjService pjService, PjRepository pjRepository) {
+    private final ApplicationProperties applicationProperties;
+
+    public PjResource(PjService pjService, PjRepository pjRepository, ApplicationProperties applicationProperties) {
         this.pjService = pjService;
         this.pjRepository = pjRepository;
+        this.applicationProperties = applicationProperties;
     }
 
     /**
@@ -172,6 +182,60 @@ public class PjResource {
         return ResponseEntity
             .noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
+            .build();
+    }
+
+    @PostMapping("/pjs/uploadPj")
+    public ResponseEntity<String> uploadPj(@RequestParam("file") MultipartFile file, @RequestParam("uniqueName") String uniqueName)
+        throws IOException {
+        try {
+            pjService.uploadFilePj(file, uniqueName);
+            return ResponseEntity.ok("File uploaded successfully.");
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file.");
+        }
+    }
+
+    @DeleteMapping("/pjs")
+    public ResponseEntity<Void> deletePj(@RequestParam String uniqueName, @RequestParam String fileType) {
+        log.debug("REST request to delete Pj : {}", uniqueName);
+
+        //        PjDTO pjDTO = pjService.findOne(id).get();
+
+        String finalStringPath =
+            Paths.get(applicationProperties.getDir_pj()) +
+            File.separator +
+            ZonedDateTime.now().getYear() +
+            File.separator +
+            ZonedDateTime.now().getMonth() +
+            File.separator +
+            ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) +
+            File.separator +
+            uniqueName +
+            "." +
+            fileType;
+
+        File file = new File(finalStringPath);
+
+        if (file.exists()) {
+            if (file.delete()) {
+                log.debug("File deleted successfully: {}", finalStringPath);
+            } else {
+                log.warn("Failed to delete file: {}", finalStringPath);
+            }
+        } else {
+            log.warn("File not found: {}", finalStringPath);
+        }
+
+        Optional<PjDTO> pjDTO = pjService.findOneByUniqueName(uniqueName);
+
+        if (pjDTO.isPresent()) {
+            pjService.delete(pjDTO.get().getId());
+        }
+
+        return ResponseEntity
+            .noContent()
+            .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, uniqueName))
             .build();
     }
 }

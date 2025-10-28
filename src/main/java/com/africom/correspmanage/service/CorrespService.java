@@ -1,11 +1,14 @@
 package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.domain.Corresp;
+import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.domain.enumeration.CorrespType;
 import com.africom.correspmanage.domain.enumeration.DispatchType;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.service.dto.CorrespDTO;
+import com.africom.correspmanage.service.dto.FileUploadDTO;
+import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.CorrespMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +34,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Service Implementation for managing {@link Corresp}.
@@ -240,4 +244,15 @@ public class CorrespService {
 
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
+
+    public void saveCorrespWithTasksAndPj(CorrespDTO correspDTO, List<TasksDTO> tasksDTOS, List<Pj> pjs) {
+        log.debug("correspDTO {}", correspDTO);
+        log.debug("tasksDTOS {}", tasksDTOS);
+        log.debug("pjs {}", pjs);
+    }
+    //    public void saveFilesOfPjs(MultipartFile fileToSave , String uniqueName ){
+    //
+    //
+    //    }
+
 }

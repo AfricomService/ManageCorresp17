@@ -1,15 +1,22 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.domain.Pj;
+import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
+import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespService;
 import com.africom.correspmanage.service.dto.CorrespDTO;
+import com.africom.correspmanage.service.dto.FileUploadDTO;
+import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -20,8 +27,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.PaginationUtil;
@@ -63,6 +72,13 @@ public class CorrespResource {
         if (correspDTO.getId() != null) {
             throw new BadRequestAlertException("A new corresp cannot already have an ID", ENTITY_NAME, "idexists");
         }
+
+        correspDTO.setIdinstance(UUID.randomUUID());
+        correspDTO.setStatus(CorrespStatus.DRAFT);
+        correspDTO.setDateCreated(ZonedDateTime.now());
+        correspDTO.setCreatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+        //        correspDTO.setStatus(CorrespStatus.IN_PROGRESS);
+
         CorrespDTO result = correspService.save(correspDTO);
         return ResponseEntity
             .created(new URI("/api/corresps/" + result.getId()))
@@ -223,4 +239,20 @@ public class CorrespResource {
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .build();
     }
+
+    @PostMapping(value = "/correspsWithTasksAndPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public void saveCorrespWithTasksAndPj(
+        @RequestPart("correspDTO") CorrespDTO correspDTO,
+        @RequestPart("tasksDTOS") List<TasksDTO> tasksDTOS,
+        @RequestPart("pjs") List<Pj> pjs
+    ) {
+        correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs);
+    }
+    //    @PostMapping(value = "/saveFilesOfPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    //    public void saveFilesOfPjs(
+    //        @RequestPart(value = "files", required = false) List<FileUploadDTO> files
+    //    ) {
+    //        correspService.saveFilesOfPjs(files);
+    //    }
+
 }

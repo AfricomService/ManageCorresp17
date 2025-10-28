@@ -1,9 +1,19 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.config.ApplicationProperties;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.repository.PjRepository;
+import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.dto.PjDTO;
 import com.africom.correspmanage.service.mapper.PjMapper;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Service Implementation for managing {@link Pj}.
@@ -25,9 +36,12 @@ public class PjService {
 
     private final PjMapper pjMapper;
 
-    public PjService(PjRepository pjRepository, PjMapper pjMapper) {
+    private final ApplicationProperties applicationProperties;
+
+    public PjService(PjRepository pjRepository, PjMapper pjMapper, ApplicationProperties applicationProperties) {
         this.pjRepository = pjRepository;
         this.pjMapper = pjMapper;
+        this.applicationProperties = applicationProperties;
     }
 
     /**
@@ -100,6 +114,12 @@ public class PjService {
         return pjRepository.findById(id).map(pjMapper::toDto);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<PjDTO> findOneByUniqueName(String uniqueName) {
+        log.debug("Request to get Pj : {}", uniqueName);
+        return pjRepository.findByUniqueName(uniqueName).map(pjMapper::toDto);
+    }
+
     /**
      * Delete the pj by id.
      *
@@ -108,5 +128,80 @@ public class PjService {
     public void delete(Long id) {
         log.debug("Request to delete Pj : {}", id);
         pjRepository.deleteById(id);
+    }
+
+    public String uploadPj(MultipartFile file, String uniqueName) throws IOException {
+        Path filePath;
+        try {
+            //            Path pjDirectory = Paths.get(applicationProperties.getDir_pj());
+
+            //            log.debug("FILE NAME {}",file.getOriginalFilename());
+
+            PjDTO pjDTO = new PjDTO();
+
+            //            log.debug("FILE NAME {}",pjDTO.getId());
+
+            pjDTO.setName(file.getOriginalFilename().substring(0, file.getOriginalFilename().lastIndexOf(".")));
+            pjDTO.setFileType(file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf(".") + 1));
+            pjDTO.setUniqueName(uniqueName);
+            //            pjDTO.setPath(pjDirectory+applicationProperties.getSlash()+pjDTO.getUniqueName()+"."+pjDTO.getFileType());
+            pjDTO.setCreationDate(ZonedDateTime.now());
+            pjDTO.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+            pjDTO.setTransferable(false);
+
+            String path =
+                Paths.get(applicationProperties.getDir_pj()) +
+                File.separator +
+                ZonedDateTime.now().getYear() +
+                File.separator +
+                ZonedDateTime.now().getMonth() +
+                File.separator +
+                ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+            Path finalPath = Paths.get(path);
+
+            if (!Files.exists(finalPath)) {
+                Files.createDirectories(finalPath);
+            }
+
+            filePath = finalPath.resolve(pjDTO.getUniqueName() + "." + pjDTO.getFileType());
+
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            save(pjDTO);
+
+            return "File uploaded successfully.";
+        } catch (IOException e) {
+            return "Failed to upload file.";
+        }
+    }
+
+    public String uploadFilePj(MultipartFile file, String uniqueName) throws IOException {
+        Path filePath;
+        try {
+            String path =
+                Paths.get(applicationProperties.getDir_pj()) +
+                File.separator +
+                ZonedDateTime.now().getYear() +
+                File.separator +
+                ZonedDateTime.now().getMonth() +
+                File.separator +
+                ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+            Path finalPath = Paths.get(path);
+
+            if (!Files.exists(finalPath)) {
+                Files.createDirectories(finalPath);
+            }
+
+            filePath =
+                finalPath.resolve(uniqueName + "." + file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf(".") + 1));
+
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            return "File uploaded successfully.";
+        } catch (IOException e) {
+            return "Failed to upload file.";
+        }
     }
 }
