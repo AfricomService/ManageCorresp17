@@ -73,6 +73,9 @@ class TasksResourceIT {
     private static final ZonedDateTime DEFAULT_UPDATED_DATE = ZonedDateTime.ofInstant(Instant.ofEpochMilli(0L), ZoneOffset.UTC);
     private static final ZonedDateTime UPDATED_UPDATED_DATE = ZonedDateTime.now(ZoneId.systemDefault()).withNano(0);
 
+    private static final String DEFAULT_TASK_TYPE = "AAAAAAAAAA";
+    private static final String UPDATED_TASK_TYPE = "BBBBBBBBBB";
+
     private static final String ENTITY_API_URL = "/api/tasks";
     private static final String ENTITY_API_URL_ID = ENTITY_API_URL + "/{id}";
 
@@ -112,7 +115,8 @@ class TasksResourceIT {
             .status(DEFAULT_STATUS)
             .createdBy(DEFAULT_CREATED_BY)
             .updatedBy(DEFAULT_UPDATED_BY)
-            .updatedDate(DEFAULT_UPDATED_DATE);
+            .updatedDate(DEFAULT_UPDATED_DATE)
+            .taskType(DEFAULT_TASK_TYPE);
         return tasks;
     }
 
@@ -135,7 +139,8 @@ class TasksResourceIT {
             .status(UPDATED_STATUS)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .taskType(UPDATED_TASK_TYPE);
         return tasks;
     }
 
@@ -170,6 +175,7 @@ class TasksResourceIT {
         assertThat(testTasks.getCreatedBy()).isEqualTo(DEFAULT_CREATED_BY);
         assertThat(testTasks.getUpdatedBy()).isEqualTo(DEFAULT_UPDATED_BY);
         assertThat(testTasks.getUpdatedDate()).isEqualTo(DEFAULT_UPDATED_DATE);
+        assertThat(testTasks.getTaskType()).isEqualTo(DEFAULT_TASK_TYPE);
     }
 
     @Test
@@ -232,7 +238,8 @@ class TasksResourceIT {
             .andExpect(jsonPath("$.[*].status").value(hasItem(DEFAULT_STATUS.toString())))
             .andExpect(jsonPath("$.[*].createdBy").value(hasItem(DEFAULT_CREATED_BY)))
             .andExpect(jsonPath("$.[*].updatedBy").value(hasItem(DEFAULT_UPDATED_BY)))
-            .andExpect(jsonPath("$.[*].updatedDate").value(hasItem(sameInstant(DEFAULT_UPDATED_DATE))));
+            .andExpect(jsonPath("$.[*].updatedDate").value(hasItem(sameInstant(DEFAULT_UPDATED_DATE))))
+            .andExpect(jsonPath("$.[*].taskType").value(hasItem(DEFAULT_TASK_TYPE)));
     }
 
     @Test
@@ -258,7 +265,8 @@ class TasksResourceIT {
             .andExpect(jsonPath("$.status").value(DEFAULT_STATUS.toString()))
             .andExpect(jsonPath("$.createdBy").value(DEFAULT_CREATED_BY))
             .andExpect(jsonPath("$.updatedBy").value(DEFAULT_UPDATED_BY))
-            .andExpect(jsonPath("$.updatedDate").value(sameInstant(DEFAULT_UPDATED_DATE)));
+            .andExpect(jsonPath("$.updatedDate").value(sameInstant(DEFAULT_UPDATED_DATE)))
+            .andExpect(jsonPath("$.taskType").value(DEFAULT_TASK_TYPE));
     }
 
     @Test
@@ -292,7 +300,8 @@ class TasksResourceIT {
             .status(UPDATED_STATUS)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .taskType(UPDATED_TASK_TYPE);
         TasksDTO tasksDTO = tasksMapper.toDto(updatedTasks);
 
         restTasksMockMvc
@@ -319,6 +328,7 @@ class TasksResourceIT {
         assertThat(testTasks.getCreatedBy()).isEqualTo(UPDATED_CREATED_BY);
         assertThat(testTasks.getUpdatedBy()).isEqualTo(UPDATED_UPDATED_BY);
         assertThat(testTasks.getUpdatedDate()).isEqualTo(UPDATED_UPDATED_DATE);
+        assertThat(testTasks.getTaskType()).isEqualTo(UPDATED_TASK_TYPE);
     }
 
     @Test
@@ -429,6 +439,7 @@ class TasksResourceIT {
         assertThat(testTasks.getCreatedBy()).isEqualTo(DEFAULT_CREATED_BY);
         assertThat(testTasks.getUpdatedBy()).isEqualTo(DEFAULT_UPDATED_BY);
         assertThat(testTasks.getUpdatedDate()).isEqualTo(DEFAULT_UPDATED_DATE);
+        assertThat(testTasks.getTaskType()).isEqualTo(DEFAULT_TASK_TYPE);
     }
 
     @Test
@@ -455,7 +466,8 @@ class TasksResourceIT {
             .status(UPDATED_STATUS)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .taskType(UPDATED_TASK_TYPE);
 
         restTasksMockMvc
             .perform(
@@ -481,6 +493,7 @@ class TasksResourceIT {
         assertThat(testTasks.getCreatedBy()).isEqualTo(UPDATED_CREATED_BY);
         assertThat(testTasks.getUpdatedBy()).isEqualTo(UPDATED_UPDATED_BY);
         assertThat(testTasks.getUpdatedDate()).isEqualTo(UPDATED_UPDATED_DATE);
+        assertThat(testTasks.getTaskType()).isEqualTo(UPDATED_TASK_TYPE);
     }
 
     @Test

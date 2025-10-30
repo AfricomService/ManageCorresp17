@@ -2,10 +2,14 @@ package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Pj;
+import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.domain.enumeration.CorrespType;
 import com.africom.correspmanage.domain.enumeration.DispatchType;
 import com.africom.correspmanage.repository.CorrespRepository;
+import com.africom.correspmanage.repository.PjRepository;
+import com.africom.correspmanage.repository.TasksRepository;
+import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.dto.CorrespDTO;
 import com.africom.correspmanage.service.dto.FileUploadDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
@@ -15,10 +19,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 import javax.persistence.criteria.Join;
 import javax.persistence.criteria.Predicate;
@@ -49,9 +51,21 @@ public class CorrespService {
 
     private final CorrespMapper correspMapper;
 
-    public CorrespService(CorrespRepository correspRepository, CorrespMapper correspMapper) {
+    private final TasksRepository tasksRepository;
+
+    private final PjRepository pjRepository;
+
+    public CorrespService(
+        CorrespRepository correspRepository,
+        CorrespMapper correspMapper,
+        TasksRepository tasksRepository,
+        PjService pjService,
+        PjRepository pjRepository
+    ) {
         this.correspRepository = correspRepository;
         this.correspMapper = correspMapper;
+        this.tasksRepository = tasksRepository;
+        this.pjRepository = pjRepository;
     }
 
     /**
@@ -245,10 +259,86 @@ public class CorrespService {
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
 
-    public void saveCorrespWithTasksAndPj(CorrespDTO correspDTO, List<TasksDTO> tasksDTOS, List<Pj> pjs) {
+    public Corresp saveCorrespWithTasksAndPj(CorrespDTO correspDTO, List<TasksDTO> tasksDTOS, List<Pj> pjs) {
         log.debug("correspDTO {}", correspDTO);
         log.debug("tasksDTOS {}", tasksDTOS);
         log.debug("pjs {}", pjs);
+
+        List<Tasks> tasksList = new ArrayList<>();
+
+        for (TasksDTO tasksDTO : tasksDTOS) {
+            Tasks tasks = new Tasks();
+            tasks.setResponsible(tasksDTO.getResponsible());
+            tasks.setStatus(CorrespStatus.IN_PROGRESS);
+            tasks.setTaskType(tasksDTO.getTaskType());
+            tasks.setDueDate(tasksDTO.getDueDate());
+            tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
+            tasks.creationDate(ZonedDateTime.now());
+            tasks.setStartDate(ZonedDateTime.now());
+
+            StringBuilder objectBuilder = new StringBuilder();
+
+            objectBuilder
+                .append(tasksDTO.getResponsible())
+                .append(" effectuera la tâche de ")
+                .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
+
+            if (tasksDTO.getDueDate() != null) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                String formattedDate = tasksDTO.getDueDate().format(formatter);
+                objectBuilder.append(" en ne dépassant pas la date limite du ").append(formattedDate);
+            }
+
+            tasks.setObject(objectBuilder.toString());
+
+            tasksList.add(tasks);
+        }
+
+        List<Pj> pjsList = new ArrayList<>();
+
+        for (Pj pjDTO : pjs) {
+            Pj pjEntity = new Pj();
+            pjEntity.setName(pjDTO.getName());
+            pjEntity.setFileType(pjDTO.getFileType());
+            pjEntity.setUniqueName(pjDTO.getUniqueName());
+            pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+            pjEntity.setCreationDate(ZonedDateTime.now());
+            pjEntity.setPath(pjDTO.getPath());
+
+            pjsList.add(pjEntity);
+        }
+
+        Set<Tasks> tasksSaved = new HashSet<>(tasksRepository.saveAll(tasksList));
+        Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
+
+        Corresp correspToSave = new Corresp();
+
+        UUID uuid = UUID.randomUUID();
+        correspToSave.setIdinstance(uuid);
+        correspToSave.setCourrierDate(correspDTO.getCourrierDate());
+        correspToSave.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+        correspToSave.setDateCreated(ZonedDateTime.now());
+        correspToSave.setSubject(correspDTO.getSubject());
+        correspToSave.setSender(correspDTO.getSender());
+        correspToSave.setContact(correspDTO.getContact());
+        correspToSave.setContactEmail(correspDTO.getContactEmail());
+        correspToSave.setContactEmailCc(correspDTO.getContactEmailCc());
+        correspToSave.setResponseTo(correspDTO.getResponseTo());
+        correspToSave.setSenderReference(correspDTO.getSenderReference());
+        correspToSave.setPriority(correspDTO.getPriority());
+        correspToSave.setStatus(CorrespStatus.IN_PROGRESS);
+        correspToSave.setBody(correspDTO.getBody());
+        correspToSave.setDispatchType(correspDTO.getDispatchType());
+        correspToSave.setCorresptype(correspDTO.getCorresptype());
+
+        correspToSave.setTasks(tasksSaved);
+        correspToSave.setAttachments(pjsSaved);
+
+        Corresp saved = correspRepository.save(correspToSave);
+
+        log.debug("save corresp {}", saved);
+
+        return saved;
     }
     //    public void saveFilesOfPjs(MultipartFile fileToSave , String uniqueName ){
     //

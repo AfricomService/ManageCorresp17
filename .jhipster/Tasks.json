@@ -53,6 +53,10 @@
     {
       "fieldName": "updatedDate",
       "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "taskType",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

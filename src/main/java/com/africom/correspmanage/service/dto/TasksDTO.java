@@ -40,6 +40,8 @@ public class TasksDTO implements Serializable {
 
     private ZonedDateTime updatedDate;
 
+    private String taskType;
+
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
@@ -148,6 +150,14 @@ public class TasksDTO implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public String getTaskType() {
+        return taskType;
+    }
+
+    public void setTaskType(String taskType) {
+        this.taskType = taskType;
+    }
+
     public CorrespDTO getParentDoc() {
         return parentDoc;
     }
@@ -201,6 +211,7 @@ public class TasksDTO implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", taskType='" + getTaskType() + "'" +
             ", parentDoc=" + getParentDoc() +
             ", parentTask=" + getParentTask() +
             "}";

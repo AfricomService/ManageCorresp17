@@ -199,7 +199,7 @@ public class PjService {
 
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-            return "File uploaded successfully.";
+            return filePath.toString();
         } catch (IOException e) {
             return "Failed to upload file.";
         }

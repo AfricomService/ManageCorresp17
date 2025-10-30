@@ -14,6 +14,7 @@ import javax.validation.constraints.*;
  */
 @Entity
 @Table(name = "tasks")
+@SuppressWarnings("common-java:DuplicatedBlocks")
 public class Tasks implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -62,6 +63,9 @@ public class Tasks implements Serializable {
 
     @Column(name = "updated_date")
     private ZonedDateTime updatedDate;
+
+    @Column(name = "task_type")
+    private String taskType;
 
     @ManyToOne
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
@@ -246,6 +250,19 @@ public class Tasks implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public String getTaskType() {
+        return this.taskType;
+    }
+
+    public Tasks taskType(String taskType) {
+        this.setTaskType(taskType);
+        return this;
+    }
+
+    public void setTaskType(String taskType) {
+        this.taskType = taskType;
+    }
+
     public Corresp getParentDoc() {
         return this.parentDoc;
     }
@@ -339,6 +356,7 @@ public class Tasks implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", taskType='" + getTaskType() + "'" +
             "}";
     }
 }

@@ -1,5 +1,6 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
@@ -241,12 +242,12 @@ public class CorrespResource {
     }
 
     @PostMapping(value = "/correspsWithTasksAndPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public void saveCorrespWithTasksAndPj(
+    public Corresp saveCorrespWithTasksAndPj(
         @RequestPart("correspDTO") CorrespDTO correspDTO,
         @RequestPart("tasksDTOS") List<TasksDTO> tasksDTOS,
         @RequestPart("pjs") List<Pj> pjs
     ) {
-        correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs);
+        return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs);
     }
     //    @PostMapping(value = "/saveFilesOfPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     //    public void saveFilesOfPjs(

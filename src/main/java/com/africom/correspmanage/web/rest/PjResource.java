@@ -189,8 +189,7 @@ public class PjResource {
     public ResponseEntity<String> uploadPj(@RequestParam("file") MultipartFile file, @RequestParam("uniqueName") String uniqueName)
         throws IOException {
         try {
-            pjService.uploadFilePj(file, uniqueName);
-            return ResponseEntity.ok("File uploaded successfully.");
+            return ResponseEntity.ok(pjService.uploadFilePj(file, uniqueName));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file.");
         }
