@@ -171,6 +171,18 @@ public class TasksResource {
         return tasksService.findAllByEtat(etat);
     }
 
+    @GetMapping("/tasks/tasksByCorrespId")
+    public List<TasksDTO> getAllTasksByCorrespId(@RequestParam(name = "correspId") Long correspId) {
+        log.debug("REST request to get a page of Tasks");
+        return tasksService.getAllTasksByCorrespId(correspId);
+    }
+
+    @DeleteMapping("/tasks/deleteTaskFromCorrespAndDB/{correspId}/{tasksId}")
+    public void deleteTask(@PathVariable(name = "correspId") Long correspId, @PathVariable(name = "tasksId") Long tasksId) {
+        log.debug("REST request to get a page of Tasks");
+        tasksService.deleteTask(tasksId, correspId);
+    }
+
     /**
      * {@code DELETE  /tasks/:id} : delete the "id" tasks.
      *

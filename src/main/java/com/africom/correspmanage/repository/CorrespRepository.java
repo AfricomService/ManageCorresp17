@@ -34,4 +34,15 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
     Page<Corresp> findAllByCorresptype(CorrespType corresptype, Pageable pageable);
 
     Page<Corresp> findAll(Specification<Corresp> spec, Pageable pageable);
+
+    @Query(
+        value = "SELECT c.* FROM corresp c " +
+        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+        "JOIN acl_sid sid ON sid.id = ae.sid " +
+        "WHERE sid.sid = :deptCode " +
+        "AND ae.mask = 1", // READ or higher
+        nativeQuery = true
+    )
+    List<Corresp> findAllByAclForDept(@Param("deptCode") String deptCode);
 }

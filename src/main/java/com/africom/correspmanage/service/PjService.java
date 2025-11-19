@@ -8,19 +8,27 @@ import com.africom.correspmanage.service.dto.PjDTO;
 import com.africom.correspmanage.service.mapper.PjMapper;
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -202,6 +210,32 @@ public class PjService {
             return filePath.toString();
         } catch (IOException e) {
             return "Failed to upload file.";
+        }
+    }
+
+    public List<PjDTO> getAllPjsByCorrespId(Long correspId) {
+        log.debug("Request to get all PJs by correspId : {}", correspId);
+        return pjRepository.findAllByCorrespId(correspId).stream().map(pjMapper::toDto).toList();
+    }
+
+    public ResponseEntity<Resource> getFile(@RequestParam(name = "pjId") Long pjId) {
+        try {
+            PjDTO pjDTO = findOne(pjId).get();
+
+            Path finalPath = Paths.get(pjDTO.getPath());
+            log.debug("path {}", finalPath);
+            Resource resource = new UrlResource(finalPath.toUri());
+
+            if (resource.exists() || resource.isReadable()) {
+                return ResponseEntity
+                    .ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                    .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (MalformedURLException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 }

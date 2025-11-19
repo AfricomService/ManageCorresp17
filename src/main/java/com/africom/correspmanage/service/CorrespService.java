@@ -1,5 +1,7 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.client.OrgaCareRestClient;
+import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.Tasks;
@@ -33,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,18 +57,24 @@ public class CorrespService {
     private final TasksRepository tasksRepository;
 
     private final PjRepository pjRepository;
+    private final AclUtilService aclUtilService;
+    private final OrgaCareRestClient orgaCareRestClient;
 
     public CorrespService(
         CorrespRepository correspRepository,
         CorrespMapper correspMapper,
         TasksRepository tasksRepository,
         PjService pjService,
-        PjRepository pjRepository
+        PjRepository pjRepository,
+        AclUtilService aclUtilService,
+        OrgaCareRestClient orgaCareRestClient
     ) {
         this.correspRepository = correspRepository;
         this.correspMapper = correspMapper;
         this.tasksRepository = tasksRepository;
         this.pjRepository = pjRepository;
+        this.aclUtilService = aclUtilService;
+        this.orgaCareRestClient = orgaCareRestClient;
     }
 
     /**
@@ -259,17 +268,23 @@ public class CorrespService {
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
 
-    public Corresp saveCorrespWithTasksAndPj(CorrespDTO correspDTO, List<TasksDTO> tasksDTOS, List<Pj> pjs) {
+    public Corresp saveCorrespWithTasksAndPj(
+        CorrespDTO correspDTO,
+        List<TasksDTO> tasksDTOS,
+        List<Pj> pjs,
+        TypeDocumentFeignDTO typeDocumentDTO
+    ) {
         log.debug("correspDTO {}", correspDTO);
         log.debug("tasksDTOS {}", tasksDTOS);
         log.debug("pjs {}", pjs);
+        log.debug("type {}", typeDocumentDTO);
 
         List<Tasks> tasksList = new ArrayList<>();
 
         for (TasksDTO tasksDTO : tasksDTOS) {
             Tasks tasks = new Tasks();
             tasks.setResponsible(tasksDTO.getResponsible());
-            tasks.setStatus(CorrespStatus.IN_PROGRESS);
+            tasks.setStatus(CorrespStatus.DRAFT);
             tasks.setTaskType(tasksDTO.getTaskType());
             tasks.setDueDate(tasksDTO.getDueDate());
             tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
@@ -326,23 +341,102 @@ public class CorrespService {
         correspToSave.setResponseTo(correspDTO.getResponseTo());
         correspToSave.setSenderReference(correspDTO.getSenderReference());
         correspToSave.setPriority(correspDTO.getPriority());
-        correspToSave.setStatus(CorrespStatus.IN_PROGRESS);
+        correspToSave.setStatus(CorrespStatus.DRAFT);
         correspToSave.setBody(correspDTO.getBody());
         correspToSave.setDispatchType(correspDTO.getDispatchType());
         correspToSave.setCorresptype(correspDTO.getCorresptype());
+        correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
 
         correspToSave.setTasks(tasksSaved);
         correspToSave.setAttachments(pjsSaved);
 
         Corresp saved = correspRepository.save(correspToSave);
 
+        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentDTO.getDefautdest());
+
+        aclUtilService.createAcl(saved);
+
+        departementsToReadWrite.forEach(departement -> {
+            aclUtilService.addPermission(saved, departement, BasePermission.READ);
+            aclUtilService.addPermission(saved, departement, BasePermission.WRITE);
+        });
+
         log.debug("save corresp {}", saved);
 
         return saved;
     }
-    //    public void saveFilesOfPjs(MultipartFile fileToSave , String uniqueName ){
-    //
-    //
-    //    }
 
+    public List<Corresp> getListByAcl(String deptCode) {
+        return correspRepository.findAllByAclForDept(deptCode);
+    }
+
+    public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
+        Corresp existingCorresp = correspRepository.findById(correspId).get();
+
+        Tasks tasks = new Tasks();
+        tasks.setResponsible(tasksDTO.getResponsible());
+        tasks.setStatus(CorrespStatus.DRAFT);
+        tasks.setTaskType(tasksDTO.getTaskType());
+        tasks.setDueDate(tasksDTO.getDueDate());
+        tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
+        tasks.creationDate(ZonedDateTime.now());
+        tasks.setStartDate(ZonedDateTime.now());
+
+        StringBuilder objectBuilder = new StringBuilder();
+
+        objectBuilder
+            .append(tasksDTO.getResponsible())
+            .append(" effectuera la tâche de ")
+            .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
+
+        if (tasksDTO.getDueDate() != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            String formattedDate = tasksDTO.getDueDate().format(formatter);
+            objectBuilder.append(" en ne dépassant pas la date limite du ").append(formattedDate);
+        }
+
+        tasks.setObject(objectBuilder.toString());
+
+        Set<Tasks> tasksList = existingCorresp.getTasks();
+
+        Tasks savedTask = tasksRepository.save(tasks);
+
+        tasksList.add(savedTask);
+
+        existingCorresp.setTasks(tasksList);
+
+        return correspRepository.save(existingCorresp);
+    }
+
+    public Corresp changeTaskStatus(Long correspId, Long taskId, String statusTo) {
+        Corresp existingCorresp = correspRepository.findById(correspId).orElseThrow(() -> new RuntimeException("Corresp not found"));
+
+        CorrespStatus newStatus;
+        try {
+            newStatus = CorrespStatus.valueOf(statusTo);
+        } catch (IllegalArgumentException e) {
+            newStatus = CorrespStatus.DRAFT;
+        }
+
+        Tasks taskToUpdate = existingCorresp
+            .getTasks()
+            .stream()
+            .filter(t -> t.getId().equals(taskId))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Task not found in this corresp"));
+
+        taskToUpdate.setStatus(newStatus);
+
+        if (statusTo.equals("CLOSED")) {
+            taskToUpdate.setCloseDate(ZonedDateTime.now());
+        }
+
+        if (statusTo.equals("IN_PROGRESS")) {
+            taskToUpdate.setStartDate(ZonedDateTime.now());
+        }
+
+        tasksRepository.save(taskToUpdate);
+
+        return existingCorresp;
+    }
 }

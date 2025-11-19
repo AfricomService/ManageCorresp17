@@ -126,6 +126,10 @@
     {
       "fieldName": "updatedDate",
       "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "typeDocumentId",
+      "fieldType": "Long"
     }
   ],
   "fluentMethods": true,

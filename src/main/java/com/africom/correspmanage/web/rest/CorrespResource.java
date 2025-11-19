@@ -1,5 +1,6 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
@@ -11,6 +12,7 @@ import com.africom.correspmanage.service.dto.FileUploadDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.ZonedDateTime;
@@ -245,10 +247,12 @@ public class CorrespResource {
     public Corresp saveCorrespWithTasksAndPj(
         @RequestPart("correspDTO") CorrespDTO correspDTO,
         @RequestPart("tasksDTOS") List<TasksDTO> tasksDTOS,
-        @RequestPart("pjs") List<Pj> pjs
+        @RequestPart("pjs") List<Pj> pjs,
+        @RequestPart("typeDoc") TypeDocumentFeignDTO typeDocumentDTO
     ) {
-        return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs);
+        return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs, typeDocumentDTO);
     }
+
     //    @PostMapping(value = "/saveFilesOfPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     //    public void saveFilesOfPjs(
     //        @RequestPart(value = "files", required = false) List<FileUploadDTO> files
@@ -256,4 +260,26 @@ public class CorrespResource {
     //        correspService.saveFilesOfPjs(files);
     //    }
 
+    @GetMapping("/correspAcl")
+    public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
+        return correspService.getListByAcl(deptCode);
+    }
+
+    @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
+        throws JsonProcessingException {
+        //        ObjectMapper mapper = new ObjectMapper();
+        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
+
+        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
+    }
+
+    @PatchMapping("/correspsChangeTaskStatus")
+    public Corresp changeTaskStatus(
+        @RequestParam(name = "correspId") Long correspId,
+        @RequestParam(name = "taskId") Long taskId,
+        @RequestParam(name = "status") String status
+    ) {
+        return correspService.changeTaskStatus(correspId, taskId, status);
+    }
 }

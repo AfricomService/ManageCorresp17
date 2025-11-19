@@ -1,13 +1,13 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
+import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +29,12 @@ public class TasksService {
 
     private final TasksMapper tasksMapper;
 
-    public TasksService(TasksRepository tasksRepository, TasksMapper tasksMapper) {
+    private final CorrespRepository correspRepository;
+
+    public TasksService(TasksRepository tasksRepository, TasksMapper tasksMapper, CorrespRepository correspRepository) {
         this.tasksRepository = tasksRepository;
         this.tasksMapper = tasksMapper;
+        this.correspRepository = correspRepository;
     }
 
     /**
@@ -140,5 +143,25 @@ public class TasksService {
     public void delete(Long id) {
         log.debug("Request to delete Tasks : {}", id);
         tasksRepository.deleteById(id);
+    }
+
+    public void deleteTask(Long taskId, Long correspId) {
+        Corresp corresp = correspRepository.findById(correspId).orElseThrow(() -> new RuntimeException("Corresp not found"));
+
+        boolean removed = corresp.getTasks().removeIf(task -> task.getId().equals(taskId));
+
+        if (!removed) {
+            throw new RuntimeException("Task not found in this corresp");
+        }
+
+        correspRepository.save(corresp);
+
+        tasksRepository.deleteById(taskId);
+    }
+
+    public List<TasksDTO> getAllTasksByCorrespId(Long correspId) {
+        log.debug("Request to get all Tasks by correspId : {}", correspId);
+
+        return tasksRepository.findTasksByCorrespId(correspId).stream().map(tasksMapper::toDto).toList();
     }
 }

@@ -18,6 +18,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -193,6 +194,16 @@ public class PjResource {
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file.");
         }
+    }
+
+    @GetMapping("/pjs/getFile")
+    public ResponseEntity<Resource> getFile(@RequestParam(name = "pjId") Long pjId) {
+        return pjService.getFile(pjId);
+    }
+
+    @GetMapping("/pjsByCorrespId")
+    public List<PjDTO> getAllPjsByCorrespId(@RequestParam(name = "correspId") Long correspId) {
+        return pjService.getAllPjsByCorrespId(correspId);
     }
 
     @DeleteMapping("/pjs")

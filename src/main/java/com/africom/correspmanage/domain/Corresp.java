@@ -123,6 +123,9 @@ public class Corresp implements Serializable {
     @Column(name = "updated_date")
     private ZonedDateTime updatedDate;
 
+    @Column(name = "type_document_id")
+    private Long typeDocumentId;
+
     @ManyToMany
     @JoinTable(
         name = "rel_corresp__dossiers",
@@ -525,6 +528,19 @@ public class Corresp implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public Long getTypeDocumentId() {
+        return this.typeDocumentId;
+    }
+
+    public Corresp typeDocumentId(Long typeDocumentId) {
+        this.setTypeDocumentId(typeDocumentId);
+        return this;
+    }
+
+    public void setTypeDocumentId(Long typeDocumentId) {
+        this.typeDocumentId = typeDocumentId;
+    }
+
     public Set<Dossier> getDossiers() {
         return this.dossiers;
     }
@@ -676,6 +692,7 @@ public class Corresp implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", typeDocumentId=" + getTypeDocumentId() +
             "}";
     }
 }

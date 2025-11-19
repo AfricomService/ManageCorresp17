@@ -83,6 +83,8 @@ public class CorrespDTO implements Serializable {
 
     private ZonedDateTime updatedDate;
 
+    private Long typeDocumentId;
+
     private Set<DossierDTO> dossiers = new HashSet<>();
 
     private Set<BordereauxDTO> bordereaux = new HashSet<>();
@@ -315,6 +317,14 @@ public class CorrespDTO implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public Long getTypeDocumentId() {
+        return typeDocumentId;
+    }
+
+    public void setTypeDocumentId(Long typeDocumentId) {
+        this.typeDocumentId = typeDocumentId;
+    }
+
     public Set<DossierDTO> getDossiers() {
         return dossiers;
     }
@@ -400,6 +410,7 @@ public class CorrespDTO implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", typeDocumentId=" + getTypeDocumentId() +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +
