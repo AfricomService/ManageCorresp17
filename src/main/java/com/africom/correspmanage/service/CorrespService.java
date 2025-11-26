@@ -1,5 +1,6 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.client.ConfigManageRestClient;
 import com.africom.correspmanage.client.OrgaCareRestClient;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
@@ -59,6 +60,7 @@ public class CorrespService {
     private final PjRepository pjRepository;
     private final AclUtilService aclUtilService;
     private final OrgaCareRestClient orgaCareRestClient;
+    private final ConfigManageRestClient configManageRestClient;
 
     public CorrespService(
         CorrespRepository correspRepository,
@@ -67,7 +69,8 @@ public class CorrespService {
         PjService pjService,
         PjRepository pjRepository,
         AclUtilService aclUtilService,
-        OrgaCareRestClient orgaCareRestClient
+        OrgaCareRestClient orgaCareRestClient,
+        ConfigManageRestClient configManageRestClient
     ) {
         this.correspRepository = correspRepository;
         this.correspMapper = correspMapper;
@@ -75,6 +78,7 @@ public class CorrespService {
         this.pjRepository = pjRepository;
         this.aclUtilService = aclUtilService;
         this.orgaCareRestClient = orgaCareRestClient;
+        this.configManageRestClient = configManageRestClient;
     }
 
     /**
@@ -346,13 +350,58 @@ public class CorrespService {
         correspToSave.setDispatchType(correspDTO.getDispatchType());
         correspToSave.setCorresptype(correspDTO.getCorresptype());
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
+        correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
+        correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
 
         correspToSave.setTasks(tasksSaved);
         correspToSave.setAttachments(pjsSaved);
 
+        correspToSave.setUpdatedDate(ZonedDateTime.now());
+
+        correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
         Corresp saved = correspRepository.save(correspToSave);
 
-        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentDTO.getDefautdest());
+        //        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentDTO.getDefautdest());
+        //
+        //        aclUtilService.createAcl(saved);
+        //
+        //        departementsToReadWrite.forEach(departement -> {
+        //            aclUtilService.addPermission(saved, departement, BasePermission.READ);
+        //            aclUtilService.addPermission(saved, departement, BasePermission.WRITE);
+        //        });
+
+        log.debug("save corresp {}", saved);
+
+        return saved;
+    }
+
+    public Corresp soumettreCorresp(Long correspId) {
+        Corresp corresp = correspRepository.findById(correspId).get();
+
+        Set<Tasks> tasksSaved = corresp.getTasks();
+
+        //        Tasks taskEntity = new Tasks();
+
+        tasksSaved.forEach(task -> {
+            if (task.getStatus().equals(CorrespStatus.DRAFT)) {
+                task.setStatus(CorrespStatus.IN_PROGRESS);
+            }
+        });
+
+        corresp.setTasks(tasksSaved);
+
+        corresp.setStatus(CorrespStatus.IN_PROGRESS);
+
+        corresp.setUpdatedDate(ZonedDateTime.now());
+
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        Corresp saved = correspRepository.save(corresp);
+
+        TypeDocumentFeignDTO typeDocumentFeignDTO = configManageRestClient.getTypeDocumentById(corresp.getTypeDocumentId());
+
+        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentFeignDTO.getDefautdest());
 
         aclUtilService.createAcl(saved);
 
@@ -361,9 +410,57 @@ public class CorrespService {
             aclUtilService.addPermission(saved, departement, BasePermission.WRITE);
         });
 
-        log.debug("save corresp {}", saved);
+        //        aclUtilService.createAcl(taskEntity);
+
+        saved
+            .getTasks()
+            .forEach(task -> {
+                aclUtilService.createAcl(task);
+
+                Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(task.getResponsible());
+
+                List<String> deptCodes = departements.get("code");
+                if (deptCodes != null) {
+                    deptCodes.forEach(code -> {
+                        aclUtilService.addPermission(saved, code, BasePermission.READ);
+                        aclUtilService.addPermission(saved, code, BasePermission.WRITE);
+                    });
+                }
+
+                List<String> parentCodes = departements.get("parents");
+                if (parentCodes != null) {
+                    parentCodes.forEach(parentCode -> {
+                        aclUtilService.addPermission(saved, parentCode, BasePermission.READ);
+                    });
+                }
+            });
 
         return saved;
+    }
+
+    public Corresp cloturerCorresp(Long correspId) {
+        Corresp corresp = correspRepository.findById(correspId).get();
+
+        Set<Tasks> tasksSaved = corresp.getTasks();
+
+        //        Tasks taskEntity = new Tasks();
+
+        tasksSaved.forEach(task -> {
+            if (task.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
+                task.setStatus(CorrespStatus.CLOSED);
+                task.setCloseDate(ZonedDateTime.now());
+            }
+        });
+
+        corresp.setTasks(tasksSaved);
+
+        corresp.setStatus(CorrespStatus.CLOSED);
+
+        corresp.setUpdatedDate(ZonedDateTime.now());
+
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        return correspRepository.save(corresp);
     }
 
     public List<Corresp> getListByAcl(String deptCode) {
@@ -405,6 +502,10 @@ public class CorrespService {
 
         existingCorresp.setTasks(tasksList);
 
+        existingCorresp.setUpdatedDate(ZonedDateTime.now());
+
+        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
         return correspRepository.save(existingCorresp);
     }
 
@@ -434,6 +535,10 @@ public class CorrespService {
         if (statusTo.equals("IN_PROGRESS")) {
             taskToUpdate.setStartDate(ZonedDateTime.now());
         }
+
+        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        existingCorresp.setUpdatedDate(ZonedDateTime.now());
 
         tasksRepository.save(taskToUpdate);
 

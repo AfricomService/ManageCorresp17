@@ -98,6 +98,12 @@
             <column name="type_document_id" type="bigint">
                 <constraints nullable="true" />
             </column>
+            <column name="label_destinataire" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="label_contact_cc" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
             <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
         </createTable>
         <dropDefaultValue tableName="corresp" columnName="date_created" columnDataType="${datetimeType}"/>
@@ -197,6 +203,8 @@
             <column name="updated_by" type="string"/>
             <column name="updated_date" type="date"/>
             <column name="type_document_id" type="numeric"/>
+            <column name="label_destinataire" type="string"/>
+            <column name="label_contact_cc" type="string"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

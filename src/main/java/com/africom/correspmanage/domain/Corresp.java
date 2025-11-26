@@ -126,6 +126,12 @@ public class Corresp implements Serializable {
     @Column(name = "type_document_id")
     private Long typeDocumentId;
 
+    @Column(name = "label_destinataire")
+    private String labelDestinataire;
+
+    @Column(name = "label_contact_cc")
+    private String labelContactCC;
+
     @ManyToMany
     @JoinTable(
         name = "rel_corresp__dossiers",
@@ -541,6 +547,32 @@ public class Corresp implements Serializable {
         this.typeDocumentId = typeDocumentId;
     }
 
+    public String getLabelDestinataire() {
+        return this.labelDestinataire;
+    }
+
+    public Corresp labelDestinataire(String labelDestinataire) {
+        this.setLabelDestinataire(labelDestinataire);
+        return this;
+    }
+
+    public void setLabelDestinataire(String labelDestinataire) {
+        this.labelDestinataire = labelDestinataire;
+    }
+
+    public String getLabelContactCC() {
+        return this.labelContactCC;
+    }
+
+    public Corresp labelContactCC(String labelContactCC) {
+        this.setLabelContactCC(labelContactCC);
+        return this;
+    }
+
+    public void setLabelContactCC(String labelContactCC) {
+        this.labelContactCC = labelContactCC;
+    }
+
     public Set<Dossier> getDossiers() {
         return this.dossiers;
     }
@@ -693,6 +725,8 @@ public class Corresp implements Serializable {
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", typeDocumentId=" + getTypeDocumentId() +
+            ", labelDestinataire='" + getLabelDestinataire() + "'" +
+            ", labelContactCC='" + getLabelContactCC() + "'" +
             "}";
     }
 }

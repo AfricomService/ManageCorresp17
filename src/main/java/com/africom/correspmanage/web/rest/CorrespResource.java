@@ -253,13 +253,6 @@ public class CorrespResource {
         return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs, typeDocumentDTO);
     }
 
-    //    @PostMapping(value = "/saveFilesOfPjs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    //    public void saveFilesOfPjs(
-    //        @RequestPart(value = "files", required = false) List<FileUploadDTO> files
-    //    ) {
-    //        correspService.saveFilesOfPjs(files);
-    //    }
-
     @GetMapping("/correspAcl")
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
         return correspService.getListByAcl(deptCode);
@@ -281,5 +274,15 @@ public class CorrespResource {
         @RequestParam(name = "status") String status
     ) {
         return correspService.changeTaskStatus(correspId, taskId, status);
+    }
+
+    @PatchMapping("/correspsSoumettreCorresp")
+    public Corresp soumettreCorresp(@RequestParam(name = "correspId") Long correspId) {
+        return correspService.soumettreCorresp(correspId);
+    }
+
+    @PatchMapping("/correspsCloturerCorresp")
+    public Corresp cloturerCorresp(@RequestParam(name = "correspId") Long correspId) {
+        return correspService.cloturerCorresp(correspId);
     }
 }

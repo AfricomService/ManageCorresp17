@@ -1,5 +1,6 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.client.OrgaCareRestClient;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
@@ -31,10 +32,18 @@ public class TasksService {
 
     private final CorrespRepository correspRepository;
 
-    public TasksService(TasksRepository tasksRepository, TasksMapper tasksMapper, CorrespRepository correspRepository) {
+    private final OrgaCareRestClient orgaCareRestClient;
+
+    public TasksService(
+        TasksRepository tasksRepository,
+        TasksMapper tasksMapper,
+        CorrespRepository correspRepository,
+        OrgaCareRestClient orgaCareRestClient
+    ) {
         this.tasksRepository = tasksRepository;
         this.tasksMapper = tasksMapper;
         this.correspRepository = correspRepository;
+        this.orgaCareRestClient = orgaCareRestClient;
     }
 
     /**
@@ -159,9 +168,45 @@ public class TasksService {
         tasksRepository.deleteById(taskId);
     }
 
+    //    public List<TasksDTO> getAllTasksByCorrespId(Long correspId) {
+    //        log.debug("Request to get all Tasks by correspId : {}", correspId);
+    //
+    //        return tasksRepository.findTasksByCorrespId(correspId).stream().map(tasksMapper::toDto).toList();
+    //    }
+
     public List<TasksDTO> getAllTasksByCorrespId(Long correspId) {
         log.debug("Request to get all Tasks by correspId : {}", correspId);
 
-        return tasksRepository.findTasksByCorrespId(correspId).stream().map(tasksMapper::toDto).toList();
+        return tasksRepository
+            .findTasksByCorrespId(correspId)
+            .stream()
+            .map(task -> {
+                TasksDTO dto = new TasksDTO();
+
+                dto.setId(task.getId());
+                dto.setObject(task.getObject());
+                dto.setContent(task.getContent());
+                dto.setContentContentType(task.getContentContentType());
+                dto.setCreationDate(task.getCreationDate());
+                dto.setStartDate(task.getStartDate());
+                dto.setDueDate(task.getDueDate());
+                dto.setCloseDate(task.getCloseDate());
+                dto.setResponsible(task.getResponsible());
+                dto.setStatus(task.getStatus());
+                dto.setCreatedBy(task.getCreatedBy());
+                dto.setUpdatedBy(task.getUpdatedBy());
+                dto.setUpdatedDate(task.getUpdatedDate());
+                dto.setTaskType(task.getTaskType());
+
+                try {
+                    String responsableName = orgaCareRestClient.getDepartementNomByCode(task.getResponsible());
+                    dto.setResponsableName(responsableName);
+                } catch (Exception e) {
+                    log.warn("Could not fetch responsible name for code {}", task.getResponsible());
+                }
+
+                return dto;
+            })
+            .toList();
     }
 }

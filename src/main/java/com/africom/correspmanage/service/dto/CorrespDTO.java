@@ -85,6 +85,10 @@ public class CorrespDTO implements Serializable {
 
     private Long typeDocumentId;
 
+    private String labelDestinataire;
+
+    private String labelContactCC;
+
     private Set<DossierDTO> dossiers = new HashSet<>();
 
     private Set<BordereauxDTO> bordereaux = new HashSet<>();
@@ -325,6 +329,22 @@ public class CorrespDTO implements Serializable {
         this.typeDocumentId = typeDocumentId;
     }
 
+    public String getLabelDestinataire() {
+        return labelDestinataire;
+    }
+
+    public void setLabelDestinataire(String labelDestinataire) {
+        this.labelDestinataire = labelDestinataire;
+    }
+
+    public String getLabelContactCC() {
+        return labelContactCC;
+    }
+
+    public void setLabelContactCC(String labelContactCC) {
+        this.labelContactCC = labelContactCC;
+    }
+
     public Set<DossierDTO> getDossiers() {
         return dossiers;
     }
@@ -411,6 +431,8 @@ public class CorrespDTO implements Serializable {
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", typeDocumentId=" + getTypeDocumentId() +
+            ", labelDestinataire='" + getLabelDestinataire() + "'" +
+            ", labelContactCC='" + getLabelContactCC() + "'" +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +

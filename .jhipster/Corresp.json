@@ -130,6 +130,14 @@
     {
       "fieldName": "typeDocumentId",
       "fieldType": "Long"
+    },
+    {
+      "fieldName": "labelDestinataire",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "labelContactCC",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

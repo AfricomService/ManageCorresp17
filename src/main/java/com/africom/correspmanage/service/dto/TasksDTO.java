@@ -42,9 +42,19 @@ public class TasksDTO implements Serializable {
 
     private String taskType;
 
+    private String responsableName;
+
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
+
+    public String getResponsableName() {
+        return responsableName;
+    }
+
+    public void setResponsableName(String responsableName) {
+        this.responsableName = responsableName;
+    }
 
     public Long getId() {
         return id;

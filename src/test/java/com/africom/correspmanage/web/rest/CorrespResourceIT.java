@@ -132,6 +132,15 @@ class CorrespResourceIT {
     private static final ZonedDateTime DEFAULT_UPDATED_DATE = ZonedDateTime.ofInstant(Instant.ofEpochMilli(0L), ZoneOffset.UTC);
     private static final ZonedDateTime UPDATED_UPDATED_DATE = ZonedDateTime.now(ZoneId.systemDefault()).withNano(0);
 
+    private static final Long DEFAULT_TYPE_DOCUMENT_ID = 1L;
+    private static final Long UPDATED_TYPE_DOCUMENT_ID = 2L;
+
+    private static final String DEFAULT_LABEL_DESTINATAIRE = "AAAAAAAAAA";
+    private static final String UPDATED_LABEL_DESTINATAIRE = "BBBBBBBBBB";
+
+    private static final String DEFAULT_LABEL_CONTACT_CC = "AAAAAAAAAA";
+    private static final String UPDATED_LABEL_CONTACT_CC = "BBBBBBBBBB";
+
     private static final String ENTITY_API_URL = "/api/corresps";
     private static final String ENTITY_API_URL_ID = ENTITY_API_URL + "/{id}";
 
@@ -192,7 +201,10 @@ class CorrespResourceIT {
             .contactEmailCc(DEFAULT_CONTACT_EMAIL_CC)
             .createdBy(DEFAULT_CREATED_BY)
             .updatedBy(DEFAULT_UPDATED_BY)
-            .updatedDate(DEFAULT_UPDATED_DATE);
+            .updatedDate(DEFAULT_UPDATED_DATE)
+            .typeDocumentId(DEFAULT_TYPE_DOCUMENT_ID)
+            .labelDestinataire(DEFAULT_LABEL_DESTINATAIRE)
+            .labelContactCC(DEFAULT_LABEL_CONTACT_CC);
         return corresp;
     }
 
@@ -230,7 +242,10 @@ class CorrespResourceIT {
             .contactEmailCc(UPDATED_CONTACT_EMAIL_CC)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .typeDocumentId(UPDATED_TYPE_DOCUMENT_ID)
+            .labelDestinataire(UPDATED_LABEL_DESTINATAIRE)
+            .labelContactCC(UPDATED_LABEL_CONTACT_CC);
         return corresp;
     }
 
@@ -280,6 +295,9 @@ class CorrespResourceIT {
         assertThat(testCorresp.getCreatedBy()).isEqualTo(DEFAULT_CREATED_BY);
         assertThat(testCorresp.getUpdatedBy()).isEqualTo(DEFAULT_UPDATED_BY);
         assertThat(testCorresp.getUpdatedDate()).isEqualTo(DEFAULT_UPDATED_DATE);
+        assertThat(testCorresp.getTypeDocumentId()).isEqualTo(DEFAULT_TYPE_DOCUMENT_ID);
+        assertThat(testCorresp.getLabelDestinataire()).isEqualTo(DEFAULT_LABEL_DESTINATAIRE);
+        assertThat(testCorresp.getLabelContactCC()).isEqualTo(DEFAULT_LABEL_CONTACT_CC);
     }
 
     @Test
@@ -483,7 +501,10 @@ class CorrespResourceIT {
             .andExpect(jsonPath("$.[*].contactEmailCc").value(hasItem(DEFAULT_CONTACT_EMAIL_CC)))
             .andExpect(jsonPath("$.[*].createdBy").value(hasItem(DEFAULT_CREATED_BY)))
             .andExpect(jsonPath("$.[*].updatedBy").value(hasItem(DEFAULT_UPDATED_BY)))
-            .andExpect(jsonPath("$.[*].updatedDate").value(hasItem(sameInstant(DEFAULT_UPDATED_DATE))));
+            .andExpect(jsonPath("$.[*].updatedDate").value(hasItem(sameInstant(DEFAULT_UPDATED_DATE))))
+            .andExpect(jsonPath("$.[*].typeDocumentId").value(hasItem(DEFAULT_TYPE_DOCUMENT_ID.intValue())))
+            .andExpect(jsonPath("$.[*].labelDestinataire").value(hasItem(DEFAULT_LABEL_DESTINATAIRE)))
+            .andExpect(jsonPath("$.[*].labelContactCC").value(hasItem(DEFAULT_LABEL_CONTACT_CC)));
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -541,7 +562,10 @@ class CorrespResourceIT {
             .andExpect(jsonPath("$.contactEmailCc").value(DEFAULT_CONTACT_EMAIL_CC))
             .andExpect(jsonPath("$.createdBy").value(DEFAULT_CREATED_BY))
             .andExpect(jsonPath("$.updatedBy").value(DEFAULT_UPDATED_BY))
-            .andExpect(jsonPath("$.updatedDate").value(sameInstant(DEFAULT_UPDATED_DATE)));
+            .andExpect(jsonPath("$.updatedDate").value(sameInstant(DEFAULT_UPDATED_DATE)))
+            .andExpect(jsonPath("$.typeDocumentId").value(DEFAULT_TYPE_DOCUMENT_ID.intValue()))
+            .andExpect(jsonPath("$.labelDestinataire").value(DEFAULT_LABEL_DESTINATAIRE))
+            .andExpect(jsonPath("$.labelContactCC").value(DEFAULT_LABEL_CONTACT_CC));
     }
 
     @Test
@@ -590,7 +614,10 @@ class CorrespResourceIT {
             .contactEmailCc(UPDATED_CONTACT_EMAIL_CC)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .typeDocumentId(UPDATED_TYPE_DOCUMENT_ID)
+            .labelDestinataire(UPDATED_LABEL_DESTINATAIRE)
+            .labelContactCC(UPDATED_LABEL_CONTACT_CC);
         CorrespDTO correspDTO = correspMapper.toDto(updatedCorresp);
 
         restCorrespMockMvc
@@ -632,6 +659,9 @@ class CorrespResourceIT {
         assertThat(testCorresp.getCreatedBy()).isEqualTo(UPDATED_CREATED_BY);
         assertThat(testCorresp.getUpdatedBy()).isEqualTo(UPDATED_UPDATED_BY);
         assertThat(testCorresp.getUpdatedDate()).isEqualTo(UPDATED_UPDATED_DATE);
+        assertThat(testCorresp.getTypeDocumentId()).isEqualTo(UPDATED_TYPE_DOCUMENT_ID);
+        assertThat(testCorresp.getLabelDestinataire()).isEqualTo(UPDATED_LABEL_DESTINATAIRE);
+        assertThat(testCorresp.getLabelContactCC()).isEqualTo(UPDATED_LABEL_CONTACT_CC);
     }
 
     @Test
@@ -726,7 +756,9 @@ class CorrespResourceIT {
             .contactAddress(UPDATED_CONTACT_ADDRESS)
             .contactEmail(UPDATED_CONTACT_EMAIL)
             .contactEmailCc(UPDATED_CONTACT_EMAIL_CC)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .typeDocumentId(UPDATED_TYPE_DOCUMENT_ID)
+            .labelDestinataire(UPDATED_LABEL_DESTINATAIRE);
 
         restCorrespMockMvc
             .perform(
@@ -767,6 +799,9 @@ class CorrespResourceIT {
         assertThat(testCorresp.getCreatedBy()).isEqualTo(DEFAULT_CREATED_BY);
         assertThat(testCorresp.getUpdatedBy()).isEqualTo(DEFAULT_UPDATED_BY);
         assertThat(testCorresp.getUpdatedDate()).isEqualTo(UPDATED_UPDATED_DATE);
+        assertThat(testCorresp.getTypeDocumentId()).isEqualTo(UPDATED_TYPE_DOCUMENT_ID);
+        assertThat(testCorresp.getLabelDestinataire()).isEqualTo(UPDATED_LABEL_DESTINATAIRE);
+        assertThat(testCorresp.getLabelContactCC()).isEqualTo(DEFAULT_LABEL_CONTACT_CC);
     }
 
     @Test
@@ -808,7 +843,10 @@ class CorrespResourceIT {
             .contactEmailCc(UPDATED_CONTACT_EMAIL_CC)
             .createdBy(UPDATED_CREATED_BY)
             .updatedBy(UPDATED_UPDATED_BY)
-            .updatedDate(UPDATED_UPDATED_DATE);
+            .updatedDate(UPDATED_UPDATED_DATE)
+            .typeDocumentId(UPDATED_TYPE_DOCUMENT_ID)
+            .labelDestinataire(UPDATED_LABEL_DESTINATAIRE)
+            .labelContactCC(UPDATED_LABEL_CONTACT_CC);
 
         restCorrespMockMvc
             .perform(
@@ -849,6 +887,9 @@ class CorrespResourceIT {
         assertThat(testCorresp.getCreatedBy()).isEqualTo(UPDATED_CREATED_BY);
         assertThat(testCorresp.getUpdatedBy()).isEqualTo(UPDATED_UPDATED_BY);
         assertThat(testCorresp.getUpdatedDate()).isEqualTo(UPDATED_UPDATED_DATE);
+        assertThat(testCorresp.getTypeDocumentId()).isEqualTo(UPDATED_TYPE_DOCUMENT_ID);
+        assertThat(testCorresp.getLabelDestinataire()).isEqualTo(UPDATED_LABEL_DESTINATAIRE);
+        assertThat(testCorresp.getLabelContactCC()).isEqualTo(UPDATED_LABEL_CONTACT_CC);
     }
 
     @Test
