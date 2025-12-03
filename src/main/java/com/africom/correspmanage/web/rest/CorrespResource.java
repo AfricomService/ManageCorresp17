@@ -1,5 +1,6 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.client.ConfigManageRestClient;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Pj;
@@ -53,11 +54,17 @@ public class CorrespResource {
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
 
+    private final ConfigManageRestClient configManageRestClient;
     private final CorrespService correspService;
 
     private final CorrespRepository correspRepository;
 
-    public CorrespResource(CorrespService correspService, CorrespRepository correspRepository) {
+    public CorrespResource(
+        ConfigManageRestClient configManageRestClient,
+        CorrespService correspService,
+        CorrespRepository correspRepository
+    ) {
+        this.configManageRestClient = configManageRestClient;
         this.correspService = correspService;
         this.correspRepository = correspRepository;
     }
@@ -248,14 +255,40 @@ public class CorrespResource {
         @RequestPart("correspDTO") CorrespDTO correspDTO,
         @RequestPart("tasksDTOS") List<TasksDTO> tasksDTOS,
         @RequestPart("pjs") List<Pj> pjs,
-        @RequestPart("typeDoc") TypeDocumentFeignDTO typeDocumentDTO
+        @RequestPart("typeDoc") TypeDocumentFeignDTO typeDocumentDTO,
+        @RequestPart("withRef") Boolean withRef
     ) {
-        return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs, typeDocumentDTO);
+        boolean generateRef = withRef != null && withRef;
+        return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs, typeDocumentDTO, generateRef);
     }
 
     @GetMapping("/correspAcl")
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
         return correspService.getListByAcl(deptCode);
+    }
+
+    @PatchMapping("/corresps/{id}/generateReference")
+    public ResponseEntity<CorrespDTO> generateReference(@PathVariable Long id) {
+        Optional<Corresp> correspOpt = correspRepository.findById(id);
+        if (correspOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Corresp corresp = correspOpt.get();
+
+        // Génération de la référence via ton service
+        String generatedReference = configManageRestClient.getNextNumber(corresp.getCorresptype().name());
+        corresp.setReference(generatedReference);
+        corresp.setUpdatedDate(ZonedDateTime.now());
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        Corresp saved = correspRepository.save(corresp);
+
+        CorrespDTO dto = new CorrespDTO();
+        dto.setId(saved.getId());
+        dto.setReference(saved.getReference());
+
+        return ResponseEntity.ok(dto);
     }
 
     @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -276,7 +276,8 @@ public class CorrespService {
         CorrespDTO correspDTO,
         List<TasksDTO> tasksDTOS,
         List<Pj> pjs,
-        TypeDocumentFeignDTO typeDocumentDTO
+        TypeDocumentFeignDTO typeDocumentDTO,
+        boolean withRef
     ) {
         log.debug("correspDTO {}", correspDTO);
         log.debug("tasksDTOS {}", tasksDTOS);
@@ -352,6 +353,13 @@ public class CorrespService {
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
         correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
         correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
+
+        if (withRef) {
+            String generatedReference = configManageRestClient.getNextNumber(correspDTO.getCorresptype().name());
+            correspToSave.setReference(generatedReference);
+        } else if (correspDTO.getReference() != null) {
+            correspToSave.setReference(correspDTO.getReference());
+        }
 
         correspToSave.setTasks(tasksSaved);
         correspToSave.setAttachments(pjsSaved);

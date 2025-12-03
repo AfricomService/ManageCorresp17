@@ -8,4 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 public interface ConfigManageRestClient {
     @GetMapping("/api/typedocuments/{id}")
     TypeDocumentFeignDTO getTypeDocumentById(@PathVariable(name = "id") Long typeDocumentId);
+
+    @GetMapping("/api/parent-classdefs/next/{type}")
+    String getNextNumber(@PathVariable(name = "type") String type);
 }
