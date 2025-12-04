@@ -44,6 +44,8 @@ public class TasksDTO implements Serializable {
 
     private String responsableName;
 
+    private String commentaire;
+
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
@@ -168,6 +170,14 @@ public class TasksDTO implements Serializable {
         this.taskType = taskType;
     }
 
+    public String getCommentaire() {
+        return commentaire;
+    }
+
+    public void setCommentaire(String commentaire) {
+        this.commentaire = commentaire;
+    }
+
     public CorrespDTO getParentDoc() {
         return parentDoc;
     }
@@ -222,6 +232,7 @@ public class TasksDTO implements Serializable {
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", taskType='" + getTaskType() + "'" +
+            ", commentaire='" + getCommentaire() + "'" +
             ", parentDoc=" + getParentDoc() +
             ", parentTask=" + getParentTask() +
             "}";

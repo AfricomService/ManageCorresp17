@@ -177,6 +177,12 @@ public class TasksResource {
         return tasksService.getAllTasksByCorrespId(correspId);
     }
 
+    @GetMapping("/tasks/tasksDeptCode")
+    public List<TasksDTO> getTasksByAcl(@RequestParam(name = "deptCode") String deptCode) {
+        log.debug("REST request to get a page of Tasks");
+        return tasksService.getAllTasksByAcl(deptCode);
+    }
+
     @DeleteMapping("/tasks/deleteTaskFromCorrespAndDB/{correspId}/{tasksId}")
     public void deleteTask(@PathVariable(name = "correspId") Long correspId, @PathVariable(name = "tasksId") Long tasksId) {
         log.debug("REST request to get a page of Tasks");

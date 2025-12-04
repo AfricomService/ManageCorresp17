@@ -15,6 +15,7 @@ import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.dto.CorrespDTO;
 import com.africom.correspmanage.service.dto.FileUploadDTO;
+import com.africom.correspmanage.service.dto.PjDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.CorrespMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -294,6 +295,7 @@ public class CorrespService {
             tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
             tasks.creationDate(ZonedDateTime.now());
             tasks.setStartDate(ZonedDateTime.now());
+            tasks.setCommentaire(tasksDTO.getCommentaire());
 
             StringBuilder objectBuilder = new StringBuilder();
 
@@ -362,14 +364,58 @@ public class CorrespService {
 
         Corresp saved = correspRepository.save(correspToSave);
 
-        //        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentDTO.getDefautdest());
-        //
-        //        aclUtilService.createAcl(saved);
-        //
-        //        departementsToReadWrite.forEach(departement -> {
-        //            aclUtilService.addPermission(saved, departement, BasePermission.READ);
-        //            aclUtilService.addPermission(saved, departement, BasePermission.WRITE);
-        //        });
+        log.debug("save corresp {}", saved);
+
+        return saved;
+    }
+
+    public String removeExtension(String fileName) {
+        int index = fileName.lastIndexOf('.');
+        return (index == -1) ? fileName : fileName.substring(0, index);
+    }
+
+    public Corresp saveCorrespWithPjN8N(List<PjDTO> pjs, String subject, String from, String bodyHtml) {
+        log.debug("pjs {}", pjs);
+
+        List<Pj> pjsList = new ArrayList<>();
+
+        for (PjDTO pjDTO : pjs) {
+            Pj pjEntity = new Pj();
+            //            pjEntity.setName(pjDTO.getName());
+            pjEntity.setName(removeExtension(pjDTO.getName()));
+            //            pjEntity.setFileType(pjDTO.getFileType());
+            pjEntity.setFileType(pjDTO.getName().substring(pjDTO.getName().lastIndexOf(".") + 1));
+            pjEntity.setUniqueName(pjDTO.getUniqueName());
+            pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+            pjEntity.setCreationDate(ZonedDateTime.now());
+            pjEntity.setPath(pjDTO.getPath());
+
+            pjsList.add(pjEntity);
+        }
+
+        Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
+
+        Corresp correspToSave = new Corresp();
+
+        UUID uuid = UUID.randomUUID();
+        correspToSave.setIdinstance(uuid);
+        correspToSave.setCourrierDate(ZonedDateTime.now());
+        correspToSave.setCreatedBy("N8N");
+        correspToSave.setDateCreated(ZonedDateTime.now());
+        correspToSave.setSubject(subject);
+        correspToSave.setSender(from);
+        correspToSave.setStatus(CorrespStatus.DRAFT);
+        correspToSave.setBody(bodyHtml);
+        correspToSave.setCorresptype(CorrespType.INCOMING);
+        correspToSave.setDispatchType(DispatchType.EMAIL);
+
+        correspToSave.setAttachments(pjsSaved);
+
+        correspToSave.setUpdatedDate(ZonedDateTime.now());
+
+        correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        Corresp saved = correspRepository.save(correspToSave);
 
         log.debug("save corresp {}", saved);
 
@@ -415,23 +461,25 @@ public class CorrespService {
         saved
             .getTasks()
             .forEach(task -> {
-                aclUtilService.createAcl(task);
+                if (task.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
+                    aclUtilService.createAcl(task);
 
-                Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(task.getResponsible());
+                    Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(task.getResponsible());
 
-                List<String> deptCodes = departements.get("code");
-                if (deptCodes != null) {
-                    deptCodes.forEach(code -> {
-                        aclUtilService.addPermission(saved, code, BasePermission.READ);
-                        aclUtilService.addPermission(saved, code, BasePermission.WRITE);
-                    });
-                }
+                    List<String> deptCodes = departements.get("code");
+                    if (deptCodes != null) {
+                        deptCodes.forEach(code -> {
+                            aclUtilService.addPermission(task, code, BasePermission.READ);
+                            aclUtilService.addPermission(task, code, BasePermission.WRITE);
+                        });
+                    }
 
-                List<String> parentCodes = departements.get("parents");
-                if (parentCodes != null) {
-                    parentCodes.forEach(parentCode -> {
-                        aclUtilService.addPermission(saved, parentCode, BasePermission.READ);
-                    });
+                    List<String> parentCodes = departements.get("parents");
+                    if (parentCodes != null) {
+                        parentCodes.forEach(parentCode -> {
+                            aclUtilService.addPermission(task, parentCode, BasePermission.READ);
+                        });
+                    }
                 }
             });
 
@@ -467,6 +515,11 @@ public class CorrespService {
         return correspRepository.findAllByAclForDept(deptCode);
     }
 
+    public Page<Corresp> getListByAclPage(String deptCode, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        return correspRepository.findAllByAclForDeptWithPagination(deptCode, pageable);
+    }
+
     public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
         Corresp existingCorresp = correspRepository.findById(correspId).get();
 
@@ -478,6 +531,7 @@ public class CorrespService {
         tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
         tasks.creationDate(ZonedDateTime.now());
         tasks.setStartDate(ZonedDateTime.now());
+        tasks.setCommentaire(tasksDTO.getCommentaire());
 
         StringBuilder objectBuilder = new StringBuilder();
 
@@ -497,6 +551,25 @@ public class CorrespService {
         Set<Tasks> tasksList = existingCorresp.getTasks();
 
         Tasks savedTask = tasksRepository.save(tasks);
+        //
+        //        aclUtilService.createAcl(savedTask);
+        //
+        //        Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(savedTask.getResponsible());
+        //
+        //        List<String> deptCodes = departements.get("code");
+        //        if (deptCodes != null) {
+        //            deptCodes.forEach(code -> {
+        //                aclUtilService.addPermission(savedTask, code, BasePermission.READ);
+        //                aclUtilService.addPermission(savedTask, code, BasePermission.WRITE);
+        //            });
+        //        }
+        //
+        //        List<String> parentCodes = departements.get("parents");
+        //        if (parentCodes != null) {
+        //            parentCodes.forEach(parentCode -> {
+        //                aclUtilService.addPermission(savedTask, parentCode, BasePermission.READ);
+        //            });
+        //        }
 
         tasksList.add(savedTask);
 
@@ -540,7 +613,28 @@ public class CorrespService {
 
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
 
-        tasksRepository.save(taskToUpdate);
+        Tasks tasksSaved = tasksRepository.save(taskToUpdate);
+
+        if (tasksSaved.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
+            aclUtilService.createAcl(tasksSaved);
+
+            Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(tasksSaved.getResponsible());
+
+            List<String> deptCodes = departements.get("code");
+            if (deptCodes != null) {
+                deptCodes.forEach(code -> {
+                    aclUtilService.addPermission(tasksSaved, code, BasePermission.READ);
+                    aclUtilService.addPermission(tasksSaved, code, BasePermission.WRITE);
+                });
+            }
+
+            List<String> parentCodes = departements.get("parents");
+            if (parentCodes != null) {
+                parentCodes.forEach(parentCode -> {
+                    aclUtilService.addPermission(tasksSaved, parentCode, BasePermission.READ);
+                });
+            }
+        }
 
         return existingCorresp;
     }
