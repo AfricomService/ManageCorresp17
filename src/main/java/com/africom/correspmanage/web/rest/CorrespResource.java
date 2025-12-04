@@ -10,17 +10,16 @@ import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespService;
 import com.africom.correspmanage.service.dto.CorrespDTO;
 import com.africom.correspmanage.service.dto.FileUploadDTO;
+import com.africom.correspmanage.service.dto.PjDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -99,7 +98,7 @@ public class CorrespResource {
     /**
      * {@code PUT  /corresps/:id} : Updates an existing corresp.
      *
-     * @param id the id of the correspDTO to save.
+     * @param id         the id of the correspDTO to save.
      * @param correspDTO the correspDTO to update.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated correspDTO,
      * or with status {@code 400 (Bad Request)} if the correspDTO is not valid,
@@ -133,7 +132,7 @@ public class CorrespResource {
     /**
      * {@code PATCH  /corresps/:id} : Partial updates given fields of an existing corresp, field will ignore if it is null
      *
-     * @param id the id of the correspDTO to save.
+     * @param id         the id of the correspDTO to save.
      * @param correspDTO the correspDTO to update.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated correspDTO,
      * or with status {@code 400 (Bad Request)} if the correspDTO is not valid,
@@ -169,7 +168,7 @@ public class CorrespResource {
     /**
      * {@code GET  /corresps} : get all the corresps.
      *
-     * @param pageable the pagination information.
+     * @param pageable  the pagination information.
      * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of corresps in body.
      */
@@ -262,10 +261,47 @@ public class CorrespResource {
         return correspService.saveCorrespWithTasksAndPj(correspDTO, tasksDTOS, pjs, typeDocumentDTO, generateRef);
     }
 
+    //    @PostMapping(value = "/correspsWithTasksAndPjsN8N", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    //    public void saveCorrespWithTasksAndPj(
+    //        @RequestPart("pjs") String pjs,
+    //        @RequestPart("subject") String subject,
+    //        @RequestPart("from") String from,
+    //        @RequestPart("bodyHtml") String bodyHtml
+    //    ) {
+    ////        return correspService.saveCorrespWithPjN8N(pjs,subject,from,bodyHtml);
+    //        log.debug("pjs {}",pjs);
+    //        log.debug("pjs {}",subject);
+    //        log.debug("pjs {}",from);
+    //        log.debug("pjs {}",bodyHtml);
+    //    }
+
+    @PostMapping(value = "/correspsWithTasksAndPjsN8N", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public void saveCorrespWithTasksAndPj(
+        @RequestPart("pjs") String pjs,
+        @RequestPart("subject") String subject,
+        @RequestPart("from") String from,
+        @RequestPart("bodyHtml") String bodyHtml
+    ) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        // Convert JSON string to List<PjDTO>
+        List<PjDTO> pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
+
+        // Debug
+        //        log.debug("pjs as list: {}", pjList);
+        //        log.debug("subject: {}", subject);
+        //        log.debug("from: {}", from);
+        //        log.debug("bodyHtml: {}", bodyHtml);
+
+        // Now you can pass pjList to your service
+        correspService.saveCorrespWithPjN8N(pjList, subject, from, bodyHtml);
+    }
+
     @GetMapping("/correspAcl")
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
         return correspService.getListByAcl(deptCode);
     }
+
 
     @PatchMapping("/corresps/{id}/generateReference")
     public ResponseEntity<CorrespDTO> generateReference(@PathVariable Long id) {
@@ -299,6 +335,15 @@ public class CorrespResource {
     ) {
         Corresp updated = correspService.updateCorrespDraft(id, correspDTO, typeDocumentDTO);
         return ResponseEntity.ok(updated);
+
+    @GetMapping("/correspAclPage")
+    public Page<Corresp> getCorrespAcl(
+        @RequestParam(required = false, name = "deptCode") String deptCode,
+        @RequestParam(name = "page") int page,
+        @RequestParam(name = "size") int size
+    ) {
+        return correspService.getListByAclPage(deptCode, page, size);
+
     }
 
     @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -327,5 +372,13 @@ public class CorrespResource {
     @PatchMapping("/correspsCloturerCorresp")
     public Corresp cloturerCorresp(@RequestParam(name = "correspId") Long correspId) {
         return correspService.cloturerCorresp(correspId);
+    }
+
+    @PostMapping("/correspondencesFromN8n")
+    public ResponseEntity<?> receiveCorrespondence(@RequestBody Map<String, Object> payload) {
+        log.debug("📩 Received correspondence payload from n8n:");
+        log.debug(payload.toString());
+
+        return ResponseEntity.ok("Received");
     }
 }

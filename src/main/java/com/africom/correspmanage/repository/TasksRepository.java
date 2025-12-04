@@ -24,4 +24,15 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
     WHERE c.id = :correspId
 """)
     List<Tasks> findTasksByCorrespId(@Param("correspId") Long correspId);
+
+    @Query(
+        value = "SELECT t.* FROM tasks t " +
+        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = t.id " +
+        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+        "JOIN acl_sid sid ON sid.id = ae.sid " +
+        "WHERE sid.sid = :deptCode " +
+        "AND ae.mask = 1", // READ permission
+        nativeQuery = true
+    )
+    List<Tasks> findAllByAclForDept(@Param("deptCode") String deptCode);
 }

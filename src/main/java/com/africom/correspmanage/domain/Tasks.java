@@ -67,6 +67,9 @@ public class Tasks implements Serializable {
     @Column(name = "task_type")
     private String taskType;
 
+    @Column(name = "commentaire")
+    private String commentaire;
+
     @ManyToOne
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
     private Corresp parentDoc;
@@ -263,6 +266,19 @@ public class Tasks implements Serializable {
         this.taskType = taskType;
     }
 
+    public String getCommentaire() {
+        return this.commentaire;
+    }
+
+    public Tasks commentaire(String commentaire) {
+        this.setCommentaire(commentaire);
+        return this;
+    }
+
+    public void setCommentaire(String commentaire) {
+        this.commentaire = commentaire;
+    }
+
     public Corresp getParentDoc() {
         return this.parentDoc;
     }
@@ -357,6 +373,7 @@ public class Tasks implements Serializable {
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", taskType='" + getTaskType() + "'" +
+            ", commentaire='" + getCommentaire() + "'" +
             "}";
     }
 }

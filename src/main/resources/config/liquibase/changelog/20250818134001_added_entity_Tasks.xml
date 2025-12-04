@@ -53,6 +53,9 @@
             <column name="task_type" type="varchar(255)">
                 <constraints nullable="true" />
             </column>
+            <column name="commentaire" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
             <column name="parent_doc_id" type="bigint">
                 <constraints nullable="true" />
             </column>
@@ -98,6 +101,7 @@
             <column name="updated_by" type="string"/>
             <column name="updated_date" type="date"/>
             <column name="task_type" type="string"/>
+            <column name="commentaire" type="string"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

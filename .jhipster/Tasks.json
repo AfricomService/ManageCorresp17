@@ -57,6 +57,10 @@
     {
       "fieldName": "taskType",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "commentaire",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

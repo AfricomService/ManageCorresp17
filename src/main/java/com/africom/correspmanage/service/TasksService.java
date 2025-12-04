@@ -197,6 +197,7 @@ public class TasksService {
                 dto.setUpdatedBy(task.getUpdatedBy());
                 dto.setUpdatedDate(task.getUpdatedDate());
                 dto.setTaskType(task.getTaskType());
+                dto.setCommentaire(task.getCommentaire());
 
                 try {
                     String responsableName = orgaCareRestClient.getDepartementNomByCode(task.getResponsible());
@@ -208,5 +209,9 @@ public class TasksService {
                 return dto;
             })
             .toList();
+    }
+
+    public List<TasksDTO> getAllTasksByAcl(String deptCode) {
+        return tasksRepository.findAllByAclForDept(deptCode).stream().map(tasksMapper::toDto).toList();
     }
 }

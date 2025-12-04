@@ -12,9 +12,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -193,6 +191,26 @@ public class PjResource {
             return ResponseEntity.ok(pjService.uploadFilePj(file, uniqueName));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file.");
+        }
+    }
+
+    @PostMapping("/pjs/uploadPjN8N")
+    public ResponseEntity<PjDTO> uploadPjN8N(@RequestParam("file") MultipartFile file, @RequestParam("uniqueName") String uniqueName)
+        throws IOException {
+        try {
+            // Save the file and get the final path
+            String savedPath = pjService.uploadFilePj(file, uniqueName);
+
+            // Build the DTO to send back to n8n
+            PjDTO dto = new PjDTO();
+            dto.setPath(savedPath);
+            dto.setUniqueName(uniqueName);
+            dto.setFileType(file.getContentType());
+            dto.setName(file.getOriginalFilename());
+
+            return ResponseEntity.ok(dto);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
