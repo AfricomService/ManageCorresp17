@@ -291,6 +291,16 @@ public class CorrespResource {
         return ResponseEntity.ok(dto);
     }
 
+    @PutMapping("/corresps/update/{id}")
+    public ResponseEntity<Corresp> updateCorrespDraft(
+        @PathVariable Long id,
+        @RequestPart("correspDTO") CorrespDTO correspDTO,
+        @RequestPart("typeDocumentDTO") TypeDocumentFeignDTO typeDocumentDTO
+    ) {
+        Corresp updated = correspService.updateCorrespDraft(id, correspDTO, typeDocumentDTO);
+        return ResponseEntity.ok(updated);
+    }
+
     @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
         throws JsonProcessingException {

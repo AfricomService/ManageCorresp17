@@ -384,6 +384,38 @@ public class CorrespService {
         return saved;
     }
 
+    public Corresp updateCorrespDraft(Long id, CorrespDTO correspDTO, TypeDocumentFeignDTO typeDocumentDTO) {
+        Corresp existing = correspRepository.findById(id).orElseThrow(() -> new RuntimeException("Corresp not found with id " + id));
+
+        if (existing.getStatus() != CorrespStatus.DRAFT) {
+            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT");
+        }
+
+        existing.setCourrierDate(correspDTO.getCourrierDate());
+        existing.setSubject(correspDTO.getSubject());
+        existing.setSender(correspDTO.getSender());
+        existing.setContact(correspDTO.getContact());
+        existing.setContactEmail(correspDTO.getContactEmail());
+        existing.setContactEmailCc(correspDTO.getContactEmailCc());
+        existing.setResponseTo(correspDTO.getResponseTo());
+        existing.setSenderReference(correspDTO.getSenderReference());
+        existing.setPriority(correspDTO.getPriority());
+        existing.setBody(correspDTO.getBody());
+        existing.setDispatchType(correspDTO.getDispatchType());
+        existing.setCorresptype(correspDTO.getCorresptype());
+        existing.setTypeDocumentId(typeDocumentDTO.getId());
+        existing.setLabelDestinataire(correspDTO.getLabelDestinataire());
+        existing.setLabelContactCC(correspDTO.getLabelContactCC());
+
+        existing.setUpdatedDate(ZonedDateTime.now());
+        existing.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        Corresp updated = correspRepository.save(existing);
+        log.debug("Updated DRAFT corresp {}", updated);
+
+        return updated;
+    }
+
     public Corresp soumettreCorresp(Long correspId) {
         Corresp corresp = correspRepository.findById(correspId).get();
 
