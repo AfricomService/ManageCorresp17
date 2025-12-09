@@ -277,7 +277,7 @@ public class CorrespResource {
 
     @PostMapping(value = "/correspsWithTasksAndPjsN8N", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public void saveCorrespWithTasksAndPj(
-        @RequestPart("pjs") String pjs,
+        @RequestPart(value = "pjs", required = false) String pjs,
         @RequestPart("subject") String subject,
         @RequestPart("from") String from,
         @RequestPart("bodyHtml") String bodyHtml
@@ -301,7 +301,6 @@ public class CorrespResource {
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
         return correspService.getListByAcl(deptCode);
     }
-
 
     @PatchMapping("/corresps/{id}/generateReference")
     public ResponseEntity<CorrespDTO> generateReference(@PathVariable Long id) {
@@ -335,6 +334,7 @@ public class CorrespResource {
     ) {
         Corresp updated = correspService.updateCorrespDraft(id, correspDTO, typeDocumentDTO);
         return ResponseEntity.ok(updated);
+    }
 
     @GetMapping("/correspAclPage")
     public Page<Corresp> getCorrespAcl(
@@ -343,7 +343,6 @@ public class CorrespResource {
         @RequestParam(name = "size") int size
     ) {
         return correspService.getListByAclPage(deptCode, page, size);
-
     }
 
     @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -353,6 +352,15 @@ public class CorrespResource {
         //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
 
         return correspService.addTaskToExistingCorresp(tasksJson, correspId);
+    }
+
+    @PostMapping(value = "/correspsAddPjToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Corresp addPjToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("pjDTO") PjDTO pjJson)
+        throws JsonProcessingException {
+        //        ObjectMapper mapper = new ObjectMapper();
+        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
+
+        return correspService.addPjToExistingCorresp(pjJson, correspId);
     }
 
     @PatchMapping("/correspsChangeTaskStatus")

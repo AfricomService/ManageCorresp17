@@ -383,25 +383,7 @@ public class CorrespService {
     }
 
     public Corresp saveCorrespWithPjN8N(List<PjDTO> pjs, String subject, String from, String bodyHtml) {
-        log.debug("pjs {}", pjs);
-
-        List<Pj> pjsList = new ArrayList<>();
-
-        for (PjDTO pjDTO : pjs) {
-            Pj pjEntity = new Pj();
-            //            pjEntity.setName(pjDTO.getName());
-            pjEntity.setName(removeExtension(pjDTO.getName()));
-            //            pjEntity.setFileType(pjDTO.getFileType());
-            pjEntity.setFileType(pjDTO.getName().substring(pjDTO.getName().lastIndexOf(".") + 1));
-            pjEntity.setUniqueName(pjDTO.getUniqueName());
-            pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
-            pjEntity.setCreationDate(ZonedDateTime.now());
-            pjEntity.setPath(pjDTO.getPath());
-
-            pjsList.add(pjEntity);
-        }
-
-        Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
+        //        log.debug("pjs {}", pjs);
 
         Corresp correspToSave = new Corresp();
 
@@ -417,7 +399,27 @@ public class CorrespService {
         correspToSave.setCorresptype(CorrespType.INCOMING);
         correspToSave.setDispatchType(DispatchType.EMAIL);
 
-        correspToSave.setAttachments(pjsSaved);
+        if (pjs != null) {
+            List<Pj> pjsList = new ArrayList<>();
+
+            for (PjDTO pjDTO : pjs) {
+                Pj pjEntity = new Pj();
+                //            pjEntity.setName(pjDTO.getName());
+                pjEntity.setName(removeExtension(pjDTO.getName()));
+                //            pjEntity.setFileType(pjDTO.getFileType());
+                pjEntity.setFileType(pjDTO.getName().substring(pjDTO.getName().lastIndexOf(".") + 1));
+                pjEntity.setUniqueName(pjDTO.getUniqueName());
+                pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+                pjEntity.setCreationDate(ZonedDateTime.now());
+                pjEntity.setPath(pjDTO.getPath());
+
+                pjsList.add(pjEntity);
+            }
+
+            Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
+
+            correspToSave.setAttachments(pjsSaved);
+        }
 
         correspToSave.setUpdatedDate(ZonedDateTime.now());
 
@@ -591,29 +593,36 @@ public class CorrespService {
         Set<Tasks> tasksList = existingCorresp.getTasks();
 
         Tasks savedTask = tasksRepository.save(tasks);
-        //
-        //        aclUtilService.createAcl(savedTask);
-        //
-        //        Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(savedTask.getResponsible());
-        //
-        //        List<String> deptCodes = departements.get("code");
-        //        if (deptCodes != null) {
-        //            deptCodes.forEach(code -> {
-        //                aclUtilService.addPermission(savedTask, code, BasePermission.READ);
-        //                aclUtilService.addPermission(savedTask, code, BasePermission.WRITE);
-        //            });
-        //        }
-        //
-        //        List<String> parentCodes = departements.get("parents");
-        //        if (parentCodes != null) {
-        //            parentCodes.forEach(parentCode -> {
-        //                aclUtilService.addPermission(savedTask, parentCode, BasePermission.READ);
-        //            });
-        //        }
 
         tasksList.add(savedTask);
 
         existingCorresp.setTasks(tasksList);
+
+        existingCorresp.setUpdatedDate(ZonedDateTime.now());
+
+        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+
+        return correspRepository.save(existingCorresp);
+    }
+
+    public Corresp addPjToExistingCorresp(PjDTO pjDTO, Long correspId) {
+        Corresp existingCorresp = correspRepository.findById(correspId).get();
+
+        Pj pjEntity = new Pj();
+        pjEntity.setName(pjDTO.getName());
+        pjEntity.setFileType(pjDTO.getFileType());
+        pjEntity.setUniqueName(pjDTO.getUniqueName());
+        pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+        pjEntity.setCreationDate(ZonedDateTime.now());
+        pjEntity.setPath(pjDTO.getPath());
+
+        Set<Pj> pjList = existingCorresp.getAttachments();
+
+        Pj pjSaved = pjRepository.save(pjEntity);
+
+        pjList.add(pjSaved);
+
+        existingCorresp.setAttachments(pjList);
 
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
 

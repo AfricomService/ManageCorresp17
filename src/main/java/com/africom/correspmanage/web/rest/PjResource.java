@@ -1,6 +1,9 @@
 package com.africom.correspmanage.web.rest;
 
 import com.africom.correspmanage.config.ApplicationProperties;
+import com.africom.correspmanage.domain.Corresp;
+import com.africom.correspmanage.domain.Pj;
+import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.PjRepository;
 import com.africom.correspmanage.service.PjService;
 import com.africom.correspmanage.service.dto.PjDTO;
@@ -13,6 +16,7 @@ import java.nio.file.Paths;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import javax.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,10 +53,18 @@ public class PjResource {
 
     private final ApplicationProperties applicationProperties;
 
-    public PjResource(PjService pjService, PjRepository pjRepository, ApplicationProperties applicationProperties) {
+    private final CorrespRepository correspRepository;
+
+    public PjResource(
+        PjService pjService,
+        PjRepository pjRepository,
+        ApplicationProperties applicationProperties,
+        CorrespRepository correspRepository
+    ) {
         this.pjService = pjService;
         this.pjRepository = pjRepository;
         this.applicationProperties = applicationProperties;
+        this.correspRepository = correspRepository;
     }
 
     /**
@@ -265,5 +277,42 @@ public class PjResource {
             .noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, uniqueName))
             .build();
+    }
+
+    @DeleteMapping("/pjsWithCorresp")
+    @Transactional
+    public ResponseEntity<Void> deletePjWithCorresp(@RequestParam String uniqueName, @RequestParam String fileType) {
+        log.debug("REST request to delete Pj : {}", uniqueName);
+
+        String finalStringPath =
+            Paths.get(applicationProperties.getDir_pj()) +
+            File.separator +
+            ZonedDateTime.now().getYear() +
+            File.separator +
+            ZonedDateTime.now().getMonth() +
+            File.separator +
+            ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) +
+            File.separator +
+            uniqueName +
+            "." +
+            fileType;
+
+        File file = new File(finalStringPath);
+        if (file.exists()) file.delete();
+
+        Optional<Pj> pjOpt = pjRepository.findByUniqueName(uniqueName);
+        if (pjOpt.isPresent()) {
+            Pj pj = pjOpt.get();
+
+            Set<Corresp> correps = pj.getCorresps();
+            for (Corresp c : correps) {
+                c.getAttachments().remove(pj);
+            }
+            correspRepository.saveAll(correps);
+
+            pjRepository.delete(pj);
+        }
+
+        return ResponseEntity.noContent().build();
     }
 }
