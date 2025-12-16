@@ -3,9 +3,11 @@ package com.africom.correspmanage.web.rest;
 import com.africom.correspmanage.client.ConfigManageRestClient;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
+import com.africom.correspmanage.domain.Message;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
+import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespService;
 import com.africom.correspmanage.service.dto.CorrespDTO;
@@ -57,15 +59,18 @@ public class CorrespResource {
     private final CorrespService correspService;
 
     private final CorrespRepository correspRepository;
+    private final MessageRepository messageRepository;
 
     public CorrespResource(
         ConfigManageRestClient configManageRestClient,
         CorrespService correspService,
-        CorrespRepository correspRepository
+        CorrespRepository correspRepository,
+        MessageRepository messageRepository
     ) {
         this.configManageRestClient = configManageRestClient;
         this.correspService = correspService;
         this.correspRepository = correspRepository;
+        this.messageRepository = messageRepository;
     }
 
     /**
@@ -388,5 +393,21 @@ public class CorrespResource {
         log.debug(payload.toString());
 
         return ResponseEntity.ok("Received");
+    }
+
+    //    @PatchMapping("/corresps/saveBodyToFile")
+    //    public void saveBodyToFile(@RequestParam(name = "richTextContent") String richTextContent,@RequestParam(name = "correspId") Long correspId) {
+    //        correspService.saveBodyToFile(richTextContent, correspId,"D:\\pjs\\2025\\DECEMBER\\2025-12-09\\3502.html");
+    //    }
+
+    @GetMapping("/corresps/loadBodyFromFile")
+    public String loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
+        Message message = messageRepository.findByCorrespId(correspId).get();
+        return correspService.loadBodyFromFile(message.getPath());
+    }
+
+    @DeleteMapping("/correspsDelete/{correspId}")
+    public void deleteCorrespWithTasksAndPjs(@PathVariable(name = "correspId") Long correspId) {
+        correspService.deleteCorrespWithTasksAndPjs(correspId);
     }
 }

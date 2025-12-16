@@ -35,4 +35,12 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         nativeQuery = true
     )
     List<Tasks> findAllByAclForDept(@Param("deptCode") String deptCode);
+
+    @Query("""
+        SELECT COUNT(c)
+        FROM Corresp c
+        JOIN c.tasks t
+        WHERE t.id = :taskId
+    """)
+    long countCorrespsUsingTask(@Param("taskId") Long taskId);
 }

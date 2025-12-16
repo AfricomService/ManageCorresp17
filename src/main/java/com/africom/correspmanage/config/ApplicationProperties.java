@@ -13,6 +13,7 @@ public class ApplicationProperties {
 
     private String slash;
     private String dir_pj;
+    private String dir_body;
 
     public String getSlash() {
         return slash;
@@ -28,5 +29,13 @@ public class ApplicationProperties {
 
     public void setDir_pj(String dir_pj) {
         this.dir_pj = dir_pj;
+    }
+
+    public String getDir_body() {
+        return dir_body;
+    }
+
+    public void setDir_body(String dir_body) {
+        this.dir_body = dir_body;
     }
 }

@@ -1,0 +1,83 @@
+{
+  "changelogDate": "20251209095701",
+  "clientRootFolder": "correspManage",
+  "databaseType": "sql",
+  "dto": "mapstruct",
+  "fields": [
+    {
+      "fieldName": "sender",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "receiver",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "copyTo",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "blindCopyTo",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "path",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "msgID",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "parentID",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "inReplyTo",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "type",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "etat",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "correspId",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "fileId",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "uniqueName",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "createdBy",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "creationDate",
+      "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "updatedBy",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "updatedDate",
+      "fieldType": "ZonedDateTime"
+    }
+  ],
+  "jpaMetamodelFiltering": false,
+  "microserviceName": "correspManage",
+  "name": "Message",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [],
+  "service": "serviceClass"
+}

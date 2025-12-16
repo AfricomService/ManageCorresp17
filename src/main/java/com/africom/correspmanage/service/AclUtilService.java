@@ -66,6 +66,17 @@ public class AclUtilService {
         }
     }
 
+    @Transactional
+    public void deleteAllPermissions(Object domainObject) {
+        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+
+        try {
+            aclService.deleteAcl(oid, false);
+        } catch (NotFoundException ex) {
+            // ACL does not exist → nothing to do
+        }
+    }
+
     private Serializable getId(Object domainObject) {
         try {
             java.lang.reflect.Method m = domainObject.getClass().getMethod("getId");

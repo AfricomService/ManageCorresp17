@@ -21,4 +21,12 @@ public interface PjRepository extends JpaRepository<Pj, Long> {
     WHERE c.id = :correspId
 """)
     List<Pj> findAllByCorrespId(@Param("correspId") Long correspId);
+
+    @Query("""
+        SELECT COUNT(c)
+        FROM Corresp c
+        JOIN c.attachments a
+        WHERE a.id = :pjId
+    """)
+    long countCorrespsUsingPj(@Param("pjId") Long pjId);
 }

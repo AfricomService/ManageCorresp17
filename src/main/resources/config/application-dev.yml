@@ -136,3 +136,4 @@ jhipster:
 application:
   slash: \
   dir_pj: D:\pjs
+  dir_body: D:\body

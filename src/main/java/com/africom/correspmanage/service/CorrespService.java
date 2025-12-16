@@ -3,29 +3,36 @@ package com.africom.correspmanage.service;
 import com.africom.correspmanage.client.ConfigManageRestClient;
 import com.africom.correspmanage.client.OrgaCareRestClient;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
+import com.africom.correspmanage.config.ApplicationProperties;
 import com.africom.correspmanage.domain.Corresp;
+import com.africom.correspmanage.domain.Message;
 import com.africom.correspmanage.domain.Pj;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.domain.enumeration.CorrespType;
 import com.africom.correspmanage.domain.enumeration.DispatchType;
 import com.africom.correspmanage.repository.CorrespRepository;
+import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.repository.PjRepository;
 import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.security.SecurityUtils;
-import com.africom.correspmanage.service.dto.CorrespDTO;
-import com.africom.correspmanage.service.dto.FileUploadDTO;
-import com.africom.correspmanage.service.dto.PjDTO;
-import com.africom.correspmanage.service.dto.TasksDTO;
+import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.service.mapper.CorrespMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.persistence.EntityNotFoundException;
 import javax.persistence.criteria.Join;
 import javax.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -62,6 +69,8 @@ public class CorrespService {
     private final AclUtilService aclUtilService;
     private final OrgaCareRestClient orgaCareRestClient;
     private final ConfigManageRestClient configManageRestClient;
+    private final ApplicationProperties applicationProperties;
+    private final MessageRepository messageRepository;
 
     public CorrespService(
         CorrespRepository correspRepository,
@@ -71,7 +80,9 @@ public class CorrespService {
         PjRepository pjRepository,
         AclUtilService aclUtilService,
         OrgaCareRestClient orgaCareRestClient,
-        ConfigManageRestClient configManageRestClient
+        ConfigManageRestClient configManageRestClient,
+        ApplicationProperties applicationProperties,
+        MessageRepository messageRepository
     ) {
         this.correspRepository = correspRepository;
         this.correspMapper = correspMapper;
@@ -80,6 +91,8 @@ public class CorrespService {
         this.aclUtilService = aclUtilService;
         this.orgaCareRestClient = orgaCareRestClient;
         this.configManageRestClient = configManageRestClient;
+        this.applicationProperties = applicationProperties;
+        this.messageRepository = messageRepository;
     }
 
     /**
@@ -349,7 +362,7 @@ public class CorrespService {
         correspToSave.setSenderReference(correspDTO.getSenderReference());
         correspToSave.setPriority(correspDTO.getPriority());
         correspToSave.setStatus(CorrespStatus.DRAFT);
-        correspToSave.setBody(correspDTO.getBody());
+        //        correspToSave.setBody(correspDTO.getBody());
         correspToSave.setDispatchType(correspDTO.getDispatchType());
         correspToSave.setCorresptype(correspDTO.getCorresptype());
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
@@ -371,6 +384,19 @@ public class CorrespService {
         correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
         Corresp saved = correspRepository.save(correspToSave);
+
+        String path = saveBodyToFile(correspDTO.getBody(), saved.getId());
+
+        Message message = new Message();
+
+        message.sender(correspDTO.getSender());
+        message.setCorrespId(saved.getId());
+        message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+        message.setCreationDate(ZonedDateTime.now());
+        message.setUniqueName(saved.getId() + ".html");
+        message.setPath(path);
+
+        messageRepository.save(message);
 
         log.debug("save corresp {}", saved);
 
@@ -395,7 +421,7 @@ public class CorrespService {
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
         correspToSave.setStatus(CorrespStatus.DRAFT);
-        correspToSave.setBody(bodyHtml);
+        //        correspToSave.setBody(bodyHtml);
         correspToSave.setCorresptype(CorrespType.INCOMING);
         correspToSave.setDispatchType(DispatchType.EMAIL);
 
@@ -427,6 +453,19 @@ public class CorrespService {
 
         Corresp saved = correspRepository.save(correspToSave);
 
+        String path = saveBodyToFile(bodyHtml, saved.getId());
+
+        Message message = new Message();
+
+        message.sender(correspToSave.getSender());
+        message.setCorrespId(saved.getId());
+        message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+        message.setCreationDate(ZonedDateTime.now());
+        message.setUniqueName(saved.getId() + ".html");
+        message.setPath(path);
+
+        messageRepository.save(message);
+
         log.debug("save corresp {}", saved);
 
         return saved;
@@ -448,7 +487,7 @@ public class CorrespService {
         existing.setResponseTo(correspDTO.getResponseTo());
         existing.setSenderReference(correspDTO.getSenderReference());
         existing.setPriority(correspDTO.getPriority());
-        existing.setBody(correspDTO.getBody());
+        //        existing.setBody(correspDTO.getBody());
         existing.setDispatchType(correspDTO.getDispatchType());
         existing.setCorresptype(correspDTO.getCorresptype());
         existing.setTypeDocumentId(typeDocumentDTO.getId());
@@ -460,6 +499,8 @@ public class CorrespService {
 
         Corresp updated = correspRepository.save(existing);
         log.debug("Updated DRAFT corresp {}", updated);
+
+        saveBodyToFile(correspDTO.getBody(), existing.getId());
 
         return updated;
     }
@@ -686,5 +727,98 @@ public class CorrespService {
         }
 
         return existingCorresp;
+    }
+
+    public String saveBodyToFile(String richTextContent, Long correspId) {
+        try {
+            ZonedDateTime now = ZonedDateTime.now();
+
+            // Build directory path cleanly
+            Path storagePath = Paths.get(
+                applicationProperties.getDir_body(),
+                String.valueOf(now.getYear()),
+                now.getMonth().toString(),
+                now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            );
+
+            Files.createDirectories(storagePath);
+
+            // Always use the file <correspId>.html
+            Path filePath = storagePath.resolve(correspId + ".html");
+
+            // If file exists → delete it
+            if (Files.exists(filePath)) {
+                Files.delete(filePath);
+            }
+
+            // Create a new empty file
+            Files.createFile(filePath);
+
+            log.debug("filepath {}", filePath);
+            log.debug("richTextContent {}", richTextContent);
+
+            // Write the content
+            Files.writeString(filePath, richTextContent, StandardOpenOption.TRUNCATE_EXISTING);
+
+            return filePath.toString();
+        } catch (IOException e) {
+            throw new RuntimeException("Error saving body to file", e);
+        }
+    }
+
+    public String loadBodyFromFile(String filePath) {
+        try {
+            return Files.readString(Paths.get(filePath));
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading body file", e);
+        }
+    }
+
+    @Transactional
+    public void deleteCorrespWithTasksAndPjs(Long correspId) {
+        Corresp corresp = correspRepository.findById(correspId).orElseThrow(() -> new EntityNotFoundException("Corresp not found"));
+
+        Set<Pj> attachments = new HashSet<>(corresp.getAttachments());
+        Set<Tasks> tasks = new HashSet<>(corresp.getTasks());
+
+        corresp.getAttachments().clear();
+        corresp.getTasks().clear();
+
+        correspRepository.save(corresp);
+        correspRepository.flush();
+
+        messageRepository.deleteByCorrespId(correspId);
+
+        for (Pj pj : attachments) {
+            long usageCount = pjRepository.countCorrespsUsingPj(pj.getId());
+
+            if (usageCount <= 1) {
+                deleteFileFromDisk(pj.getPath());
+                pjRepository.delete(pj);
+            }
+        }
+
+        for (Tasks task : tasks) {
+            long usageCount = tasksRepository.countCorrespsUsingTask(task.getId());
+
+            if (usageCount <= 1) {
+                aclUtilService.deleteAllPermissions(task);
+                tasksRepository.delete(task);
+            }
+        }
+
+        aclUtilService.deleteAllPermissions(corresp);
+        correspRepository.delete(corresp);
+    }
+
+    private void deleteFileFromDisk(String path) {
+        if (path == null || path.isBlank()) return;
+
+        try {
+            Path filePath = Paths.get(path);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete file: " + path, e);
+        }
     }
 }
