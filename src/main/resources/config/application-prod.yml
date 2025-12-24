@@ -106,6 +106,8 @@ server:
     enabled: true
     mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json,image/svg+xml
     min-response-size: 1024
+  servlet:
+    context-path: /corresp
 
 # ===================================================================
 # JHipster specific properties
