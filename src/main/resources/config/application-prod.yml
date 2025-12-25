@@ -15,9 +15,9 @@
 
 logging:
   level:
-    ROOT: INFO
-    tech.jhipster: INFO
-    com.africom.correspmanage: INFO
+    ROOT: DEBUG
+    tech.jhipster: DEBUG
+    com.africom.correspmanage: DEBUG
 
 eureka:
   instance:
