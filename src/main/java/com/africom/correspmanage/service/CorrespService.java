@@ -821,4 +821,15 @@ public class CorrespService {
             throw new RuntimeException("Failed to delete file: " + path, e);
         }
     }
+
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> findCorrespsByTaskId(Long taskId) {
+        log.debug("Request to get Corresps by taskId : {}", taskId);
+
+        return tasksRepository
+            .findById(taskId)
+            .map(task -> task.getCorresps().stream().map(correspMapper::toDto).collect(Collectors.toList()))
+            .orElseGet(Collections::emptyList);
+    }
+
 }

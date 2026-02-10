@@ -410,4 +410,12 @@ public class CorrespResource {
     public void deleteCorrespWithTasksAndPjs(@PathVariable(name = "correspId") Long correspId) {
         correspService.deleteCorrespWithTasksAndPjs(correspId);
     }
+
+    @GetMapping("/corresps/by-task/{taskId}")
+    public ResponseEntity<List<CorrespDTO>> getCorrespsByTask(@PathVariable Long taskId) {
+        log.debug("REST request to get Corresps by taskId : {}", taskId);
+        List<CorrespDTO> corresps = correspService.findCorrespsByTaskId(taskId);
+        return ResponseEntity.ok(corresps);
+    }
+
 }

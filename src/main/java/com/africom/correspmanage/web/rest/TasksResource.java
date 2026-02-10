@@ -177,11 +177,11 @@ public class TasksResource {
         return tasksService.getAllTasksByCorrespId(correspId);
     }
 
-    @GetMapping("/tasks/tasksDeptCode")
-    public List<TasksDTO> getTasksByAcl(@RequestParam(name = "deptCode") String deptCode) {
-        log.debug("REST request to get a page of Tasks");
-        return tasksService.getAllTasksByAcl(deptCode);
-    }
+//    @GetMapping("/tasks/tasksDeptCode")
+//    public List<TasksDTO> getTasksByAcl(@RequestParam(name = "deptCode") String deptCode) {
+//        log.debug("REST request to get a page of Tasks");
+//        return tasksService.getAllTasksByAcl(deptCode);
+//    }
 
     @DeleteMapping("/tasks/deleteTaskFromCorrespAndDB/{correspId}/{tasksId}")
     public void deleteTask(@PathVariable(name = "correspId") Long correspId, @PathVariable(name = "tasksId") Long tasksId) {
@@ -204,4 +204,19 @@ public class TasksResource {
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .build();
     }
+
+    // retourne tasks filtrées par une liste de codes passée en params (ex: ?deptCode=IT&deptCode=HR)
+    @GetMapping("/tasks/tasksDeptCodes")
+    public List<TasksDTO> getTasksByAclForDeptCodes(@RequestParam(name = "deptCode") List<String> deptCodes) {
+        log.debug("REST request to get Tasks by deptCodes : {}", deptCodes);
+        return tasksService.getAllTasksByAcl(deptCodes);
+    }
+
+    // retourne tasks pour les départements associés à un user (via OrgaCare)
+    @GetMapping("/tasks/tasksByUserAcl")
+    public List<TasksDTO> getTasksByUserAcl(@RequestParam(name = "userId") Long userId) {
+        log.debug("REST request to get Tasks by userId (ACL) : {}", userId);
+        return tasksService.getAllTasksByUserAcl(userId);
+    }
+
 }
