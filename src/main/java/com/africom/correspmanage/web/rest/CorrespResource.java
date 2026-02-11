@@ -350,14 +350,23 @@ public class CorrespResource {
         return correspService.getListByAclPage(deptCode, page, size);
     }
 
-    @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
-        throws JsonProcessingException {
-        //        ObjectMapper mapper = new ObjectMapper();
-        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
+//    @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
+//        throws JsonProcessingException {
+//        //        ObjectMapper mapper = new ObjectMapper();
+//        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
+//
+//        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
+//    }
+@PostMapping(value = "/corresps/{correspId}/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
+public ResponseEntity<Corresp> addTaskToCorrespJson(
+    @PathVariable("correspId") Long correspId,
+    @RequestBody TasksDTO tasksDTO
+) {
+    Corresp saved = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
+    return ResponseEntity.ok(saved);
+}
 
-        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
-    }
 
     @PostMapping(value = "/correspsAddPjToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Corresp addPjToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("pjDTO") PjDTO pjJson)

@@ -71,6 +71,8 @@ public class CorrespService {
     private final ConfigManageRestClient configManageRestClient;
     private final ApplicationProperties applicationProperties;
     private final MessageRepository messageRepository;
+    private final ResponsableTacheService responsableTacheService;
+
 
     public CorrespService(
         CorrespRepository correspRepository,
@@ -82,7 +84,9 @@ public class CorrespService {
         OrgaCareRestClient orgaCareRestClient,
         ConfigManageRestClient configManageRestClient,
         ApplicationProperties applicationProperties,
-        MessageRepository messageRepository
+        MessageRepository messageRepository,
+        ResponsableTacheService responsableTacheService
+
     ) {
         this.correspRepository = correspRepository;
         this.correspMapper = correspMapper;
@@ -93,6 +97,8 @@ public class CorrespService {
         this.configManageRestClient = configManageRestClient;
         this.applicationProperties = applicationProperties;
         this.messageRepository = messageRepository;
+        this.responsableTacheService = responsableTacheService;
+
     }
 
     /**
@@ -604,10 +610,12 @@ public class CorrespService {
     }
 
     public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
-        Corresp existingCorresp = correspRepository.findById(correspId).get();
+        Corresp existingCorresp = correspRepository.findById(correspId)
+            .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
 
+        // Création de la tâche — ne pas renseigner le champ `responsible` (stockage dans ResponsableTache)
         Tasks tasks = new Tasks();
-        tasks.setResponsible(tasksDTO.getResponsible());
+        tasks.setResponsible(null); // IMPORTANT : reste null
         tasks.setStatus(CorrespStatus.DRAFT);
         tasks.setTaskType(tasksDTO.getTaskType());
         tasks.setDueDate(tasksDTO.getDueDate());
@@ -616,10 +624,12 @@ public class CorrespService {
         tasks.setStartDate(ZonedDateTime.now());
         tasks.setCommentaire(tasksDTO.getCommentaire());
 
+        // Construction de l'objet (libellé) de la tâche (utile pour UI / historique)
         StringBuilder objectBuilder = new StringBuilder();
-
+        // si l'appelant a fourni un responsable "libre" dans tasksDTO.getResponsible(), on l'utilise dans l'objet,
+        // sinon on laissera vide (mais sans renseigner tasks.responsible).
         objectBuilder
-            .append(tasksDTO.getResponsible())
+            .append(tasksDTO.getResponsible() != null ? tasksDTO.getResponsible() : "")
             .append(" effectuera la tâche de ")
             .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
 
@@ -631,20 +641,68 @@ public class CorrespService {
 
         tasks.setObject(objectBuilder.toString());
 
-        Set<Tasks> tasksList = existingCorresp.getTasks();
-
+        // Sauvegarde initiale de la tâche (sans champ responsible)
         Tasks savedTask = tasksRepository.save(tasks);
 
-        tasksList.add(savedTask);
+        // --- Gestion et persistance des responsables dans l'entité ResponsableTache ---
+        List<ResponsableTacheDTO> inputResponsables = tasksDTO.getResponsables();
+        if (inputResponsables != null && !inputResponsables.isEmpty()) {
+            List<ResponsableTacheDTO> normalized = new ArrayList<>();
 
+            for (ResponsableTacheDTO r : inputResponsables) {
+                boolean hasDept = r.getCodeDept() != null && !r.getCodeDept().isBlank();
+                boolean hasPers = r.getMatriculePers() != null && !r.getMatriculePers().isBlank();
+
+                if (hasDept && hasPers) {
+                    // split combo en deux responsables distincts : dept-only + pers-only
+                    ResponsableTacheDTO deptOnly = new ResponsableTacheDTO();
+                    deptOnly.setCodeDept(r.getCodeDept());
+                    deptOnly.setTacheId(savedTask.getId());
+                    normalized.add(deptOnly);
+
+                    ResponsableTacheDTO persOnly = new ResponsableTacheDTO();
+                    persOnly.setMatriculePers(r.getMatriculePers());
+                    persOnly.setTacheId(savedTask.getId());
+                    normalized.add(persOnly);
+                } else if (hasDept) {
+                    r.setTacheId(savedTask.getId());
+                    normalized.add(r);
+                } else if (hasPers) {
+                    r.setTacheId(savedTask.getId());
+                    normalized.add(r);
+                } else {
+                    log.warn("Responsable ignoré car ni codeDept ni matriculePers fournis : {}", r);
+                }
+            }
+
+            try {
+                // La méthode saveAllForTask supprime les anciens responsables pour la tâche si elle est conçue ainsi,
+                // puis enregistre les nouveaux.
+                responsableTacheService.saveAllForTask(savedTask.getId(), normalized);
+                // NOTE : on n'écrit volontairement aucune valeur dans savedTask.setResponsible(...)
+                // Les responsables sont accessibles via ResponsableTache.
+            } catch (Exception e) {
+                log.error("Erreur lors de la sauvegarde des responsables pour la tâche {} : {}", savedTask.getId(), e.getMessage(), e);
+                // On ne lève pas l'exception pour ne pas bloquer la création de la tâche
+            }
+        }
+
+        // Ajouter la tâche au courrier
+        Set<Tasks> tasksList = existingCorresp.getTasks();
+        if (tasksList == null) {
+            tasksList = new HashSet<>();
+        }
+        tasksList.add(savedTask);
         existingCorresp.setTasks(tasksList);
 
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
-
         existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
         return correspRepository.save(existingCorresp);
     }
+
+
+
 
     public Corresp addPjToExistingCorresp(PjDTO pjDTO, Long correspId) {
         Corresp existingCorresp = correspRepository.findById(correspId).get();

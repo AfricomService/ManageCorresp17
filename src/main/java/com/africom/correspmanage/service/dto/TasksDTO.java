@@ -3,6 +3,8 @@ package com.africom.correspmanage.service.dto;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import javax.persistence.Lob;
 import javax.validation.constraints.*;
@@ -49,6 +51,12 @@ public class TasksDTO implements Serializable {
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
+
+    /**
+     * Nouvelle propriété : liste des responsables liés à la tâche.
+     * Chaque ResponsableTacheDTO contient soit un codeDept soit un matriculePers (ou les deux).
+     */
+    private List<ResponsableTacheDTO> responsables = new ArrayList<>();
 
     public String getResponsableName() {
         return responsableName;
@@ -194,6 +202,14 @@ public class TasksDTO implements Serializable {
         this.parentTask = parentTask;
     }
 
+    public List<ResponsableTacheDTO> getResponsables() {
+        return responsables;
+    }
+
+    public void setResponsables(List<ResponsableTacheDTO> responsables) {
+        this.responsables = responsables != null ? responsables : new ArrayList<>();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -235,6 +251,7 @@ public class TasksDTO implements Serializable {
             ", commentaire='" + getCommentaire() + "'" +
             ", parentDoc=" + getParentDoc() +
             ", parentTask=" + getParentTask() +
+            ", responsablesCount=" + (responsables != null ? responsables.size() : 0) +
             "}";
     }
 }
