@@ -6,6 +6,7 @@ import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.mapper.ResponsableTacheMapper;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -126,4 +127,28 @@ public class ResponsableTacheService {
     public void deleteByTacheId(Long tacheId) {
         responsableTacheRepository.deleteByTacheId(tacheId);
     }
+
+    @Transactional(readOnly = true)
+    public List<String> getResponsableCodeDeptByTacheId(Long tacheId) {
+        return responsableTacheRepository.findByTacheId(tacheId).stream()
+            .map(ResponsableTache::getCodeDept)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .distinct()
+            .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getResponsablesMatriculePersByTacheId(Long tacheId) {
+        return responsableTacheRepository.findByTacheId(tacheId).stream()
+            .map(ResponsableTache::getMatriculePers)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .distinct()
+            .collect(Collectors.toList());
+    }
+
+
 }

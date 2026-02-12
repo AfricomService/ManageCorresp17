@@ -749,43 +749,84 @@ public class CorrespService {
 
         taskToUpdate.setStatus(newStatus);
 
-        if (statusTo.equals("CLOSED")) {
+        if (newStatus == CorrespStatus.CLOSED) {
             taskToUpdate.setCloseDate(ZonedDateTime.now());
         }
 
-        if (statusTo.equals("IN_PROGRESS")) {
+        if (newStatus == CorrespStatus.IN_PROGRESS) {
             taskToUpdate.setStartDate(ZonedDateTime.now());
         }
 
-        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
-
+        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
 
         Tasks tasksSaved = tasksRepository.save(taskToUpdate);
 
         if (tasksSaved.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
+            // create ACL for the task
             aclUtilService.createAcl(tasksSaved);
 
-            Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(tasksSaved.getResponsible());
+            // Récupérer les codes de départements assignés à la tâche
+            List<String> deptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(tasksSaved.getId());
 
-            List<String> deptCodes = departements.get("code");
-            if (deptCodes != null) {
-                deptCodes.forEach(code -> {
-                    aclUtilService.addPermission(tasksSaved, code, BasePermission.READ);
-                    aclUtilService.addPermission(tasksSaved, code, BasePermission.WRITE);
-                });
-            }
+            if (deptCodes != null && !deptCodes.isEmpty()) {
+                for (String dept : deptCodes) {
+                    if (dept == null || dept.isBlank()) continue;
 
-            List<String> parentCodes = departements.get("parents");
-            if (parentCodes != null) {
-                parentCodes.forEach(parentCode -> {
-                    aclUtilService.addPermission(tasksSaved, parentCode, BasePermission.READ);
-                });
+                    String effectiveCode = null;
+
+                    // Appel à ORGACARE pour récupérer le DTO du département (uniquement le dept lui-même)
+                    try {
+                        Object dto = orgaCareRestClient.getDepartementDtoByCode(dept); // peut retourner DepartementDTO ou Map<String,Object>
+                        if (dto == null) {
+                            effectiveCode = dept;
+                        } else if (dto instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> map = (Map<String, Object>) dto;
+                            Object codeObj = map.get("code");
+                            effectiveCode = codeObj != null ? codeObj.toString().trim() : dept;
+                        } else {
+                            // Si ton client feign renvoie un DTO de type DepartementDTO (si accessible côté client)
+                            try {
+                                // Reflection-safe extraction to avoid a compile-time dependency on DTO class:
+                                java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
+                                Object codeObj = m.invoke(dto);
+                                effectiveCode = codeObj != null ? codeObj.toString().trim() : dept;
+                            } catch (NoSuchMethodException nsme) {
+                                // pas de getCode() — fallback
+                                effectiveCode = dept;
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("OrgaCare getDepartementDtoByCode failed for '{}': {} — fallback to provided code", dept, e.getMessage());
+                        effectiveCode = dept;
+                    }
+
+                    if (effectiveCode == null || effectiveCode.isBlank()) {
+                        effectiveCode = dept;
+                    }
+
+                    // Ajouter les permissions pour le département (READ + WRITE)
+                    try {
+                        // utilisation de addPermission existant (compatibilité).
+                        // Si tu as addPermissionForAuthority (GrantedAuthoritySid), tu peux le remplacer ici.
+                        aclUtilService.addPermission(tasksSaved, effectiveCode, BasePermission.READ);
+                        aclUtilService.addPermission(tasksSaved, effectiveCode, BasePermission.WRITE);
+                    } catch (Exception e) {
+                        log.warn("Impossible d'ajouter les permissions pour dept '{}' sur tache {} : {}", effectiveCode, tasksSaved.getId(), e.getMessage());
+                    }
+                }
+            } else {
+                log.debug("Aucun code de département trouvé pour la tache {}", tasksSaved.getId());
             }
         }
 
+        // Persister les métadonnées du corresp (updatedDate/updatedBy)
+        correspRepository.save(existingCorresp);
+
         return existingCorresp;
     }
+
 
     public String saveBodyToFile(String richTextContent, Long correspId) {
         try {

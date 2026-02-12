@@ -432,9 +432,10 @@ public ResponseEntity<?> addTaskToCorresp(
     //    }
 
     @GetMapping("/corresps/loadBodyFromFile")
-    public String loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
-        Message message = messageRepository.findByCorrespId(correspId).get();
-        return correspService.loadBodyFromFile(message.getPath());
+    public ResponseEntity<String> loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
+        return messageRepository.findByCorrespId(correspId)
+            .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"));
     }
 
     @DeleteMapping("/correspsDelete/{correspId}")

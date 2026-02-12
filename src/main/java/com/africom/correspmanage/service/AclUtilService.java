@@ -87,79 +87,79 @@ public class AclUtilService {
             throw new IllegalStateException("Domain object must have getId method returning Serializable", e);
         }
     }
-
-    // Ajoute en bas de la classe AclUtilService (ou adapte si tu veux autre place)
-    public void addPermissions(Object domainObject, Iterable<String> sids, Permission permission) {
-        if (sids == null) return;
-        for (String sid : sids) {
-            if (sid == null || sid.isBlank()) continue;
-            try {
-                addPermission(domainObject, sid, permission);
-            } catch (Exception e) {
-                log.warn("Impossible d'ajouter la permission {} pour sid {} sur {} : {}", permission, sid, domainObject, e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Convenience: add both READ and WRITE for a collection of sids
-     */
-    public void addReadWritePermissions(Object domainObject, Iterable<String> sids) {
-        addPermissions(domainObject, sids, BasePermission.READ);
-        addPermissions(domainObject, sids, BasePermission.WRITE);
-    }
-
-    // Ajoute un ACE pour un user (PrincipalSid)
-    public void addPermissionForUser(Object domainObject, String username, Permission permission) {
-        if (username == null || username.isBlank()) return;
-        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
-        MutableAcl acl;
-        try {
-            acl = (MutableAcl) aclService.readAclById(oid);
-        } catch (NotFoundException nfe) {
-            acl = aclService.createAcl(oid);
-        }
-        String normalized = username.toLowerCase(); // normaliser
-        acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(normalized), true);
-        aclService.updateAcl(acl);
-    }
-
-    // Ajoute un ACE pour une authority (dept) en utilisant GrantedAuthoritySid
-    public void addPermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
-        if (authoritySid == null || authoritySid.isBlank()) return;
-        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
-        MutableAcl acl;
-        try {
-            acl = (MutableAcl) aclService.readAclById(oid);
-        } catch (NotFoundException nfe) {
-            acl = aclService.createAcl(oid);
-        }
-        acl.insertAce(acl.getEntries().size(), permission, new GrantedAuthoritySid(authoritySid), true);
-        aclService.updateAcl(acl);
-    }
-
-    // Helpers sur collections
-    public void addReadWriteForUsers(Object domainObject, Iterable<String> usernames) {
-        if (usernames == null) return;
-        for (String u : usernames) {
-            try { addPermissionForUser(domainObject, u, BasePermission.READ); } catch (Exception ignored) {}
-            try { addPermissionForUser(domainObject, u, BasePermission.WRITE); } catch (Exception ignored) {}
-        }
-    }
-
-    public void addReadWriteForAuthorities(Object domainObject, Iterable<String> authorities) {
-        if (authorities == null) return;
-        for (String a : authorities) {
-            try { addPermissionForAuthority(domainObject, a, BasePermission.READ); } catch (Exception ignored) {}
-            try { addPermissionForAuthority(domainObject, a, BasePermission.WRITE); } catch (Exception ignored) {}
-        }
-    }
-
-    public void addReadForAuthorities(Object domainObject, Iterable<String> authorities) {
-        if (authorities == null) return;
-        for (String a : authorities) {
-            try { addPermissionForAuthority(domainObject, a, BasePermission.READ); } catch (Exception ignored) {}
-        }
-    }
+//
+//    // Ajoute en bas de la classe AclUtilService (ou adapte si tu veux autre place)
+//    public void addPermissions(Object domainObject, Iterable<String> sids, Permission permission) {
+//        if (sids == null) return;
+//        for (String sid : sids) {
+//            if (sid == null || sid.isBlank()) continue;
+//            try {
+//                addPermission(domainObject, sid, permission);
+//            } catch (Exception e) {
+//                log.warn("Impossible d'ajouter la permission {} pour sid {} sur {} : {}", permission, sid, domainObject, e.getMessage());
+//            }
+//        }
+//    }
+//
+//    /**
+//     * Convenience: add both READ and WRITE for a collection of sids
+//     */
+//    public void addReadWritePermissions(Object domainObject, Iterable<String> sids) {
+//        addPermissions(domainObject, sids, BasePermission.READ);
+//        addPermissions(domainObject, sids, BasePermission.WRITE);
+//    }
+//
+//    // Ajoute un ACE pour un user (PrincipalSid)
+//    public void addPermissionForUser(Object domainObject, String username, Permission permission) {
+//        if (username == null || username.isBlank()) return;
+//        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+//        MutableAcl acl;
+//        try {
+//            acl = (MutableAcl) aclService.readAclById(oid);
+//        } catch (NotFoundException nfe) {
+//            acl = aclService.createAcl(oid);
+//        }
+//        String normalized = username.toLowerCase(); // normaliser
+//        acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(normalized), true);
+//        aclService.updateAcl(acl);
+//    }
+//
+//    // Ajoute un ACE pour une authority (dept) en utilisant GrantedAuthoritySid
+//    public void addPermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
+//        if (authoritySid == null || authoritySid.isBlank()) return;
+//        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+//        MutableAcl acl;
+//        try {
+//            acl = (MutableAcl) aclService.readAclById(oid);
+//        } catch (NotFoundException nfe) {
+//            acl = aclService.createAcl(oid);
+//        }
+//        acl.insertAce(acl.getEntries().size(), permission, new GrantedAuthoritySid(authoritySid), true);
+//        aclService.updateAcl(acl);
+//    }
+//
+//    // Helpers sur collections
+//    public void addReadWriteForUsers(Object domainObject, Iterable<String> usernames) {
+//        if (usernames == null) return;
+//        for (String u : usernames) {
+//            try { addPermissionForUser(domainObject, u, BasePermission.READ); } catch (Exception ignored) {}
+//            try { addPermissionForUser(domainObject, u, BasePermission.WRITE); } catch (Exception ignored) {}
+//        }
+//    }
+//
+//    public void addReadWriteForAuthorities(Object domainObject, Iterable<String> authorities) {
+//        if (authorities == null) return;
+//        for (String a : authorities) {
+//            try { addPermissionForAuthority(domainObject, a, BasePermission.READ); } catch (Exception ignored) {}
+//            try { addPermissionForAuthority(domainObject, a, BasePermission.WRITE); } catch (Exception ignored) {}
+//        }
+//    }
+//
+//    public void addReadForAuthorities(Object domainObject, Iterable<String> authorities) {
+//        if (authorities == null) return;
+//        for (String a : authorities) {
+//            try { addPermissionForAuthority(domainObject, a, BasePermission.READ); } catch (Exception ignored) {}
+//        }
+//    }
 
 }
