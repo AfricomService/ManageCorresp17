@@ -358,14 +358,36 @@ public class CorrespResource {
 //
 //        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
 //    }
-@PostMapping(value = "/corresps/{correspId}/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
-public ResponseEntity<Corresp> addTaskToCorrespJson(
-    @PathVariable("correspId") Long correspId,
-    @RequestBody TasksDTO tasksDTO
+//@PostMapping(value = "/corresps/{correspId}/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
+//public ResponseEntity<Corresp> addTaskToCorrespJson(
+//    @PathVariable("correspId") Long correspId,
+//    @RequestBody TasksDTO tasksDTO
+//) {
+//    Corresp saved = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
+//    return ResponseEntity.ok(saved);
+//}
+@PostMapping("/corresps/{correspId}/tasks")
+public ResponseEntity<?> addTaskToCorresp(
+    @PathVariable Long correspId,
+    @Valid @RequestBody TasksDTO tasksDTO
 ) {
-    Corresp saved = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
-    return ResponseEntity.ok(saved);
+    try {
+        Corresp updated = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
+        // Option 1 : retourner l'entité mise à jour
+        return ResponseEntity.ok(updated);
+        // Option 2 (préférée si tu as un CorrespMapper) :
+        // CorrespDTO dto = correspMapper.toDto(updated);
+        // return ResponseEntity.ok(dto);
+    } catch (RuntimeException e) {
+        // exemple: "Corresp not found with id ..." => 404
+        String msg = e.getMessage() != null ? e.getMessage() : "Internal error";
+        if (msg.contains("not found")) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(msg);
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(msg);
+    }
 }
+
 
 
     @PostMapping(value = "/correspsAddPjToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
