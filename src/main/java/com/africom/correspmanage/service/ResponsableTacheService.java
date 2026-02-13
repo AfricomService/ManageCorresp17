@@ -151,4 +151,10 @@ public class ResponsableTacheService {
     }
 
 
+    @Transactional(readOnly = true)
+    public List<ResponsableTache> findByTacheIdIn(List<Long> tacheIds) {
+        return responsableTacheRepository.findByTacheIdIn(tacheIds);
+    }
+
+
 }

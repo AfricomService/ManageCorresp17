@@ -1,6 +1,7 @@
 package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.client.ConfigManageRestClient;
+import com.africom.correspmanage.client.CorrespGatewayRestClient;
 import com.africom.correspmanage.client.OrgaCareRestClient;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.config.ApplicationProperties;
@@ -72,6 +73,7 @@ public class CorrespService {
     private final ApplicationProperties applicationProperties;
     private final MessageRepository messageRepository;
     private final ResponsableTacheService responsableTacheService;
+    private final CorrespGatewayRestClient correspGatewayRestClient;
 
 
     public CorrespService(
@@ -85,7 +87,8 @@ public class CorrespService {
         ConfigManageRestClient configManageRestClient,
         ApplicationProperties applicationProperties,
         MessageRepository messageRepository,
-        ResponsableTacheService responsableTacheService
+        ResponsableTacheService responsableTacheService,
+        CorrespGatewayRestClient correspGatewayRestClient
 
     ) {
         this.correspRepository = correspRepository;
@@ -98,6 +101,7 @@ public class CorrespService {
         this.applicationProperties = applicationProperties;
         this.messageRepository = messageRepository;
         this.responsableTacheService = responsableTacheService;
+        this.correspGatewayRestClient = correspGatewayRestClient;
 
     }
 
@@ -760,13 +764,18 @@ public class CorrespService {
         existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
 
+        // Persiste la tâche modifiée
         Tasks tasksSaved = tasksRepository.save(taskToUpdate);
 
         if (tasksSaved.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
             // create ACL for the task
-            aclUtilService.createAcl(tasksSaved);
+            try {
+                aclUtilService.createAcl(tasksSaved);
+            } catch (Exception e) {
+                log.warn("Impossible de créer l'ACL pour la tache {} : {}", tasksSaved.getId(), e.getMessage());
+            }
 
-            // Récupérer les codes de départements assignés à la tâche
+            // 1) ACLs pour les départements responsables (comme avant)
             List<String> deptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(tasksSaved.getId());
 
             if (deptCodes != null && !deptCodes.isEmpty()) {
@@ -775,9 +784,8 @@ public class CorrespService {
 
                     String effectiveCode = null;
 
-                    // Appel à ORGACARE pour récupérer le DTO du département (uniquement le dept lui-même)
                     try {
-                        Object dto = orgaCareRestClient.getDepartementDtoByCode(dept); // peut retourner DepartementDTO ou Map<String,Object>
+                        Object dto = orgaCareRestClient.getDepartementDtoByCode(dept);
                         if (dto == null) {
                             effectiveCode = dept;
                         } else if (dto instanceof Map) {
@@ -786,14 +794,11 @@ public class CorrespService {
                             Object codeObj = map.get("code");
                             effectiveCode = codeObj != null ? codeObj.toString().trim() : dept;
                         } else {
-                            // Si ton client feign renvoie un DTO de type DepartementDTO (si accessible côté client)
                             try {
-                                // Reflection-safe extraction to avoid a compile-time dependency on DTO class:
                                 java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
                                 Object codeObj = m.invoke(dto);
                                 effectiveCode = codeObj != null ? codeObj.toString().trim() : dept;
                             } catch (NoSuchMethodException nsme) {
-                                // pas de getCode() — fallback
                                 effectiveCode = dept;
                             }
                         }
@@ -806,10 +811,7 @@ public class CorrespService {
                         effectiveCode = dept;
                     }
 
-                    // Ajouter les permissions pour le département (READ + WRITE)
                     try {
-                        // utilisation de addPermission existant (compatibilité).
-                        // Si tu as addPermissionForAuthority (GrantedAuthoritySid), tu peux le remplacer ici.
                         aclUtilService.addPermission(tasksSaved, effectiveCode, BasePermission.READ);
                         aclUtilService.addPermission(tasksSaved, effectiveCode, BasePermission.WRITE);
                     } catch (Exception e) {
@@ -819,6 +821,47 @@ public class CorrespService {
             } else {
                 log.debug("Aucun code de département trouvé pour la tache {}", tasksSaved.getId());
             }
+
+            // 2) ACLs pour les utilisateurs responsables (matriculePers -> login)
+            List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(tasksSaved.getId());
+            if (matricules != null && !matricules.isEmpty()) {
+                // nettoyer la liste
+                List<String> logins = matricules.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+                if (!logins.isEmpty()) {
+                    try {
+                        // Appel Feign : POST /api/admin/users/by-logins
+                        List<com.africom.correspmanage.client.UserFeignDTO> users = correspGatewayRestClient.findUsersByLogins(logins);
+
+                        if (users != null && !users.isEmpty()) {
+                            for (com.africom.correspmanage.client.UserFeignDTO user : users) {
+                                if (user == null || user.getLogin() == null || user.getLogin().isBlank()) continue;
+                                String login = user.getLogin().trim();
+
+                                try {
+                                    // Ajouter permissions au niveau de la tâche pour cet utilisateur
+                                    aclUtilService.addPermission(tasksSaved, login, BasePermission.READ);
+                                    aclUtilService.addPermission(tasksSaved, login, BasePermission.WRITE);
+                                } catch (Exception e) {
+                                    log.warn("Impossible d'ajouter les permissions pour user '{}' sur tache {} : {}", login, tasksSaved.getId(), e.getMessage());
+                                }
+                            }
+                        } else {
+                            log.debug("Aucun user retourné par findUsersByLogins pour les logins: {}", logins);
+                        }
+                    } catch (Exception e) {
+                        // Ne pas propager l'erreur — on veut que la modification de statut survive aux erreurs Feign
+                        log.warn("Erreur lors de l'appel findUsersByLogins pour la tache {} : {}", tasksSaved.getId(), e.getMessage(), e);
+                    }
+                }
+            } else {
+                log.debug("Aucun matriculePers trouvé pour la tache {}", tasksSaved.getId());
+            }
         }
 
         // Persister les métadonnées du corresp (updatedDate/updatedBy)
@@ -826,6 +869,7 @@ public class CorrespService {
 
         return existingCorresp;
     }
+
 
 
     public String saveBodyToFile(String richTextContent, Long correspId) {

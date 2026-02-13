@@ -16,6 +16,16 @@ public class ResponsableTacheDTO implements Serializable {
 
     private String matriculePers;
 
+    /**
+     * Nom du département résolu via OrgaCare (optionnel)
+     */
+    private String deptName;
+
+    /**
+     * Nom / nomPrenom de la personne résolu via OrgaCare (optionnel)
+     */
+    private String personneName;
+
     public Long getId() {
         return id;
     }
@@ -48,6 +58,22 @@ public class ResponsableTacheDTO implements Serializable {
         this.matriculePers = matriculePers;
     }
 
+    public String getDeptName() {
+        return deptName;
+    }
+
+    public void setDeptName(String deptName) {
+        this.deptName = deptName;
+    }
+
+    public String getPersonneName() {
+        return personneName;
+    }
+
+    public void setPersonneName(String personneName) {
+        this.personneName = personneName;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -77,6 +103,8 @@ public class ResponsableTacheDTO implements Serializable {
             ", tacheId=" + getTacheId() +
             ", codeDept='" + getCodeDept() + "'" +
             ", matriculePers='" + getMatriculePers() + "'" +
+            ", deptName='" + getDeptName() + "'" +
+            ", personneName='" + getPersonneName() + "'" +
             "}";
     }
 }

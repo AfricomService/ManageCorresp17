@@ -2,10 +2,12 @@ package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.client.OrgaCareRestClient;
 import com.africom.correspmanage.domain.Corresp;
+import com.africom.correspmanage.domain.ResponsableTache;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.TasksRepository;
+import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
 import java.util.*;
@@ -35,16 +37,20 @@ public class TasksService {
 
     private final OrgaCareRestClient orgaCareRestClient;
 
+    private final ResponsableTacheService responsableTacheService;
+
     public TasksService(
         TasksRepository tasksRepository,
         TasksMapper tasksMapper,
         CorrespRepository correspRepository,
-        OrgaCareRestClient orgaCareRestClient
+        OrgaCareRestClient orgaCareRestClient,
+        ResponsableTacheService responsableTacheService
     ) {
         this.tasksRepository = tasksRepository;
         this.tasksMapper = tasksMapper;
         this.correspRepository = correspRepository;
         this.orgaCareRestClient = orgaCareRestClient;
+        this.responsableTacheService = responsableTacheService;
     }
 
     /**
@@ -212,9 +218,9 @@ public class TasksService {
             .toList();
     }
 
-//    public List<TasksDTO> getAllTasksByAcl(String deptCode) {
-//        return tasksRepository.findAllByAclForDept(deptCode).stream().map(tasksMapper::toDto).toList();
-//    }
+    //    public List<TasksDTO> getAllTasksByAcl(String deptCode) {
+    //        return tasksRepository.findAllByAclForDept(deptCode).stream().map(tasksMapper::toDto).toList();
+    //    }
 
     /**
      * Retourne les Tasks accessibles par au moins un des codes de départements fournis.
@@ -232,8 +238,10 @@ public class TasksService {
 
     /**
      * Récupère d'abord la liste des codes depuis OrgaCare (par userId) puis retourne les tasks ACL correspondantes.
-     * Nécessite que OrgaCareRestClient expose une méthode getDepartementCodesByUserId(Long userId).
+     * La méthode résout aussi les responsables (codeDept -> deptName, matriculePers -> personneName)
+     * en appelant OrgaCare en bulk pour éviter les N+1.
      */
+    @Transactional(readOnly = true)
     public List<TasksDTO> getAllTasksByUserAcl(Long userId) {
         if (userId == null) {
             return Collections.emptyList();
@@ -251,11 +259,9 @@ public class TasksService {
 
             // extraire seulement les departementCode (comme le code précédent attendait déjà une List<String>)
             deptCodes = affectations.stream()
-                .map(a -> {
-                    Object codeObj = a.get("departementCode");
-                    return codeObj == null ? null : codeObj.toString();
-                })
+                .map(a -> a.get("departementCode"))
                 .filter(Objects::nonNull)
+                .map(Object::toString)
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -264,13 +270,114 @@ public class TasksService {
             return Collections.emptyList();
         }
 
+        if (deptCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         // Récupère les tasks accessibles par ces départements
         List<TasksDTO> all = getAllTasksByAcl(deptCodes);
 
         // Filtre pour ne garder que les tâches IN_PROGRESS (même logique qu'avant)
-        return all.stream()
+        List<TasksDTO> inProgress = all.stream()
             .filter(t -> t.getStatus() != null && "IN_PROGRESS".equals(t.getStatus().toString()))
             .collect(Collectors.toList());
+
+        if (inProgress.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Rassembler tous les ids de tâches pour batch DB
+        List<Long> tacheIds = inProgress.stream()
+            .map(TasksDTO::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+
+        // Récupérer en une seule requête tous les ResponsableTache pour ces tâches
+        List<ResponsableTache> responsablesEntities = responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) {
+            responsablesEntities = Collections.emptyList();
+        }
+
+        // Collecter codes et matricules uniques pour appel bulk OrgaCare
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur lors de l'appel OrgaCare pour noms responsables: {}", e.getMessage());
+            deptNamesByCode = deptNamesByCode == null ? Collections.emptyMap() : deptNamesByCode;
+            personNamesByMatricule = personNamesByMatricule == null ? Collections.emptyMap() : personNamesByMatricule;
+        }
+
+        // Grouper les entités ResponsableTache par tacheId
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        // Pour chaque TasksDTO, construire la liste des ResponsableTacheDTO avec les noms résolus
+        for (TasksDTO dto : inProgress) {
+            List<ResponsableTache> listEnt = responsablesByTache.getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    String code = ent.getCodeDept().trim();
+                    String nomDept = deptNamesByCode.get(code);
+                    rDto.setDeptName(nomDept);
+                }
+
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    String mat = ent.getMatriculePers().trim();
+                    String nomPers = personNamesByMatricule.get(mat);
+                    rDto.setPersonneName(nomPers);
+                }
+
+                rDtos.add(rDto);
+            }
+
+            // dédoublonner par (codeDept, matriculePers)
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:"+k.getCodeDept()) + "|" + (k.getMatriculePers() == null ? "" : "P:"+k.getMatriculePers()),
+                        v -> v,
+                        (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+
+            dto.setResponsables(unique);
+        }
+
+        return inProgress;
     }
 
 }
