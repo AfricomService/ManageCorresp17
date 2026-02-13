@@ -33,7 +33,7 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
             "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
             "JOIN acl_sid sid ON sid.id = ae.sid " +
             "WHERE sid.sid = :deptCode " +
-            "AND ae.mask = 1", // READ permission
+            "AND (ae.mask & 1) <> 0", // READ permission
         nativeQuery = true
     )
     List<Tasks> findAllByAclForDept(@Param("deptCode") String deptCode);

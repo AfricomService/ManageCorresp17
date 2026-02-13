@@ -37,26 +37,26 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
 
     @Query(
         value = "SELECT c.* FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode " +
-        "AND ae.mask = 1", // READ or higher
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode " +
+            "AND (ae.mask & 1) <> 0", // READ bit set
         nativeQuery = true
     )
     List<Corresp> findAllByAclForDept(@Param("deptCode") String deptCode);
 
     @Query(
         value = "SELECT c.* FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode AND ae.mask = 1",
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode AND (ae.mask & 1) <> 0",
         countQuery = "SELECT COUNT(*) FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode AND ae.mask = 1",
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode AND (ae.mask & 1) <> 0",
         nativeQuery = true
     )
     Page<Corresp> findAllByAclForDeptWithPagination(@Param("deptCode") String deptCode, Pageable pageable);
