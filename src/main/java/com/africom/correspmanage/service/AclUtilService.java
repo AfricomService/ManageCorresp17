@@ -125,6 +125,9 @@ public class AclUtilService {
     public void addPermissionIfNotExists(Object domainObject, Sid sid, Permission permission) {
         if (sid == null || permission == null) return;
 
+        Sid effectiveSid = reconcileSidWithDb(sid);
+        String sidValue = sidValueFromSid(effectiveSid);
+
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         MutableAcl acl;
         try {
@@ -133,52 +136,49 @@ public class AclUtilService {
             acl = aclService.createAcl(oid);
         }
 
-        // 1) If ACE already exists → nothing to do
-        boolean exists = acl.getEntries().stream().anyMatch(e ->
-            e.getSid().equals(sid) && e.getPermission().equals(permission)
-        );
+        boolean exists = acl.getEntries().stream().anyMatch(e -> e.getSid().equals(effectiveSid) && e.getPermission().equals(permission));
         if (exists) {
-            log.debug("ACE already exists for {} / {} on {}", sid, permission, oid);
+            log.debug("ACE already exists for {} / {} on {}", effectiveSid, permission, oid);
             return;
         }
 
-        // 2) Extract sid string value to check acl_sid table
-        String sidValue = sidValueFromSid(sid);
+        ensureSidExists(effectiveSid, sidValue);
 
         try {
-            if (sidValue != null && sidExistsInDb(sidValue)) {
-                // sid already recorded in acl_sid: safe to insert ACE
-                acl.insertAce(acl.getEntries().size(), permission, sid, true);
-                aclService.updateAcl(acl);
-                log.debug("Inserted ACE for existing sid {} on {}", sidValue, oid);
-                return;
-            }
-
-            // 3) sid not present in acl_sid (or unknown) -> try to insert ACE (may create sid entry)
-            acl.insertAce(acl.getEntries().size(), permission, sid, true);
+            acl.insertAce(acl.getEntries().size(), permission, effectiveSid, true);
             aclService.updateAcl(acl);
-            log.debug("Inserted ACE (and possibly created sid) {} on {}", sidValue, oid);
-
+            log.debug("Inserted ACE (sid={}) on {}", sidValue, oid);
         } catch (DuplicateKeyException dke) {
-            // Race: another thread/process inserted the sid concurrently.
-            log.info("DuplicateKeyException while inserting sid '{}'. Reloading ACL and retrying ACE insertion.", sidValue);
-            try {
-                MutableAcl refreshed = (MutableAcl) aclService.readAclById(oid);
-                boolean nowExists = refreshed.getEntries().stream().anyMatch(e ->
-                    e.getSid().equals(sid) && e.getPermission().equals(permission)
-                );
-                if (!nowExists) {
-                    refreshed.insertAce(refreshed.getEntries().size(), permission, sid, true);
-                    aclService.updateAcl(refreshed);
-                    log.debug("Inserted ACE after concurrent sid creation for {} on {}", sidValue, oid);
-                } else {
-                    log.debug("ACE already present after refresh for {} on {}", sidValue, oid);
-                }
-            } catch (Exception ex) {
-                log.warn("Impossible de finaliser l'ajout d'ACE après DuplicateKey pour sid '{}': {}", sidValue, ex.getMessage());
-            }
+            log.info("DuplicateKeyException while inserting sid '{}'. Reloading ACL and aborting current attempt.", sidValue);
         } catch (DataAccessException dae) {
             log.warn("Erreur lors de updateAcl pour sid '{}': {}", sidValue, dae.getMessage());
+        }
+    }
+
+    private void ensureSidExists(Sid sid, String sidValue) {
+        if (sidValue == null || sidValue.isBlank()) return;
+        boolean principalFlag = sid instanceof PrincipalSid;
+        try {
+            jdbcTemplate.update(
+                "insert into acl_sid (principal, sid) values (?, ?) on conflict (sid) do nothing",
+                principalFlag,
+                sidValue
+            );
+        } catch (DataAccessException ex) {
+            log.warn("Impossible de préparer le sid '{}' dans acl_sid: {}", sidValue, ex.getMessage());
+        }
+    }
+
+    private Sid reconcileSidWithDb(Sid sid) {
+        String sidValue = sidValueFromSid(sid);
+        if (sidValue == null || sidValue.isBlank()) return sid;
+        try {
+            Boolean principalFlag = jdbcTemplate.queryForObject("select principal from acl_sid where sid = ?", Boolean.class, sidValue);
+            if (principalFlag == null) return sid;
+            return principalFlag ? new PrincipalSid(sidValue) : new GrantedAuthoritySid(sidValue);
+        } catch (DataAccessException ex) {
+            log.debug("Impossible de lire acl_sid pour '{}': {}", sidValue, ex.getMessage());
+            return sid;
         }
     }
 
