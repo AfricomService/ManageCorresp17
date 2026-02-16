@@ -450,4 +450,28 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(corresps);
     }
 
+    /**
+     * GET  /corresps/with-reference?page=1&size=20
+     * Retourne une page de corresps ayant une reference non-nulle.
+     */
+    @GetMapping("/corresps/with-reference")
+    public ResponseEntity<Page<CorrespDTO>> getCorrespsWithReference(
+        @RequestParam(value = "page", defaultValue = "1") int page,
+        @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        Page<CorrespDTO> result = correspService.findAllWithReference(page, size);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * GET  /corresps/with-reference/list
+     * Retourne la liste complète (non paginée) de corresps ayant une reference non-nulle.
+     * Attention : peut être volumineux en production.
+     */
+    @GetMapping("/corresps/with-reference/list")
+    public ResponseEntity<List<CorrespDTO>> getAllCorrespsWithReference() {
+        List<CorrespDTO> list = correspService.findAllWithReferenceList();
+        return ResponseEntity.ok(list);
+    }
+
 }

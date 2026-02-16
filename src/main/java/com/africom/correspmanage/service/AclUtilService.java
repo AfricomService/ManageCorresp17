@@ -217,4 +217,55 @@ public class AclUtilService {
             throw new IllegalStateException("Domain object must have getId method returning Serializable", e);
         }
     }
+
+    /**
+     * Supprime une permission (ACE) pour un GrantedAuthoritySid si elle existe.
+     */
+    public void deletePermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
+        if (authoritySid == null || authoritySid.isBlank()) return;
+        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+        try {
+            MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
+            Sid sid = new GrantedAuthoritySid(authoritySid.trim());
+            for (int i = 0; i < acl.getEntries().size(); i++) {
+                AccessControlEntry entry = acl.getEntries().get(i);
+                if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
+                    acl.deleteAce(i);
+                    aclService.updateAcl(acl);
+                    break;
+                }
+            }
+        } catch (NotFoundException nfe) {
+            // nothing to remove
+        } catch (DataAccessException dae) {
+            log.warn("Erreur lors de suppression ACE authority '{}': {}", authoritySid, dae.getMessage());
+        }
+    }
+
+    /**
+     * Supprime une permission pour un Sid donné (général).
+     * Utile si on veut supprimer aussi bien PrincipalSid que GrantedAuthoritySid.
+     */
+    public void deletePermissionBySid(Object domainObject, Sid sid, Permission permission) {
+        if (sid == null) return;
+        String sidValue = sidValueFromSid(sid);
+        if (sidValue == null || sidValue.isBlank()) return;
+        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+        try {
+            MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
+            for (int i = 0; i < acl.getEntries().size(); i++) {
+                AccessControlEntry entry = acl.getEntries().get(i);
+                if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
+                    acl.deleteAce(i);
+                    aclService.updateAcl(acl);
+                    break;
+                }
+            }
+        } catch (NotFoundException nfe) {
+            // nothing to remove
+        } catch (DataAccessException dae) {
+            log.warn("Erreur lors de suppression ACE pour sid '{}': {}", sidValue, dae.getMessage());
+        }
+    }
+
 }

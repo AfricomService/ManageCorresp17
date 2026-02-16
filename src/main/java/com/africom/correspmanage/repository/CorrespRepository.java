@@ -33,6 +33,10 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
 
     Page<Corresp> findAllByCorresptype(CorrespType corresptype, Pageable pageable);
 
+    Page<Corresp> findAllByReferenceIsNotNull(Pageable pageable);
+
+    List<Corresp> findAllByReferenceIsNotNull();
+
     Page<Corresp> findAll(Specification<Corresp> spec, Pageable pageable);
 
     @Query(

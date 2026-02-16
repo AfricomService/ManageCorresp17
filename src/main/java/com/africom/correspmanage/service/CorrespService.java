@@ -298,6 +298,7 @@ public class CorrespService {
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
 
+    @Transactional
     public Corresp saveCorrespWithTasksAndPj(
         CorrespDTO correspDTO,
         List<TasksDTO> tasksDTOS,
@@ -310,56 +311,148 @@ public class CorrespService {
         log.debug("pjs {}", pjs);
         log.debug("type {}", typeDocumentDTO);
 
-        List<Tasks> tasksList = new ArrayList<>();
+        // Collection pour stocker les Tasks persistées
+        Set<Tasks> tasksSaved = new HashSet<>();
 
-        for (TasksDTO tasksDTO : tasksDTOS) {
-            Tasks tasks = new Tasks();
-            tasks.setResponsible(tasksDTO.getResponsible());
-            tasks.setStatus(CorrespStatus.DRAFT);
-            tasks.setTaskType(tasksDTO.getTaskType());
-            tasks.setDueDate(tasksDTO.getDueDate());
-            tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
-            tasks.creationDate(ZonedDateTime.now());
-            tasks.setStartDate(ZonedDateTime.now());
-            tasks.setCommentaire(tasksDTO.getCommentaire());
+        // --- Création des Tasks : pour chaque TasksDTO -> si plusieurs responsables -> une tâche par responsable
+        if (tasksDTOS != null) {
+            final int MAX_CREATED = 500; // sécurité si beaucoup de responsables
+            int createdCount = 0;
 
-            StringBuilder objectBuilder = new StringBuilder();
+            for (TasksDTO tasksDTO : tasksDTOS) {
+                // récupérer la liste de responsables (nouveau champ)
+                List<ResponsableTacheDTO> inputResponsables = tasksDTO.getResponsables();
 
-            objectBuilder
-                .append(tasksDTO.getResponsible())
-                .append(" effectuera la tâche de ")
-                .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
+                // fallback : si pas de liste, essaie le champ legacy "responsible" (string)
+                if ((inputResponsables == null || inputResponsables.isEmpty()) && tasksDTO.getResponsible() != null) {
+                    // tenter de parser une chaîne séparée par virgules (optionnel)
+                    String raw = tasksDTO.getResponsible();
+                    if (raw != null && !raw.trim().isEmpty()) {
+                        String[] parts = raw.split(",");
+                        inputResponsables = new ArrayList<>();
+                        for (String p : parts) {
+                            String s = p.trim();
+                            if (s.isEmpty()) continue;
+                            ResponsableTacheDTO r = new ResponsableTacheDTO();
+                            // si commence par "P:" ou "D:" on peut gérer; sinon on assume codeDept si contient "Dept-" sinon matricule
+                            if (s.startsWith("P:")) {
+                                r.setMatriculePers(s.substring(2));
+                            } else if (s.startsWith("D:")) {
+                                r.setCodeDept(s.substring(2));
+                            } else if (s.toUpperCase().startsWith("DEPT") || s.toUpperCase().contains("DEPT")) {
+                                r.setCodeDept(s);
+                            } else {
+                                r.setMatriculePers(s);
+                            }
+                            inputResponsables.add(r);
+                        }
+                    }
+                }
 
-            if (tasksDTO.getDueDate() != null) {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                String formattedDate = tasksDTO.getDueDate().format(formatter);
-                objectBuilder.append(" en ne dépassant pas la date limite du ").append(formattedDate);
+                // si toujours vide => créer 1 tâche "sans responsable"
+                if (inputResponsables == null || inputResponsables.isEmpty()) {
+                    Tasks t = new Tasks();
+                    t.setResponsible(null);
+                    t.setStatus(CorrespStatus.DRAFT);
+                    t.setTaskType(tasksDTO.getTaskType());
+                    t.setDueDate(tasksDTO.getDueDate());
+                    t.createdBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+                    t.creationDate(ZonedDateTime.now());
+                    t.setStartDate(ZonedDateTime.now());
+                    t.setCommentaire(tasksDTO.getCommentaire());
+                    StringBuilder objectBuilder = new StringBuilder();
+                    objectBuilder.append("Tâche de ").append(t.getTaskType() != null ? t.getTaskType().toUpperCase() : "N/A");
+                    if (t.getDueDate() != null) {
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                        objectBuilder.append(" jusqu'au ").append(t.getDueDate().format(formatter));
+                    }
+                    t.setObject(objectBuilder.toString());
+
+                    Tasks saved = tasksRepository.save(t);
+                    tasksSaved.add(saved);
+                    createdCount++;
+                    if (createdCount > MAX_CREATED) throw new RuntimeException("Trop de tâches créées");
+                    continue;
+                }
+
+                // normalize & dedupe responsables (key by matricule or codeDept)
+                Map<String, ResponsableTacheDTO> map = new LinkedHashMap<>();
+                for (ResponsableTacheDTO r : inputResponsables) {
+                    if (r == null) continue;
+                    String codeDept = r.getCodeDept() != null ? r.getCodeDept().trim() : null;
+                    String matricule = r.getMatriculePers() != null ? r.getMatriculePers().trim() : null;
+                    if ((codeDept == null || codeDept.isEmpty()) && (matricule == null || matricule.isEmpty())) continue;
+                    String key = (matricule != null && !matricule.isEmpty()) ? ("P:" + matricule) : ("D:" + codeDept);
+                    map.putIfAbsent(key, r);
+                }
+                List<ResponsableTacheDTO> distinctResponsables = new ArrayList<>(map.values());
+
+                // sécurité
+                if (distinctResponsables.size() + createdCount > MAX_CREATED) {
+                    throw new RuntimeException("Trop de responsables fournis (max " + MAX_CREATED + ")");
+                }
+
+                // pour chaque responsable -> créer une Tâche séparée et enregistrer le ResponsableTache
+                for (ResponsableTacheDTO r : distinctResponsables) {
+                    Tasks t = new Tasks();
+                    t.setResponsible(null); // on stocke le responsable dans ResponsableTache
+                    t.setStatus(CorrespStatus.DRAFT);
+                    t.setTaskType(tasksDTO.getTaskType());
+                    t.setDueDate(tasksDTO.getDueDate());
+                    t.createdBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+                    t.creationDate(ZonedDateTime.now());
+                    t.setStartDate(ZonedDateTime.now());
+                    t.setCommentaire(tasksDTO.getCommentaire());
+
+                    String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank())
+                        ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
+                    StringBuilder objectBuilder = new StringBuilder();
+                    objectBuilder
+                        .append(responsibleDisplay)
+                        .append(" effectuera la tâche de ")
+                        .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
+                    if (tasksDTO.getDueDate() != null) {
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                        objectBuilder.append(" en ne dépassant pas la date limite du ").append(tasksDTO.getDueDate().format(formatter));
+                    }
+                    t.setObject(objectBuilder.toString());
+
+                    Tasks savedTask = tasksRepository.save(t);
+
+                    // persist le responsable pour la tâche
+                    r.setTacheId(savedTask.getId());
+                    try {
+                        responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
+                    } catch (Exception e) {
+                        // rollback si erreur (méthode @Transactional)
+                        throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
+                    }
+
+                    tasksSaved.add(savedTask);
+                    createdCount++;
+                } // end loop responsables
+            } // end loop tasksDTOS
+        } // end if tasksDTOS
+
+        // --- PJs
+        Set<Pj> pjsSaved = new HashSet<>();
+        if (pjs != null) {
+            List<Pj> pjsList = new ArrayList<>();
+            for (Pj pjDTO : pjs) {
+                Pj pjEntity = new Pj();
+                pjEntity.setName(pjDTO.getName());
+                pjEntity.setFileType(pjDTO.getFileType());
+                pjEntity.setUniqueName(pjDTO.getUniqueName());
+                pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+                pjEntity.setCreationDate(ZonedDateTime.now());
+                pjEntity.setPath(pjDTO.getPath());
+                pjsList.add(pjEntity);
             }
-
-            tasks.setObject(objectBuilder.toString());
-
-            tasksList.add(tasks);
+            pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
         }
 
-        List<Pj> pjsList = new ArrayList<>();
-
-        for (Pj pjDTO : pjs) {
-            Pj pjEntity = new Pj();
-            pjEntity.setName(pjDTO.getName());
-            pjEntity.setFileType(pjDTO.getFileType());
-            pjEntity.setUniqueName(pjDTO.getUniqueName());
-            pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
-            pjEntity.setCreationDate(ZonedDateTime.now());
-            pjEntity.setPath(pjDTO.getPath());
-
-            pjsList.add(pjEntity);
-        }
-
-        Set<Tasks> tasksSaved = new HashSet<>(tasksRepository.saveAll(tasksList));
-        Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
-
+        // --- Créer le corresp
         Corresp correspToSave = new Corresp();
-
         UUID uuid = UUID.randomUUID();
         correspToSave.setIdinstance(uuid);
         correspToSave.setCourrierDate(correspDTO.getCourrierDate());
@@ -374,7 +467,6 @@ public class CorrespService {
         correspToSave.setSenderReference(correspDTO.getSenderReference());
         correspToSave.setPriority(correspDTO.getPriority());
         correspToSave.setStatus(CorrespStatus.DRAFT);
-        //        correspToSave.setBody(correspDTO.getBody());
         correspToSave.setDispatchType(correspDTO.getDispatchType());
         correspToSave.setCorresptype(correspDTO.getCorresptype());
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
@@ -390,30 +482,27 @@ public class CorrespService {
 
         correspToSave.setTasks(tasksSaved);
         correspToSave.setAttachments(pjsSaved);
-
         correspToSave.setUpdatedDate(ZonedDateTime.now());
-
         correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
         Corresp saved = correspRepository.save(correspToSave);
 
+        // Body -> fichier / message (inchangé)
         String path = saveBodyToFile(correspDTO.getBody(), saved.getId());
-
         Message message = new Message();
-
         message.sender(correspDTO.getSender());
         message.setCorrespId(saved.getId());
         message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
         message.setCreationDate(ZonedDateTime.now());
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
-
         messageRepository.save(message);
 
         log.debug("save corresp {}", saved);
-
         return saved;
     }
+
+
 
     public String removeExtension(String fileName) {
         int index = fileName.lastIndexOf('.');
@@ -522,11 +611,11 @@ public class CorrespService {
 
         Set<Tasks> tasksSaved = corresp.getTasks();
 
-        //        Tasks taskEntity = new Tasks();
-
+        // Passer les tâches DRAFT -> IN_PROGRESS
         tasksSaved.forEach(task -> {
             if (task.getStatus().equals(CorrespStatus.DRAFT)) {
                 task.setStatus(CorrespStatus.IN_PROGRESS);
+                task.setStartDate(ZonedDateTime.now());
             }
         });
 
@@ -538,73 +627,302 @@ public class CorrespService {
 
         corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
+        // Persister d'abord le corresp (et les tâches si cascade)
         Corresp saved = correspRepository.save(corresp);
 
-        TypeDocumentFeignDTO typeDocumentFeignDTO = configManageRestClient.getTypeDocumentById(corresp.getTypeDocumentId());
+        // --- Nouveau processus ACL inspiré de changeTaskStatus ---
+        // caches partagés pour éviter résolutions répétées
+        Map<String, String> deptEffectiveCache = new HashMap<>();
 
-        List<String> departementsToReadWrite = orgaCareRestClient.getDepartementAndParentsCodes(typeDocumentFeignDTO.getDefautdest());
+        // Pour chaque tâche devenue IN_PROGRESS, on applique la logique ACL
+        for (Tasks task : saved.getTasks()) {
+            if (!CorrespStatus.IN_PROGRESS.equals(task.getStatus())) {
+                continue;
+            }
 
-        aclUtilService.createAcl(saved);
+            // s'assurer que l'ACL de la tâche existe
+            try {
+                aclUtilService.ensureAclExists(task);
+            } catch (Exception e) {
+                log.warn("Impossible d'assurer l'ACL pour la tache {} : {}", task.getId(), e.getMessage());
+            }
 
-        departementsToReadWrite.forEach(departement -> {
-            aclUtilService.addPermission(saved, departement, BasePermission.READ);
-            aclUtilService.addPermission(saved, departement, BasePermission.WRITE);
-        });
+            // 1) Départements responsables -> donner READ & WRITE sur la TÂCHE
+            List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(task.getId());
+            Set<String> deptCodes = (rawDeptCodes == null) ? Collections.emptySet()
+                : rawDeptCodes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        //        aclUtilService.createAcl(taskEntity);
+            if (!deptCodes.isEmpty()) {
+                for (String dept : deptCodes) {
+                    if (dept.isBlank()) continue;
+                    String effectiveCode = deptEffectiveCache.computeIfAbsent(dept, d -> {
+                        try {
+                            Object dto = orgaCareRestClient.getDepartementDtoByCode(d);
+                            if (dto == null) return d;
+                            if (dto instanceof Map) {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> map = (Map<String, Object>) dto;
+                                Object codeObj = map.get("code");
+                                return codeObj != null ? codeObj.toString().trim() : d;
+                            } else {
+                                try {
+                                    java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
+                                    Object codeObj = m.invoke(dto);
+                                    return codeObj != null ? codeObj.toString().trim() : d;
+                                } catch (NoSuchMethodException nsme) {
+                                    return d;
+                                }
+                            }
+                        } catch (Exception ex) {
+                            log.warn("OrgaCare getDepartementDtoByCode failed for '{}': {} — fallback to provided code", d, ex.getMessage());
+                            return d;
+                        }
+                    });
 
-        saved
-            .getTasks()
-            .forEach(task -> {
-                if (task.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
-                    aclUtilService.createAcl(task);
+                    if (effectiveCode == null || effectiveCode.isBlank()) effectiveCode = dept;
 
-                    Map<String, List<String>> departements = orgaCareRestClient.getMapDepartementParentsByCode(task.getResponsible());
-
-                    List<String> deptCodes = departements.get("code");
-                    if (deptCodes != null) {
-                        deptCodes.forEach(code -> {
-                            aclUtilService.addPermission(task, code, BasePermission.READ);
-                            aclUtilService.addPermission(task, code, BasePermission.WRITE);
-                        });
-                    }
-
-                    List<String> parentCodes = departements.get("parents");
-                    if (parentCodes != null) {
-                        parentCodes.forEach(parentCode -> {
-                            aclUtilService.addPermission(task, parentCode, BasePermission.READ);
-                        });
+                    try {
+                        aclUtilService.addPermissionIfNotExists(task, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                        aclUtilService.addPermissionIfNotExists(task, new GrantedAuthoritySid(effectiveCode), BasePermission.WRITE);
+                    } catch (Exception e) {
+                        log.warn("Impossible d'ajouter les permissions pour dept '{}' sur tache {} : {}", effectiveCode, task.getId(), e.getMessage());
                     }
                 }
-            });
+            } else {
+                log.debug("Aucun code de département trouvé pour la tache {}", task.getId());
+            }
+
+            // 2) Matricules responsables -> récupérer logins via correspGateway -> donner READ & WRITE sur la TÂCHE
+            List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(task.getId());
+            List<String> distinctMatricules = (matricules == null) ? Collections.emptyList()
+                : matricules.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).distinct().collect(Collectors.toList());
+
+            List<String> logins = Collections.emptyList();
+            if (!distinctMatricules.isEmpty()) {
+                try {
+                    List<com.africom.correspmanage.client.UserFeignDTO> users = correspGatewayRestClient.findUsersByLogins(distinctMatricules);
+                    if (users != null && !users.isEmpty()) {
+                        Set<String> loginSet = users.stream()
+                            .filter(Objects::nonNull)
+                            .map(u -> u.getLogin() == null ? null : u.getLogin().trim().toLowerCase())
+                            .filter(Objects::nonNull)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        if (!loginSet.isEmpty()) {
+                            logins = new ArrayList<>(loginSet);
+                            for (String login : logins) {
+                                try {
+                                    aclUtilService.addPermissionIfNotExists(task, new PrincipalSid(login), BasePermission.READ);
+                                    aclUtilService.addPermissionIfNotExists(task, new PrincipalSid(login), BasePermission.WRITE);
+                                } catch (Exception e) {
+                                    log.warn("Impossible d'ajouter les permissions pour user '{}' sur tache {} : {}", login, task.getId(), e.getMessage());
+                                }
+                            }
+                        }
+                    } else {
+                        log.debug("Aucun user retourné par findUsersByLogins pour les matricules: {}", distinctMatricules);
+                    }
+                } catch (Exception e) {
+                    log.warn("Erreur lors de l'appel findUsersByLogins pour la tache {} : {}", task.getId(), e.getMessage());
+                }
+            } else {
+                log.debug("Aucun matriculePers trouvé pour la tache {}", task.getId());
+            }
+
+            // 3) Si le type de tâche impose aussi des droits sur le CORRESP, on les applique
+            String taskType = task.getTaskType();
+            boolean onlyRead = taskType != null && taskType.equalsIgnoreCase("Lecture");
+            boolean readAndWrite = taskType != null && (
+                taskType.equalsIgnoreCase("Traitement") ||
+                    taskType.equalsIgnoreCase("Validation") ||
+                    taskType.equalsIgnoreCase("Signature")
+            );
+
+            if (onlyRead || readAndWrite) {
+                try {
+                    aclUtilService.ensureAclExists(saved);
+                } catch (Exception e) {
+                    log.warn("Impossible d'assurer l'ACL pour le corresp {} : {}", saved.getId(), e.getMessage());
+                }
+
+                // appliquer aux mêmes départements
+                if (!deptCodes.isEmpty()) {
+                    for (String dept : deptCodes) {
+                        String effectiveCode = deptEffectiveCache.getOrDefault(dept, dept);
+                        try {
+                            aclUtilService.addPermissionIfNotExists(saved, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                            if (readAndWrite) {
+                                aclUtilService.addPermissionIfNotExists(saved, new GrantedAuthoritySid(effectiveCode), BasePermission.WRITE);
+                            }
+                        } catch (Exception e) {
+                            log.warn("Impossible d'ajouter les permissions pour dept '{}' sur corresp {} : {}", effectiveCode, saved.getId(), e.getMessage());
+                        }
+                    }
+                }
+
+                // appliquer aux mêmes utilisateurs (logins)
+                if (logins != null && !logins.isEmpty()) {
+                    for (String login : logins) {
+                        try {
+                            aclUtilService.addPermissionIfNotExists(saved, new PrincipalSid(login), BasePermission.READ);
+                            if (readAndWrite) {
+                                aclUtilService.addPermissionIfNotExists(saved, new PrincipalSid(login), BasePermission.WRITE);
+                            }
+                        } catch (Exception e) {
+                            log.warn("Impossible d'ajouter les permissions pour user '{}' sur corresp {} : {}", login, saved.getId(), e.getMessage());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Persister les métadonnées du corresp (updatedDate/updatedBy) au cas où des ACLs ont modifié des choses
+        correspRepository.save(saved);
 
         return saved;
     }
 
+
+    @Transactional
     public Corresp cloturerCorresp(Long correspId) {
-        Corresp corresp = correspRepository.findById(correspId).get();
+        Corresp corresp = correspRepository.findById(correspId).orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
 
         Set<Tasks> tasksSaved = corresp.getTasks();
 
-        //        Tasks taskEntity = new Tasks();
+        // cache partagé pour éviter résolutions répétées des mêmes départements
+        Map<String, String> deptEffectiveCache = new HashMap<>();
 
-        tasksSaved.forEach(task -> {
+        // s'assurer ACL du corresp (on en aura besoin plus bas)
+        try {
+            aclUtilService.ensureAclExists(corresp);
+        } catch (Exception e) {
+            log.warn("Impossible d'assurer l'ACL pour le corresp {} : {}", corresp.getId(), e.getMessage());
+        }
+
+        for (Tasks task : tasksSaved) {
             if (task.getStatus().equals(CorrespStatus.IN_PROGRESS)) {
+                // changer l'état de la tâche
                 task.setStatus(CorrespStatus.CLOSED);
                 task.setCloseDate(ZonedDateTime.now());
-            }
-        });
+
+                // --- Gérer les ACLs : si responsable avait READ+WRITE => enlever WRITE et garder READ.
+                try {
+                    // s'assurer que l'ACL de la tâche existe
+                    aclUtilService.ensureAclExists(task);
+                } catch (Exception e) {
+                    log.warn("Impossible d'assurer l'ACL pour la tache {} : {}", task.getId(), e.getMessage());
+                }
+
+                // 1) Départements responsables -> retirer WRITE si présent, assurer READ (sur TÂCHE et CORRESP)
+                List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(task.getId());
+                Set<String> deptCodes = (rawDeptCodes == null) ? Collections.emptySet()
+                    : rawDeptCodes.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toCollection(LinkedHashSet::new));
+
+                if (!deptCodes.isEmpty()) {
+                    for (String dept : deptCodes) {
+                        if (dept.isBlank()) continue;
+                        String effectiveCode = deptEffectiveCache.computeIfAbsent(dept, d -> {
+                            try {
+                                Object dto = orgaCareRestClient.getDepartementDtoByCode(d);
+                                if (dto == null) return d;
+                                if (dto instanceof Map) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> map = (Map<String, Object>) dto;
+                                    Object codeObj = map.get("code");
+                                    return codeObj != null ? codeObj.toString().trim() : d;
+                                } else {
+                                    try {
+                                        java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
+                                        Object codeObj = m.invoke(dto);
+                                        return codeObj != null ? codeObj.toString().trim() : d;
+                                    } catch (NoSuchMethodException nsme) {
+                                        return d;
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                log.warn("OrgaCare getDepartementDtoByCode failed for '{}': {} — fallback to provided code", d, ex.getMessage());
+                                return d;
+                            }
+                        });
+
+                        if (effectiveCode == null || effectiveCode.isBlank()) effectiveCode = dept;
+
+                        try {
+                            // Sur la TÂCHE : supprimer WRITE si présent, assurer READ
+                            aclUtilService.deletePermissionForAuthority(task, effectiveCode, BasePermission.WRITE);
+                            aclUtilService.addPermissionIfNotExists(task, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                        } catch (Exception e) {
+                            log.warn("Erreur ACL (tâche) pour dept '{}' sur tache {} : {}", effectiveCode, task.getId(), e.getMessage());
+                        }
+
+                        try {
+                            // Sur le CORRESP : supprimer WRITE si présent, assurer READ
+                            aclUtilService.deletePermissionForAuthority(corresp, effectiveCode, BasePermission.WRITE);
+                            aclUtilService.addPermissionIfNotExists(corresp, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                        } catch (Exception e) {
+                            log.warn("Erreur ACL (corresp) pour dept '{}' sur corresp {} : {}", effectiveCode, corresp.getId(), e.getMessage());
+                        }
+                    }
+                }
+
+                // 2) Matricules responsables -> convertir en logins -> retirer WRITE, assurer READ (sur TÂCHE et CORRESP)
+                List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(task.getId());
+                List<String> distinctMatricules = (matricules == null) ? Collections.emptyList()
+                    : matricules.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).distinct().collect(Collectors.toList());
+
+                if (!distinctMatricules.isEmpty()) {
+                    try {
+                        List<com.africom.correspmanage.client.UserFeignDTO> users = correspGatewayRestClient.findUsersByLogins(distinctMatricules);
+                        if (users != null && !users.isEmpty()) {
+                            Set<String> loginSet = users.stream()
+                                .filter(Objects::nonNull)
+                                .map(u -> u.getLogin() == null ? null : u.getLogin().trim().toLowerCase())
+                                .filter(Objects::nonNull)
+                                .filter(s -> !s.isEmpty())
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                            for (String login : loginSet) {
+                                try {
+                                    // Sur la TÂCHE : supprimer WRITE s'il existe, assurer READ
+                                    aclUtilService.deletePermission(task, login, BasePermission.WRITE);
+                                    aclUtilService.addPermissionIfNotExists(task, new PrincipalSid(login), BasePermission.READ);
+                                } catch (Exception e) {
+                                    log.warn("Erreur ACL (tâche) pour user '{}' sur tache {} : {}", login, task.getId(), e.getMessage());
+                                }
+
+                                try {
+                                    // Sur le CORRESP : supprimer WRITE s'il existe, assurer READ
+                                    aclUtilService.deletePermission(corresp, login, BasePermission.WRITE);
+                                    aclUtilService.addPermissionIfNotExists(corresp, new PrincipalSid(login), BasePermission.READ);
+                                } catch (Exception e) {
+                                    log.warn("Erreur ACL (corresp) pour user '{}' sur corresp {} : {}", login, corresp.getId(), e.getMessage());
+                                }
+                            }
+                        } else {
+                            log.debug("Aucun user retourné par findUsersByLogins pour les matricules: {}", distinctMatricules);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Erreur lors de l'appel findUsersByLogins pour la tache {} : {}", task.getId(), e.getMessage());
+                    }
+                } else {
+                    log.debug("Aucun matriculePers trouvé pour la tache {}", task.getId());
+                }
+            } // end if IN_PROGRESS
+        } // end for tasks
 
         corresp.setTasks(tasksSaved);
-
         corresp.setStatus(CorrespStatus.CLOSED);
-
         corresp.setUpdatedDate(ZonedDateTime.now());
-
-        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
 
         return correspRepository.save(corresp);
     }
+
 
     public List<Corresp> getListByAcl(String deptCode) {
         return correspRepository.findAllByAclForDept(deptCode);
@@ -615,97 +933,95 @@ public class CorrespService {
         return correspRepository.findAllByAclForDeptWithPagination(deptCode, pageable);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
         Corresp existingCorresp = correspRepository.findById(correspId)
             .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
 
-        // Création de la tâche — ne pas renseigner le champ `responsible` (stockage dans ResponsableTache)
-        Tasks tasks = new Tasks();
-        tasks.setResponsible(null); // IMPORTANT : reste null
-        tasks.setStatus(CorrespStatus.DRAFT);
-        tasks.setTaskType(tasksDTO.getTaskType());
-        tasks.setDueDate(tasksDTO.getDueDate());
-        tasks.createdBy(SecurityUtils.getCurrentUserLogin().get());
-        tasks.creationDate(ZonedDateTime.now());
-        tasks.setStartDate(ZonedDateTime.now());
-        tasks.setCommentaire(tasksDTO.getCommentaire());
-
-        // Construction de l'objet (libellé) de la tâche (utile pour UI / historique)
-        StringBuilder objectBuilder = new StringBuilder();
-        // si l'appelant a fourni un responsable "libre" dans tasksDTO.getResponsible(), on l'utilise dans l'objet,
-        // sinon on laissera vide (mais sans renseigner tasks.responsible).
-        objectBuilder
-            .append(tasksDTO.getResponsible() != null ? tasksDTO.getResponsible() : "")
-            .append(" effectuera la tâche de ")
-            .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
-
-        if (tasksDTO.getDueDate() != null) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            String formattedDate = tasksDTO.getDueDate().format(formatter);
-            objectBuilder.append(" en ne dépassant pas la date limite du ").append(formattedDate);
-        }
-
-        tasks.setObject(objectBuilder.toString());
-
-        // Sauvegarde initiale de la tâche (sans champ responsible)
-        Tasks savedTask = tasksRepository.save(tasks);
-
-        // --- Gestion et persistance des responsables dans l'entité ResponsableTache ---
         List<ResponsableTacheDTO> inputResponsables = tasksDTO.getResponsables();
+
+        // normalize & dedupe (key = dept code or matricule)
+        List<ResponsableTacheDTO> distinctResponsables = Collections.emptyList();
         if (inputResponsables != null && !inputResponsables.isEmpty()) {
-            List<ResponsableTacheDTO> normalized = new ArrayList<>();
-
+            Map<String, ResponsableTacheDTO> map = new LinkedHashMap<>();
             for (ResponsableTacheDTO r : inputResponsables) {
-                boolean hasDept = r.getCodeDept() != null && !r.getCodeDept().isBlank();
-                boolean hasPers = r.getMatriculePers() != null && !r.getMatriculePers().isBlank();
-
-                if (hasDept && hasPers) {
-                    // split combo en deux responsables distincts : dept-only + pers-only
-                    ResponsableTacheDTO deptOnly = new ResponsableTacheDTO();
-                    deptOnly.setCodeDept(r.getCodeDept());
-                    deptOnly.setTacheId(savedTask.getId());
-                    normalized.add(deptOnly);
-
-                    ResponsableTacheDTO persOnly = new ResponsableTacheDTO();
-                    persOnly.setMatriculePers(r.getMatriculePers());
-                    persOnly.setTacheId(savedTask.getId());
-                    normalized.add(persOnly);
-                } else if (hasDept) {
-                    r.setTacheId(savedTask.getId());
-                    normalized.add(r);
-                } else if (hasPers) {
-                    r.setTacheId(savedTask.getId());
-                    normalized.add(r);
-                } else {
-                    log.warn("Responsable ignoré car ni codeDept ni matriculePers fournis : {}", r);
+                if (r == null) continue;
+                String codeDept = r.getCodeDept() != null ? r.getCodeDept().trim() : null;
+                String matricule = r.getMatriculePers() != null ? r.getMatriculePers().trim() : null;
+                if ((codeDept == null || codeDept.isEmpty()) && (matricule == null || matricule.isEmpty())) {
+                    continue; // ignorer
                 }
+                String key = (matricule != null && !matricule.isEmpty()) ? ("P:" + matricule) : ("D:" + codeDept);
+                // keep first occurrence
+                map.putIfAbsent(key, new ResponsableTacheDTO() {{
+                    setCodeDept(codeDept);
+                    setMatriculePers(matricule);
+                }});
             }
+            distinctResponsables = new ArrayList<>(map.values());
+        }
 
+        if (distinctResponsables.isEmpty()) {
+            // Comportement : on autorise la création d'une tâche sans responsable (comme avant),
+            // ou on peut lever une exception si tu veux obliger au moins un responsable.
+        }
+
+        Set<Tasks> createdTasks = existingCorresp.getTasks() != null ? existingCorresp.getTasks() : new HashSet<>();
+
+        // Limite de sécurité (optionnelle) : éviter création massive
+        final int MAX_CREATED = 50;
+        if (distinctResponsables.size() > MAX_CREATED) {
+            throw new RuntimeException("Trop de responsables fournis (max " + MAX_CREATED + ")");
+        }
+
+        for (ResponsableTacheDTO r : distinctResponsables) {
+            // créer une tâche par responsable
+            Tasks tasks = new Tasks();
+            tasks.setResponsible(null); // on stockera le responsable dans ResponsableTache
+            tasks.setStatus(CorrespStatus.DRAFT);
+            tasks.setTaskType(tasksDTO.getTaskType());
+            tasks.setDueDate(tasksDTO.getDueDate());
+            tasks.createdBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+            tasks.creationDate(ZonedDateTime.now());
+            tasks.setStartDate(ZonedDateTime.now());
+            tasks.setCommentaire(tasksDTO.getCommentaire());
+
+            StringBuilder objectBuilder = new StringBuilder();
+            String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank()) ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
+            objectBuilder
+                .append(responsibleDisplay)
+                .append(" effectuera la tâche de ")
+                .append(tasksDTO.getTaskType() != null ? tasksDTO.getTaskType().toUpperCase() : "N/A");
+
+            if (tasksDTO.getDueDate() != null) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                String formattedDate = tasksDTO.getDueDate().format(formatter);
+                objectBuilder.append(" en ne dépassant pas la date limite du ").append(formattedDate);
+            }
+            tasks.setObject(objectBuilder.toString());
+
+            Tasks savedTask = tasksRepository.save(tasks);
+
+            // persist le responsable pour la tâche (service existant)
+            r.setTacheId(savedTask.getId());
             try {
-                // La méthode saveAllForTask supprime les anciens responsables pour la tâche si elle est conçue ainsi,
-                // puis enregistre les nouveaux.
-                responsableTacheService.saveAllForTask(savedTask.getId(), normalized);
-                // NOTE : on n'écrit volontairement aucune valeur dans savedTask.setResponsible(...)
-                // Les responsables sont accessibles via ResponsableTache.
+                responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
             } catch (Exception e) {
-                log.error("Erreur lors de la sauvegarde des responsables pour la tâche {} : {}", savedTask.getId(), e.getMessage(), e);
-                // On ne lève pas l'exception pour ne pas bloquer la création de la tâche
+                // si tu veux rollback complet, laisse l'exception remonter (méthode annotée @Transactional).
+                // ici on rethrow pour faire rollback.
+                throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
             }
+
+            createdTasks.add(savedTask);
         }
 
-        // Ajouter la tâche au courrier
-        Set<Tasks> tasksList = existingCorresp.getTasks();
-        if (tasksList == null) {
-            tasksList = new HashSet<>();
-        }
-        tasksList.add(savedTask);
-        existingCorresp.setTasks(tasksList);
-
+        existingCorresp.setTasks(createdTasks);
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
-        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+        existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
 
         return correspRepository.save(existingCorresp);
     }
+
 
 
 
@@ -1027,6 +1343,22 @@ public class CorrespService {
             .findById(taskId)
             .map(task -> task.getCorresps().stream().map(correspMapper::toDto).collect(Collectors.toList()))
             .orElseGet(Collections::emptyList);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CorrespDTO> findAllWithReference(int pageIndex, int pageSize) {
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize, Sort.by("id").descending());
+        return correspRepository.findAllByReferenceIsNotNull(pageable).map(correspMapper::toDto);
+    }
+
+    /**
+     * Get all corresps that have a non-null reference (full list).
+     *
+     * @return list of CorrespDTO
+     */
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> findAllWithReferenceList() {
+        return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
     }
 
 }
