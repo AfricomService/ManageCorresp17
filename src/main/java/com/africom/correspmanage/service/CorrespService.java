@@ -1,9 +1,6 @@
 package com.africom.correspmanage.service;
 
-import com.africom.correspmanage.client.ConfigManageRestClient;
-import com.africom.correspmanage.client.CorrespGatewayRestClient;
-import com.africom.correspmanage.client.OrgaCareRestClient;
-import com.africom.correspmanage.client.TypeDocumentFeignDTO;
+import com.africom.correspmanage.client.*;
 import com.africom.correspmanage.config.ApplicationProperties;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Message;
@@ -1359,6 +1356,157 @@ public class CorrespService {
     @Transactional(readOnly = true)
     public List<CorrespDTO> findAllWithReferenceList() {
         return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public CorrespPermissionsDTO getAndEnsurePermissionsForCurrentUser(Long correspId) {
+        Corresp corresp = correspRepository.findById(correspId)
+            .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
+
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        Long userId = null;
+
+        // try to get userId from gateway
+        if (login != null) {
+            try {
+                UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(login);
+                if (userDto != null) userId = userDto.getId();
+            } catch (Exception e) {
+                log.debug("Cannot get user by login {} : {}", login, e.getMessage());
+            }
+        }
+
+        CorrespPermissionsDTO result = new CorrespPermissionsDTO();
+        PermissionDTO correspPerm = new PermissionDTO();
+        Map<Long, PermissionDTO> taskPerms = new HashMap<>();
+
+        // 1) direct checks for principal
+        if (login != null) {
+            PrincipalSid principal = new PrincipalSid(login.trim().toLowerCase());
+            correspPerm.setCanRead(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.READ));
+            correspPerm.setCanWrite(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.WRITE));
+            correspPerm.setCanDelete(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.DELETE));
+            correspPerm.setCanAdmin(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.ADMINISTRATION));
+        }
+
+        if (corresp.getTasks() != null) {
+            for (Tasks t : corresp.getTasks()) {
+                PermissionDTO p = new PermissionDTO();
+                if (login != null) {
+                    PrincipalSid principal = new PrincipalSid(login.trim().toLowerCase());
+                    p.setCanRead(aclUtilService.hasPermissionForSid(t, principal, BasePermission.READ));
+                    p.setCanWrite(aclUtilService.hasPermissionForSid(t, principal, BasePermission.WRITE));
+                    p.setCanDelete(aclUtilService.hasPermissionForSid(t, principal, BasePermission.DELETE));
+                    p.setCanAdmin(aclUtilService.hasPermissionForSid(t, principal, BasePermission.ADMINISTRATION));
+                }
+                taskPerms.put(t.getId(), p);
+            }
+        }
+
+        boolean any = correspPerm.isCanRead() || correspPerm.isCanWrite() || correspPerm.isCanDelete() || correspPerm.isCanAdmin()
+            || taskPerms.values().stream().anyMatch(pp -> pp.isCanRead() || pp.isCanWrite() || pp.isCanDelete() || pp.isCanAdmin());
+
+        if (any) {
+            result.setCorresp(correspPerm);
+            result.setTasksPermissions(taskPerms);
+            return result;
+        }
+
+        // 2) if no direct perms -> check user's departments via OrgaCare using userId
+        List<String> deptCodes = new ArrayList<>();
+        if (userId != null) {
+            try {
+                List<Map<String,Object>> aff = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+                if (aff != null) {
+                    for (Map<String,Object> m : aff) {
+                        Object codeObj = m.get("departementCode");
+                        if (codeObj != null) {
+                            String code = codeObj.toString().trim();
+                            if (!code.isEmpty()) deptCodes.add(code);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("OrgaCare call failed for userId {}: {}", userId, e.getMessage());
+            }
+        }
+
+        if (deptCodes.isEmpty()) {
+            result.setCorresp(correspPerm);
+            result.setTasksPermissions(taskPerms);
+            return result;
+        }
+
+        // 3) for each department, if dept has perms then apply same perms to current principal
+        if (login != null) {
+            PrincipalSid principal = new PrincipalSid(login.trim().toLowerCase());
+            for (String dept : deptCodes) {
+                if (dept == null || dept.isBlank()) continue;
+                GrantedAuthoritySid auth = new GrantedAuthoritySid(dept.trim());
+
+                // corresp perms
+                boolean dRead = aclUtilService.hasPermissionForSid(corresp, auth, BasePermission.READ);
+                boolean dWrite = aclUtilService.hasPermissionForSid(corresp, auth, BasePermission.WRITE);
+                boolean dDelete = aclUtilService.hasPermissionForSid(corresp, auth, BasePermission.DELETE);
+                boolean dAdmin = aclUtilService.hasPermissionForSid(corresp, auth, BasePermission.ADMINISTRATION);
+
+                try {
+                    if (dRead) aclUtilService.addPermissionIfNotExists(corresp, principal, BasePermission.READ);
+                    if (dWrite) aclUtilService.addPermissionIfNotExists(corresp, principal, BasePermission.WRITE);
+                    if (dDelete) aclUtilService.addPermissionIfNotExists(corresp, principal, BasePermission.DELETE);
+                    if (dAdmin) aclUtilService.addPermissionIfNotExists(corresp, principal, BasePermission.ADMINISTRATION);
+                } catch (Exception e) {
+                    log.warn("Cannot apply corresp perms from dept {} to user {}: {}", dept, login, e.getMessage());
+                }
+
+                // tasks perms
+                if (corresp.getTasks() != null) {
+                    for (Tasks t : corresp.getTasks()) {
+                        boolean tdRead = aclUtilService.hasPermissionForSid(t, auth, BasePermission.READ);
+                        boolean tdWrite = aclUtilService.hasPermissionForSid(t, auth, BasePermission.WRITE);
+                        boolean tdDelete = aclUtilService.hasPermissionForSid(t, auth, BasePermission.DELETE);
+                        boolean tdAdmin = aclUtilService.hasPermissionForSid(t, auth, BasePermission.ADMINISTRATION);
+                        try {
+                            if (tdRead) aclUtilService.addPermissionIfNotExists(t, principal, BasePermission.READ);
+                            if (tdWrite) aclUtilService.addPermissionIfNotExists(t, principal, BasePermission.WRITE);
+                            if (tdDelete) aclUtilService.addPermissionIfNotExists(t, principal, BasePermission.DELETE);
+                            if (tdAdmin) aclUtilService.addPermissionIfNotExists(t, principal, BasePermission.ADMINISTRATION);
+                        } catch (Exception e) {
+                            log.warn("Cannot apply task perms from dept {} to user {} for task {}: {}", dept, login, t.getId(), e.getMessage());
+                        }
+                    }
+                }
+            } // end for dept
+        }
+
+        // 4) recompute and return final permissions (after potential adds)
+        PermissionDTO correspAfter = new PermissionDTO();
+        if (login != null) {
+            PrincipalSid principal = new PrincipalSid(login.trim().toLowerCase());
+            correspAfter.setCanRead(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.READ));
+            correspAfter.setCanWrite(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.WRITE));
+            correspAfter.setCanDelete(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.DELETE));
+            correspAfter.setCanAdmin(aclUtilService.hasPermissionForSid(corresp, principal, BasePermission.ADMINISTRATION));
+        }
+
+        Map<Long, PermissionDTO> taskPermsAfter = new HashMap<>();
+        if (corresp.getTasks() != null) {
+            for (Tasks t : corresp.getTasks()) {
+                PermissionDTO p = new PermissionDTO();
+                if (login != null) {
+                    PrincipalSid principal = new PrincipalSid(login.trim().toLowerCase());
+                    p.setCanRead(aclUtilService.hasPermissionForSid(t, principal, BasePermission.READ));
+                    p.setCanWrite(aclUtilService.hasPermissionForSid(t, principal, BasePermission.WRITE));
+                    p.setCanDelete(aclUtilService.hasPermissionForSid(t, principal, BasePermission.DELETE));
+                    p.setCanAdmin(aclUtilService.hasPermissionForSid(t, principal, BasePermission.ADMINISTRATION));
+                }
+                taskPermsAfter.put(t.getId(), p);
+            }
+        }
+
+        result.setCorresp(correspAfter);
+        result.setTasksPermissions(taskPermsAfter);
+        return result;
     }
 
 }

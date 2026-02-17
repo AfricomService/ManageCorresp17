@@ -12,8 +12,10 @@ import org.springframework.security.acls.jdbc.JdbcMutableAclService;
 import org.springframework.security.acls.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Optional;
 
 /**
@@ -267,5 +269,30 @@ public class AclUtilService {
             log.warn("Erreur lors de suppression ACE pour sid '{}': {}", sidValue, dae.getMessage());
         }
     }
+
+    public boolean hasPermissionForSid(Object domainObject, Sid sid, Permission permission) {
+        if (domainObject == null || sid == null || permission == null) return false;
+        ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
+        try {
+            Acl acl = aclService.readAclById(oid);
+            try {
+                // isGranted peut lancer org.springframework.security.access.AccessDeniedException si non autorisé
+                return acl.isGranted(Collections.singletonList(permission), Collections.singletonList(sid), false);
+            } catch (org.springframework.security.acls.model.NotFoundException nfe) {
+                // ACE/permission not found
+                return false;
+            } catch (org.springframework.security.access.AccessDeniedException ade) {
+                // access denied -> user doesn't have the permission
+                return false;
+            }
+        } catch (org.springframework.security.acls.model.NotFoundException nfe) {
+            // no ACL at all for this object
+            return false;
+        } catch (DataAccessException dae) {
+            log.warn("Erreur DB lors lecture ACL pour {}: {}", oid, dae.getMessage());
+            return false;
+        }
+    }
+
 
 }

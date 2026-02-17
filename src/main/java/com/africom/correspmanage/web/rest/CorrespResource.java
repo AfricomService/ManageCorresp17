@@ -10,10 +10,7 @@ import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespService;
-import com.africom.correspmanage.service.dto.CorrespDTO;
-import com.africom.correspmanage.service.dto.FileUploadDTO;
-import com.africom.correspmanage.service.dto.PjDTO;
-import com.africom.correspmanage.service.dto.TasksDTO;
+import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -473,5 +470,12 @@ public ResponseEntity<?> addTaskToCorresp(
         List<CorrespDTO> list = correspService.findAllWithReferenceList();
         return ResponseEntity.ok(list);
     }
+
+    @GetMapping("/corresps/{id}/permissions")
+    public ResponseEntity<CorrespPermissionsDTO> getPermissions(@PathVariable Long id) {
+        CorrespPermissionsDTO dto = correspService.getAndEnsurePermissionsForCurrentUser(id);
+        return ResponseEntity.ok(dto);
+    }
+
 
 }
