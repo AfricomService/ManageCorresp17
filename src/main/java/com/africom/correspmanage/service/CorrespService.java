@@ -959,8 +959,7 @@ public class CorrespService {
         }
 
         if (distinctResponsables.isEmpty()) {
-            // Comportement : on autorise la création d'une tâche sans responsable (comme avant),
-            // ou on peut lever une exception si tu veux obliger au moins un responsable.
+            // Comportement : on autorise la création d'une tâche sans responsable (comme avant).
         }
 
         Set<Tasks> createdTasks = existingCorresp.getTasks() != null ? existingCorresp.getTasks() : new HashSet<>();
@@ -970,6 +969,9 @@ public class CorrespService {
         if (distinctResponsables.size() > MAX_CREATED) {
             throw new RuntimeException("Trop de responsables fournis (max " + MAX_CREATED + ")");
         }
+
+        // cache local pour éviter de recomposer plusieurs fois le même code dept
+        Map<String, String> deptEffectiveCache = new HashMap<>();
 
         for (ResponsableTacheDTO r : distinctResponsables) {
             // créer une tâche par responsable
@@ -1005,12 +1007,171 @@ public class CorrespService {
                 responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
             } catch (Exception e) {
                 // si tu veux rollback complet, laisse l'exception remonter (méthode annotée @Transactional).
-                // ici on rethrow pour faire rollback.
                 throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
             }
 
             createdTasks.add(savedTask);
-        }
+
+        /* -------------------------
+           LOGIQUE ACL (reprenant la même logique que changeTaskStatus)
+           ------------------------- */
+
+            // 1) s'assurer que l'ACL existe pour la task
+            try {
+                aclUtilService.ensureAclExists(savedTask);
+            } catch (Exception e) {
+                log.warn("Impossible d'assurer l'ACL pour la tache {} : {}", savedTask.getId(), e.getMessage());
+            }
+
+            // 2) donner permissions aux départements (READ + WRITE)
+            try {
+                List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(savedTask.getId());
+                Set<String> deptCodes = (rawDeptCodes == null) ? Collections.emptySet()
+                    : rawDeptCodes.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toCollection(LinkedHashSet::new));
+
+                if (!deptCodes.isEmpty()) {
+                    for (String dept : deptCodes) {
+                        if (dept.isBlank()) continue;
+                        String effectiveCode = deptEffectiveCache.computeIfAbsent(dept, d -> {
+                            try {
+                                Object dto = orgaCareRestClient.getDepartementDtoByCode(d);
+                                if (dto == null) return d;
+                                if (dto instanceof Map) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> map = (Map<String, Object>) dto;
+                                    Object codeObj = map.get("code");
+                                    return codeObj != null ? codeObj.toString().trim() : d;
+                                } else {
+                                    try {
+                                        java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
+                                        Object codeObj = m.invoke(dto);
+                                        return codeObj != null ? codeObj.toString().trim() : d;
+                                    } catch (NoSuchMethodException nsme) {
+                                        return d;
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                log.warn("OrgaCare getDepartementDtoByCode failed for '{}': {} — fallback to provided code", d, ex.getMessage());
+                                return d;
+                            }
+                        });
+
+                        if (effectiveCode == null || effectiveCode.isBlank()) effectiveCode = dept;
+
+                        try {
+                            aclUtilService.addPermissionIfNotExists(savedTask, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                            aclUtilService.addPermissionIfNotExists(savedTask, new GrantedAuthoritySid(effectiveCode), BasePermission.WRITE);
+                        } catch (Exception e) {
+                            log.warn("Impossible d'ajouter les permissions pour dept '{}' sur tache {} : {}", effectiveCode, savedTask.getId(), e.getMessage());
+                        }
+                    }
+                } else {
+                    log.debug("Aucun code de département trouvé pour la tache {}", savedTask.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Erreur lors de la résolution des départements pour la tache {}: {}", savedTask.getId(), e.getMessage());
+            }
+
+            // 3) récupérer matricules -> logins -> donner permissions READ + WRITE aux users
+            List<String> logins = Collections.emptyList();
+            try {
+                List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(savedTask.getId());
+                List<String> distinctMatricules = (matricules == null) ? Collections.emptyList()
+                    : matricules.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).distinct().collect(Collectors.toList());
+
+                if (!distinctMatricules.isEmpty()) {
+                    try {
+                        List<com.africom.correspmanage.client.UserFeignDTO> users = correspGatewayRestClient.findUsersByLogins(distinctMatricules);
+                        if (users != null && !users.isEmpty()) {
+                            Set<String> loginSet = users.stream()
+                                .filter(Objects::nonNull)
+                                .map(u -> u.getLogin() == null ? null : u.getLogin().trim().toLowerCase())
+                                .filter(Objects::nonNull)
+                                .filter(s -> !s.isEmpty())
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                            if (!loginSet.isEmpty()) {
+                                logins = new ArrayList<>(loginSet);
+                                for (String login : logins) {
+                                    try {
+                                        aclUtilService.addPermissionIfNotExists(savedTask, new PrincipalSid(login), BasePermission.READ);
+                                        aclUtilService.addPermissionIfNotExists(savedTask, new PrincipalSid(login), BasePermission.WRITE);
+                                    } catch (Exception e) {
+                                        log.warn("Impossible d'ajouter les permissions pour user '{}' sur tache {} : {}", login, savedTask.getId(), e.getMessage());
+                                    }
+                                }
+                            }
+                        } else {
+                            log.debug("Aucun user retourné par findUsersByLogins pour les matricules: {}", distinctMatricules);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Erreur lors de l'appel findUsersByLogins pour la tache {} : {}", savedTask.getId(), e.getMessage());
+                    }
+                } else {
+                    log.debug("Aucun matriculePers trouvé pour la tache {}", savedTask.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Erreur lors de récupération des matricules pour la tache {} : {}", savedTask.getId(), e.getMessage());
+            }
+
+            // 4) Propagation éventuelle au CORRESP parent selon le type de tâche
+            try {
+                String taskType = savedTask.getTaskType();
+                boolean onlyRead = taskType != null && taskType.equalsIgnoreCase("Lecture");
+                boolean readAndWrite = taskType != null && (
+                    taskType.equalsIgnoreCase("Traitement") ||
+                        taskType.equalsIgnoreCase("Validation") ||
+                        taskType.equalsIgnoreCase("Signature")
+                );
+
+                if (onlyRead || readAndWrite) {
+                    try {
+                        aclUtilService.ensureAclExists(existingCorresp);
+                    } catch (Exception e) {
+                        log.warn("Impossible d'assurer l'ACL pour le corresp {} : {}", existingCorresp.getId(), e.getMessage());
+                    }
+
+                    // appliquer aux départements utilisés (si présents)
+                    try {
+                        List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(savedTask.getId());
+                        Set<String> deptCodes = (rawDeptCodes == null) ? Collections.emptySet()
+                            : rawDeptCodes.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        for (String dept : deptCodes) {
+                            String effectiveCode = deptEffectiveCache.getOrDefault(dept, dept);
+                            try {
+                                aclUtilService.addPermissionIfNotExists(existingCorresp, new GrantedAuthoritySid(effectiveCode), BasePermission.READ);
+                                if (readAndWrite) {
+                                    aclUtilService.addPermissionIfNotExists(existingCorresp, new GrantedAuthoritySid(effectiveCode), BasePermission.WRITE);
+                                }
+                            } catch (Exception e) {
+                                log.warn("Impossible d'ajouter les permissions pour dept '{}' sur corresp {} : {}", effectiveCode, existingCorresp.getId(), e.getMessage());
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("Erreur lors de l'application des droits départements sur corresp {} : {}", existingCorresp.getId(), e.getMessage());
+                    }
+
+                    // appliquer aux mêmes utilisateurs (logins)
+                    if (logins != null && !logins.isEmpty()) {
+                        for (String login : logins) {
+                            try {
+                                aclUtilService.addPermissionIfNotExists(existingCorresp, new PrincipalSid(login), BasePermission.READ);
+                                if (readAndWrite) {
+                                    aclUtilService.addPermissionIfNotExists(existingCorresp, new PrincipalSid(login), BasePermission.WRITE);
+                                }
+                            } catch (Exception e) {
+                                log.warn("Impossible d'ajouter les permissions pour user '{}' sur corresp {} : {}", login, existingCorresp.getId(), e.getMessage());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Erreur lors de la propagation ACL sur le corresp pour la tache {} : {}", savedTask.getId(), e.getMessage());
+            }
+
+            /* ---- fin logique ACL pour cette tâche ---- */
+        } // end for responsables
 
         existingCorresp.setTasks(createdTasks);
         existingCorresp.setUpdatedDate(ZonedDateTime.now());
@@ -1018,6 +1179,7 @@ public class CorrespService {
 
         return correspRepository.save(existingCorresp);
     }
+
 
 
 

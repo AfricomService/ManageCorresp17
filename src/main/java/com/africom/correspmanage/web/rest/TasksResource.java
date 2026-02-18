@@ -1,11 +1,13 @@
 package com.africom.correspmanage.web.rest;
 
+import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.service.TasksService;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -214,9 +216,35 @@ public class TasksResource {
 
     // retourne tasks pour les départements associés à un user (via OrgaCare)
     @GetMapping("/tasks/tasksByUserAcl")
-    public List<TasksDTO> getTasksByUserAcl(@RequestParam(name = "userId") Long userId) {
-        log.debug("REST request to get Tasks by userId (ACL) : {}", userId);
-        return tasksService.getAllTasksByUserAcl(userId);
+    public ResponseEntity<List<TasksDTO>> getTasksByUserAcl(
+        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "status", required = false) String status
+    ) {
+        log.debug("REST request to get Tasks by userId (ACL) : {} with status: {}", userId, status);
+
+        CorrespStatus cs = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                cs = CorrespStatus.valueOf(status.trim());
+            } catch (IllegalArgumentException ex) {
+                log.warn("Invalid status parameter supplied: {}", status);
+                // Retourner 400 Bad Request si status invalide
+                return ResponseEntity.badRequest().build();
+            }
+        }
+
+        List<TasksDTO> tasks = tasksService.getAllTasksByUserAcl(userId, cs);
+        if (tasks == null || tasks.isEmpty()) {
+            // On peut renvoyer 200 OK + liste vide (comportement courant pour liste vide)
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        return ResponseEntity.ok(tasks);
+    }
+
+    @GetMapping("/tasks/tasksByUserAclAllStatuses")
+    public List<TasksDTO> getTasksByUserAclAllStatuses(@RequestParam(name = "userId") Long userId) {
+        log.debug("REST request to get Tasks by userId (ACL) all statuses : {}", userId);
+        return tasksService.getAllTasksByUserAclAllStatuses(userId);
     }
 
 
