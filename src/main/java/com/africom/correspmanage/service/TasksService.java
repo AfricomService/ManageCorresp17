@@ -10,6 +10,7 @@ import com.africom.correspmanage.repository.TasksRepository;
 import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 /**
  * Service Implementation for managing {@link Tasks}.
@@ -510,6 +512,141 @@ public class TasksService {
         }
 
         return all;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TasksDTO> searchTasksByUserAcl(Long userId, String reference) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        if (reference == null || reference.trim().isEmpty()) {
+            // Ici on choisit de renvoyer 400 côté controller ; en service on renvoie vide pour robustesse
+            return Collections.emptyList();
+        }
+        String refTrim = reference.trim();
+
+        // 1) récupérer les deptCodes via OrgaCare (comme avant)
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations == null || affectations.isEmpty()) {
+                return Collections.emptyList();
+            }
+            deptCodes = affectations.stream()
+                .map(a -> a.get("departementCode"))
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
+            return Collections.emptyList();
+        }
+
+        if (deptCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2) repo natif: ACL + filtre référence LIKE (insensible à la casse)
+        int readMask = BasePermission.READ.getMask();
+        List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespReferenceLike(deptCodes, readMask, refTrim);
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3) mapper en DTO
+        List<TasksDTO> dtos = tasks.stream().map(tasksMapper::toDto).collect(Collectors.toList());
+
+        // 4) enrichissement responsables (même logique que précédemment)
+        List<Long> tacheIds = dtos.stream()
+            .map(TasksDTO::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+
+        if (tacheIds.isEmpty()) {
+            return dtos;
+        }
+
+        List<ResponsableTache> responsablesEntities = responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) responsablesEntities = Collections.emptyList();
+
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur lors de l'appel OrgaCare pour noms responsables: {}", e.getMessage());
+            deptNamesByCode = deptNamesByCode == null ? Collections.emptyMap() : deptNamesByCode;
+            personNamesByMatricule = personNamesByMatricule == null ? Collections.emptyMap() : personNamesByMatricule;
+        }
+
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        for (TasksDTO dto : dtos) {
+            List<ResponsableTache> listEnt = responsablesByTache.getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    String code = ent.getCodeDept().trim();
+                    String nomDept = deptNamesByCode.get(code);
+                    rDto.setDeptName(nomDept);
+                }
+
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    String mat = ent.getMatriculePers().trim();
+                    String nomPers = personNamesByMatricule.get(mat);
+                    rDto.setPersonneName(nomPers);
+                }
+
+                rDtos.add(rDto);
+            }
+
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:" + k.getCodeDept()) + "|" + (k.getMatriculePers() == null ? "" : "P:" + k.getMatriculePers()),
+                        v -> v,
+                        (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+
+            dto.setResponsables(unique);
+        }
+
+        return dtos;
     }
 
 
