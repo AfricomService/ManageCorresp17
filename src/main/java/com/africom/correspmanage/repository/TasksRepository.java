@@ -82,4 +82,32 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         @Param("ref") String ref
     );
 
+    /**
+     * Recherche avancée : tâches accessibles (ACL) filtrées par subject et/ou reference de la corresp associée.
+     * Les filtres sont optionnels (null ou vide = pas de filtre sur ce champ).
+     */
+    @Query(
+        value = """
+            SELECT DISTINCT t.* FROM tasks t
+            JOIN rel_corresp__tasks r ON r.tasks_id = t.id
+            JOIN corresp c ON c.id = r.corresp_id
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = t.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Tasks'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+              AND (:subject IS NULL OR LOWER(c.subject) LIKE LOWER(CONCAT('%', :subject, '%')))
+              AND (:reference IS NULL OR LOWER(c.reference) LIKE LOWER(CONCAT('%', :reference, '%')))
+            """,
+        nativeQuery = true
+    )
+    List<Tasks> findAllByAclForSidsAndCorrespFilters(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("subject") String subject,
+        @Param("reference") String reference
+    );
+
 }

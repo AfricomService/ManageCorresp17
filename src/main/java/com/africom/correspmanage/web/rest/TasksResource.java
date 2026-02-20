@@ -286,6 +286,51 @@ public class TasksResource {
         }
     }
 
+    /**
+     * GET /tasks/advancedSearchByUserAcl
+     * Recherche avancée multi-critères sur les tâches accessibles par l'utilisateur (ACL).
+     * Tous les paramètres sont optionnels sauf userId.
+     * - subject       : sous-chaîne insensible à la casse sur corresp.subject
+     * - responsible   : sous-chaîne insensible à la casse sur le nom du responsable (dept ou personne)
+     * - reference     : sous-chaîne insensible à la casse sur corresp.reference
+     * - creationDateFrom / creationDateTo : plage ISO-8601 sur tasks.creationDate
+     * - dueDateFrom / dueDateTo           : plage ISO-8601 sur tasks.dueDate
+     */
+    @GetMapping("/tasks/advancedSearchByUserAcl")
+    public ResponseEntity<List<TasksDTO>> advancedSearchTasksByUserAcl(
+        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "subject",           required = false) String subject,
+        @RequestParam(name = "responsible",        required = false) String responsible,
+        @RequestParam(name = "reference",          required = false) String reference,
+        @RequestParam(name = "creationDateFrom",   required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime creationDateFrom,
+        @RequestParam(name = "creationDateTo",     required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime creationDateTo,
+        @RequestParam(name = "dueDateFrom",        required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime dueDateFrom,
+        @RequestParam(name = "dueDateTo",          required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime dueDateTo
+    ) {
+        log.debug("REST advancedSearchTasksByUserAcl userId={} subject={} responsible={} reference={} "
+                + "creationDateFrom={} creationDateTo={} dueDateFrom={} dueDateTo={}",
+            userId, subject, responsible, reference, creationDateFrom, creationDateTo, dueDateFrom, dueDateTo);
+
+        if (userId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            List<TasksDTO> results = tasksService.searchAdvancedTasksByUserAcl(
+                userId, subject, responsible, reference,
+                creationDateFrom, creationDateTo, dueDateFrom, dueDateTo
+            );
+            return ResponseEntity.ok(results != null ? results : Collections.emptyList());
+        } catch (Exception ex) {
+            log.error("Erreur advancedSearchTasksByUserAcl pour user {} : {}", userId, ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @GetMapping(value = "/tasks/tasksByUserAcl/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public ResponseEntity<byte[]> exportTasksByUserAclToExcel(
         @RequestParam(name = "userId") Long userId,

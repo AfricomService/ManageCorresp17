@@ -1,6 +1,8 @@
 package com.africom.correspmanage.service;
 
+import com.africom.correspmanage.client.CorrespGatewayRestClient;
 import com.africom.correspmanage.client.OrgaCareRestClient;
+import com.africom.correspmanage.client.UserFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.ResponsableTache;
 import com.africom.correspmanage.domain.Tasks;
@@ -41,19 +43,44 @@ public class TasksService {
 
     private final ResponsableTacheService responsableTacheService;
 
+    private final CorrespGatewayRestClient correspGatewayRestClient;
+
     public TasksService(
         TasksRepository tasksRepository,
         TasksMapper tasksMapper,
         CorrespRepository correspRepository,
         OrgaCareRestClient orgaCareRestClient,
-        ResponsableTacheService responsableTacheService
+        ResponsableTacheService responsableTacheService,
+        CorrespGatewayRestClient correspGatewayRestClient
     ) {
         this.tasksRepository = tasksRepository;
         this.tasksMapper = tasksMapper;
         this.correspRepository = correspRepository;
         this.orgaCareRestClient = orgaCareRestClient;
         this.responsableTacheService = responsableTacheService;
+        this.correspGatewayRestClient = correspGatewayRestClient;
     }
+
+    /**
+     * Récupère le login d'un utilisateur à partir de son id via le gateway.
+     * Retourne null si impossible.
+     */
+    private String getUserLogin(Long userId) {
+        try {
+            Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+            if (userMap != null) {
+                Object login = userMap.get("login");
+                if (login != null && !login.toString().trim().isEmpty()) {
+                    // changeTaskStatus stocke le login en minuscules dans acl_sid via toLowerCase()
+                    return login.toString().trim().toLowerCase();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer le login pour userId {} : {}", userId, e.getMessage());
+        }
+        return null;
+    }
+
 
     /**
      * Save a tasks.
@@ -253,26 +280,39 @@ public class TasksService {
         try {
             List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
             if (affectations == null || affectations.isEmpty()) {
-                return Collections.emptyList();
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
             }
-            deptCodes = affectations.stream()
-                .map(a -> a.get("departementCode"))
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        // Récupérer aussi le login de l'utilisateur pour les ACLs PrincipalSid
+        String userLogin = getUserLogin(userId);
+
+        // Construire la liste complète des SIDs : deptCodes + login utilisateur
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
             return Collections.emptyList();
         }
 
-        if (deptCodes.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        // Récupère les tasks accessibles par ces départements
-        List<TasksDTO> all = getAllTasksByAcl(deptCodes);
-        if (all == null || all.isEmpty()) {
+        // Récupère les tasks accessibles par ces SIDs (départements + login)
+        int readMask = BasePermission.READ.getMask();
+        List<Tasks> taskEntities = tasksRepository.findAllByAclForDepts(allSids, readMask);
+        List<TasksDTO> all = taskEntities == null ? Collections.emptyList()
+            : taskEntities.stream().map(tasksMapper::toDto).collect(Collectors.toList());
+        if (all.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -395,28 +435,39 @@ public class TasksService {
             List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
 
             if (affectations == null || affectations.isEmpty()) {
-                return Collections.emptyList();
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
             }
-
-            deptCodes = affectations.stream()
-                .map(a -> a.get("departementCode"))
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .collect(Collectors.toList());
-
         } catch (Exception e) {
             log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        // Récupérer aussi le login de l'utilisateur pour les ACLs PrincipalSid
+        String userLogin = getUserLogin(userId);
+
+        // Construire la liste complète des SIDs : deptCodes + login utilisateur
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
             return Collections.emptyList();
         }
 
-        if (deptCodes.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        // Récupère les tasks accessibles par ces départements (TOUTES les tâches, aucun filtre sur status)
-        List<TasksDTO> all = getAllTasksByAcl(deptCodes);
-        if (all == null || all.isEmpty()) {
+        // Récupère les tasks accessibles par ces SIDs (TOUTES les tâches, aucun filtre sur status)
+        int readMask = BasePermission.READ.getMask();
+        List<Tasks> taskEntities = tasksRepository.findAllByAclForDepts(allSids, readMask);
+        List<TasksDTO> all = taskEntities == null ? Collections.emptyList()
+            : taskEntities.stream().map(tasksMapper::toDto).collect(Collectors.toList());
+        if (all.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -531,26 +582,36 @@ public class TasksService {
         try {
             List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
             if (affectations == null || affectations.isEmpty()) {
-                return Collections.emptyList();
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
             }
-            deptCodes = affectations.stream()
-                .map(a -> a.get("departementCode"))
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
-            return Collections.emptyList();
+            deptCodes = new ArrayList<>();
         }
 
-        if (deptCodes.isEmpty()) {
+        // Récupérer aussi le login de l'utilisateur pour les ACLs PrincipalSid
+        String userLogin = getUserLogin(userId);
+
+        // Construire la liste complète des SIDs : deptCodes + login utilisateur
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
             return Collections.emptyList();
         }
 
         // 2) repo natif: ACL + filtre référence LIKE (insensible à la casse)
         int readMask = BasePermission.READ.getMask();
-        List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespReferenceLike(deptCodes, readMask, refTrim);
+        List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespReferenceLike(allSids, readMask, refTrim);
         if (tasks == null || tasks.isEmpty()) {
             return Collections.emptyList();
         }
@@ -649,5 +710,174 @@ public class TasksService {
         return dtos;
     }
 
+    /**
+     * Recherche avancée de tâches pour un utilisateur (via ACL) avec filtres multi-critères :
+     * - subject    : sous-chaîne insensible à la casse sur corresp.subject
+     * - responsible: sous-chaîne insensible à la casse sur le NOM du responsable (dept ou personne)
+     * - reference  : sous-chaîne insensible à la casse sur corresp.reference
+     * - creationDateFrom / creationDateTo : plage sur tasks.creationDate
+     * - dueDateFrom / dueDateTo           : plage sur tasks.dueDate
+     *
+     * La recherche porte uniquement sur les tâches visibles par l'utilisateur (ACL).
+     */
+    @Transactional(readOnly = true)
+    public List<TasksDTO> searchAdvancedTasksByUserAcl(
+        Long userId,
+        String subject,
+        String responsible,
+        String reference,
+        ZonedDateTime creationDateFrom,
+        ZonedDateTime creationDateTo,
+        ZonedDateTime dueDateFrom,
+        ZonedDateTime dueDateTo
+    ) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        // 1) Récupérer les SIDs de l'utilisateur (deptCodes + login)
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            deptCodes = (affectations == null || affectations.isEmpty()) ? new ArrayList<>()
+                : affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les deptCodes pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        String userLogin = getUserLogin(userId);
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2) Préparer les filtres SQL (null si non renseigné = pas de filtre en DB)
+        String subjectFilter    = (subject   != null && !subject.trim().isEmpty())   ? subject.trim()   : null;
+        String referenceFilter  = (reference != null && !reference.trim().isEmpty()) ? reference.trim() : null;
+
+        int readMask = BasePermission.READ.getMask();
+        List<Tasks> tasks = tasksRepository.findAllByAclForSidsAndCorrespFilters(
+            allSids, readMask, subjectFilter, referenceFilter
+        );
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3) Mapper en DTO
+        List<TasksDTO> dtos = tasks.stream().map(tasksMapper::toDto).collect(Collectors.toList());
+
+        // 4) Enrichir les responsables (batch)
+        List<Long> tacheIds = dtos.stream()
+            .map(TasksDTO::getId).filter(Objects::nonNull).distinct()
+            .collect(Collectors.toList());
+
+        List<ResponsableTache> responsablesEntities = tacheIds.isEmpty()
+            ? Collections.emptyList()
+            : responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) responsablesEntities = Collections.emptyList();
+
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur OrgaCare lors de la résolution des noms responsables: {}", e.getMessage());
+        }
+
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        // copies finales pour les lambdas
+        final Map<String, String> finalDeptNames = deptNamesByCode;
+        final Map<String, String> finalPersonNames = personNamesByMatricule;
+
+        for (TasksDTO dto : dtos) {
+            List<ResponsableTache> listEnt = responsablesByTache.getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    rDto.setDeptName(finalDeptNames.get(ent.getCodeDept().trim()));
+                }
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    rDto.setPersonneName(finalPersonNames.get(ent.getMatriculePers().trim()));
+                }
+                rDtos.add(rDto);
+            }
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:" + k.getCodeDept())
+                            + "|" + (k.getMatriculePers() == null ? "" : "P:" + k.getMatriculePers()),
+                        v -> v, (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+            dto.setResponsables(unique);
+        }
+
+        // 5) Filtres post-SQL : responsable (nom), creationDate, dueDate
+        String responsableFilter = (responsible != null && !responsible.trim().isEmpty())
+            ? responsible.trim().toLowerCase() : null;
+
+        return dtos.stream().filter(dto -> {
+            // filtre par nom responsable (contains, insensible casse)
+            if (responsableFilter != null) {
+                boolean matched = false;
+                if (dto.getResponsables() != null) {
+                    for (ResponsableTacheDTO r : dto.getResponsables()) {
+                        String deptName = r.getDeptName();
+                        String personName = r.getPersonneName();
+                        if ((deptName != null && deptName.toLowerCase().contains(responsableFilter))
+                            || (personName != null && personName.toLowerCase().contains(responsableFilter))) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                if (!matched) return false;
+            }
+            // filtre par date de création
+            if (creationDateFrom != null && dto.getCreationDate() != null
+                && dto.getCreationDate().isBefore(creationDateFrom)) return false;
+            if (creationDateTo != null && dto.getCreationDate() != null
+                && dto.getCreationDate().isAfter(creationDateTo)) return false;
+            // filtre par date limite
+            if (dueDateFrom != null && dto.getDueDate() != null
+                && dto.getDueDate().isBefore(dueDateFrom)) return false;
+            if (dueDateTo != null && dto.getDueDate() != null
+                && dto.getDueDate().isAfter(dueDateTo)) return false;
+            return true;
+        }).collect(Collectors.toList());
+    }
 
 }
