@@ -10,10 +10,7 @@ import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespService;
-import com.africom.correspmanage.service.dto.CorrespDTO;
-import com.africom.correspmanage.service.dto.FileUploadDTO;
-import com.africom.correspmanage.service.dto.PjDTO;
-import com.africom.correspmanage.service.dto.TasksDTO;
+import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -349,14 +346,45 @@ public class CorrespResource {
         return correspService.getListByAclPage(deptCode, page, size);
     }
 
-    @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
-        throws JsonProcessingException {
-        //        ObjectMapper mapper = new ObjectMapper();
-        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
-
-        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
+//    @PostMapping(value = "/correspsAddTaskToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public Corresp addTaskToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("tasksDTO") TasksDTO tasksJson)
+//        throws JsonProcessingException {
+//        //        ObjectMapper mapper = new ObjectMapper();
+//        //        TasksDTO tasksDTO = mapper.readValue(tasksJson, TasksDTO.class);
+//
+//        return correspService.addTaskToExistingCorresp(tasksJson, correspId);
+//    }
+//@PostMapping(value = "/corresps/{correspId}/tasks", consumes = MediaType.APPLICATION_JSON_VALUE)
+//public ResponseEntity<Corresp> addTaskToCorrespJson(
+//    @PathVariable("correspId") Long correspId,
+//    @RequestBody TasksDTO tasksDTO
+//) {
+//    Corresp saved = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
+//    return ResponseEntity.ok(saved);
+//}
+@PostMapping("/corresps/{correspId}/tasks")
+public ResponseEntity<?> addTaskToCorresp(
+    @PathVariable Long correspId,
+    @Valid @RequestBody TasksDTO tasksDTO
+) {
+    try {
+        Corresp updated = correspService.addTaskToExistingCorresp(tasksDTO, correspId);
+        // Option 1 : retourner l'entité mise à jour
+        return ResponseEntity.ok(updated);
+        // Option 2 (préférée si tu as un CorrespMapper) :
+        // CorrespDTO dto = correspMapper.toDto(updated);
+        // return ResponseEntity.ok(dto);
+    } catch (RuntimeException e) {
+        // exemple: "Corresp not found with id ..." => 404
+        String msg = e.getMessage() != null ? e.getMessage() : "Internal error";
+        if (msg.contains("not found")) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(msg);
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(msg);
     }
+}
+
+
 
     @PostMapping(value = "/correspsAddPjToCorresp", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Corresp addPjToCorresp(@RequestParam("correspId") Long correspId, @RequestPart("pjDTO") PjDTO pjJson)
@@ -400,13 +428,53 @@ public class CorrespResource {
     //    }
 
     @GetMapping("/corresps/loadBodyFromFile")
-    public String loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
-        Message message = messageRepository.findByCorrespId(correspId).get();
-        return correspService.loadBodyFromFile(message.getPath());
+    public ResponseEntity<String> loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
+        return messageRepository.findByCorrespId(correspId)
+            .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"));
     }
 
     @DeleteMapping("/correspsDelete/{correspId}")
     public void deleteCorrespWithTasksAndPjs(@PathVariable(name = "correspId") Long correspId) {
         correspService.deleteCorrespWithTasksAndPjs(correspId);
     }
+
+    @GetMapping("/corresps/by-task/{taskId}")
+    public ResponseEntity<List<CorrespDTO>> getCorrespsByTask(@PathVariable Long taskId) {
+        log.debug("REST request to get Corresps by taskId : {}", taskId);
+        List<CorrespDTO> corresps = correspService.findCorrespsByTaskId(taskId);
+        return ResponseEntity.ok(corresps);
+    }
+
+    /**
+     * GET  /corresps/with-reference?page=1&size=20
+     * Retourne une page de corresps ayant une reference non-nulle.
+     */
+    @GetMapping("/corresps/with-reference")
+    public ResponseEntity<Page<CorrespDTO>> getCorrespsWithReference(
+        @RequestParam(value = "page", defaultValue = "1") int page,
+        @RequestParam(value = "size", defaultValue = "20") int size
+    ) {
+        Page<CorrespDTO> result = correspService.findAllWithReference(page, size);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * GET  /corresps/with-reference/list
+     * Retourne la liste complète (non paginée) de corresps ayant une reference non-nulle.
+     * Attention : peut être volumineux en production.
+     */
+    @GetMapping("/corresps/with-reference/list")
+    public ResponseEntity<List<CorrespDTO>> getAllCorrespsWithReference() {
+        List<CorrespDTO> list = correspService.findAllWithReferenceList();
+        return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/corresps/{id}/permissions")
+    public ResponseEntity<CorrespPermissionsDTO> getPermissions(@PathVariable Long id) {
+        CorrespPermissionsDTO dto = correspService.getAndEnsurePermissionsForCurrentUser(id);
+        return ResponseEntity.ok(dto);
+    }
+
+
 }

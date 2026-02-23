@@ -1,0 +1,27 @@
+{
+  "microserviceName": "correspManage",
+  "clientRootFolder": "correspManage",
+  "databaseType": "sql",
+  "fields": [
+    {
+      "fieldName": "tacheId",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "codeDept",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "matriculePers",
+      "fieldType": "String"
+    }
+  ],
+  "relationships": [],
+  "service": "serviceClass",
+  "dto": "mapstruct",
+  "jpaMetamodelFiltering": false,
+  "readOnly": false,
+  "pagination": "no",
+  "name": "ResponsableTache",
+  "changelogDate": "20260210150927"
+}
