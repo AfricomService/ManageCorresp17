@@ -20,6 +20,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.acls.domain.BasePermission;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -878,6 +881,59 @@ public class TasksService {
                 && dto.getDueDate().isAfter(dueDateTo)) return false;
             return true;
         }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canCurrentUserModifyTask(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+
+        Optional<Tasks> opt = tasksRepository.findById(taskId);
+        if (opt.isEmpty()) {
+            return false;
+        }
+
+        return canCurrentUserModifyTask(opt.get());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canCurrentUserModifyTask(Tasks task) {
+        if (task == null) {
+            return false;
+        }
+
+        String createdBy = task.getCreatedBy();
+        if (!StringUtils.hasText(createdBy)) {
+            return false;
+        }
+
+        String currentLogin = getCurrentUserLogin();
+        if (!StringUtils.hasText(currentLogin)) {
+            return false;
+        }
+
+        // normaliser : trim + ignore case
+        return currentLogin.trim().equalsIgnoreCase(createdBy.trim());
+    }
+
+    /**
+     * Retourne le login de l'utilisateur courant (en lowercase) ou null si non trouvé.
+     */
+    private String getCurrentUserLogin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            return ((UserDetails) principal).getUsername().toLowerCase();
+        } else if (principal instanceof String) {
+            return ((String) principal).toLowerCase();
+        } else {
+            return null;
+        }
     }
 
 }
