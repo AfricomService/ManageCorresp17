@@ -74,6 +74,7 @@ public class CorrespService {
     private final MessageRepository messageRepository;
     private final ResponsableTacheService responsableTacheService;
     private final CorrespGatewayRestClient correspGatewayRestClient;
+    private final ContactCopieCorrespService contactCopieCorrespService;
 
 
     public CorrespService(
@@ -88,7 +89,8 @@ public class CorrespService {
         ApplicationProperties applicationProperties,
         MessageRepository messageRepository,
         ResponsableTacheService responsableTacheService,
-        CorrespGatewayRestClient correspGatewayRestClient
+        CorrespGatewayRestClient correspGatewayRestClient,
+        ContactCopieCorrespService contactCopieCorrespService
 
     ) {
         this.correspRepository = correspRepository;
@@ -102,6 +104,7 @@ public class CorrespService {
         this.messageRepository = messageRepository;
         this.responsableTacheService = responsableTacheService;
         this.correspGatewayRestClient = correspGatewayRestClient;
+        this.contactCopieCorrespService = contactCopieCorrespService;
 
     }
 
@@ -295,7 +298,6 @@ public class CorrespService {
 
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
-
     @Transactional
     public Corresp saveCorrespWithTasksAndPj(
         CorrespDTO correspDTO,
@@ -500,6 +502,19 @@ public class CorrespService {
             );
         }
 
+        // --- Persister les ContactCopieCorresp si fournis par le front
+        // Remarque : correspDTO.getContactCopies() doit être List<ContactCopieCorrespDTO>
+        try {
+            if (correspDTO.getContactCopies() != null) {
+                // appels dans le même transaction => rollback automatique en cas d'erreur
+                contactCopieCorrespService.saveAllForCorresp(saved.getId(), correspDTO.getContactCopies());
+                log.debug("ContactCopieCorresp sauvegardés pour correspId={}", saved.getId());
+            }
+        } catch (Exception ex) {
+            // Si erreur sur la sauvegarde des copies, on remonte une exception pour rollback complet
+            throw new RuntimeException("Erreur lors de la sauvegarde des contacts en copie pour la corresp " + saved.getId(), ex);
+        }
+
         // Body -> fichier / message (inchangé)
         String path = saveBodyToFile(correspDTO.getBody(), saved.getId());
         Message message = new Message();
@@ -514,8 +529,6 @@ public class CorrespService {
         log.debug("save corresp {}", saved);
         return saved;
     }
-
-
 
 
     public String removeExtension(String fileName) {
