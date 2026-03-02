@@ -62,6 +62,10 @@ public class AclUtilService {
      */
     public void addPermission(Object domainObject, String username, Permission permission) {
         if (username == null || username.isBlank()) return;
+        String normalized = username.trim().toLowerCase();
+        // Réconcilier avec la base pour avoir le bon type de Sid
+        Sid sid = reconcileSidWithDb(new PrincipalSid(normalized));
+
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         MutableAcl acl;
         try {
@@ -69,14 +73,17 @@ public class AclUtilService {
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
         }
-        // normalize login
-        String normalized = username.trim().toLowerCase();
-        acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(normalized), true);
+        acl.insertAce(acl.getEntries().size(), permission, sid, true);
         aclService.updateAcl(acl);
     }
 
     public void addPermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
         if (authoritySid == null || authoritySid.isBlank()) return;
+        // NE PAS mettre en minuscules les départements - garder la casse originale
+        String normalized = authoritySid.trim();
+        // Réconcilier avec la base pour avoir le bon type de Sid
+        Sid sid = reconcileSidWithDb(new GrantedAuthoritySid(normalized));
+
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         MutableAcl acl;
         try {
@@ -84,7 +91,7 @@ public class AclUtilService {
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
         }
-        acl.insertAce(acl.getEntries().size(), permission, new GrantedAuthoritySid(authoritySid.trim()), true);
+        acl.insertAce(acl.getEntries().size(), permission, sid, true);
         aclService.updateAcl(acl);
     }
 
@@ -93,7 +100,9 @@ public class AclUtilService {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
             MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
-            Sid sid = new PrincipalSid(username.trim().toLowerCase());
+            String normalized = username.trim().toLowerCase();
+            // Réconcilier avec la base pour avoir le bon type de Sid
+            Sid sid = reconcileSidWithDb(new PrincipalSid(normalized));
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
                 if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
@@ -228,7 +237,8 @@ public class AclUtilService {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
             MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
-            Sid sid = new GrantedAuthoritySid(authoritySid.trim());
+            // Réconcilier avec la base pour avoir le bon type de Sid
+            Sid sid = reconcileSidWithDb(new GrantedAuthoritySid(authoritySid.trim()));
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
                 if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
@@ -250,14 +260,16 @@ public class AclUtilService {
      */
     public void deletePermissionBySid(Object domainObject, Sid sid, Permission permission) {
         if (sid == null) return;
-        String sidValue = sidValueFromSid(sid);
+        // Réconcilier avec la base pour avoir le bon type de Sid
+        Sid effectiveSid = reconcileSidWithDb(sid);
+        String sidValue = sidValueFromSid(effectiveSid);
         if (sidValue == null || sidValue.isBlank()) return;
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
             MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
-                if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
+                if (entry.getSid().equals(effectiveSid) && entry.getPermission().equals(permission)) {
                     acl.deleteAce(i);
                     aclService.updateAcl(acl);
                     break;
@@ -272,12 +284,16 @@ public class AclUtilService {
 
     public boolean hasPermissionForSid(Object domainObject, Sid sid, Permission permission) {
         if (domainObject == null || sid == null || permission == null) return false;
+
+        // Réconcilier le Sid avec ce qui est réellement en base
+        Sid effectiveSid = reconcileSidWithDb(sid);
+
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
             Acl acl = aclService.readAclById(oid);
             try {
                 // isGranted peut lancer org.springframework.security.access.AccessDeniedException si non autorisé
-                return acl.isGranted(Collections.singletonList(permission), Collections.singletonList(sid), false);
+                return acl.isGranted(Collections.singletonList(permission), Collections.singletonList(effectiveSid), false);
             } catch (org.springframework.security.acls.model.NotFoundException nfe) {
                 // ACE/permission not found
                 return false;
