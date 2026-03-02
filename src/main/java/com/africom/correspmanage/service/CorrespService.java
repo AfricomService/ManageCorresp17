@@ -74,6 +74,7 @@ public class CorrespService {
     private final MessageRepository messageRepository;
     private final ResponsableTacheService responsableTacheService;
     private final CorrespGatewayRestClient correspGatewayRestClient;
+    private final ContactCopieCorrespService contactCopieCorrespService;
 
 
     public CorrespService(
@@ -88,7 +89,8 @@ public class CorrespService {
         ApplicationProperties applicationProperties,
         MessageRepository messageRepository,
         ResponsableTacheService responsableTacheService,
-        CorrespGatewayRestClient correspGatewayRestClient
+        CorrespGatewayRestClient correspGatewayRestClient,
+        ContactCopieCorrespService contactCopieCorrespService
 
     ) {
         this.correspRepository = correspRepository;
@@ -102,6 +104,7 @@ public class CorrespService {
         this.messageRepository = messageRepository;
         this.responsableTacheService = responsableTacheService;
         this.correspGatewayRestClient = correspGatewayRestClient;
+        this.contactCopieCorrespService = contactCopieCorrespService;
 
     }
 
@@ -295,7 +298,6 @@ public class CorrespService {
 
         return correspRepository.findAll(pageable).map(correspMapper::toDto);
     }
-
     @Transactional
     public Corresp saveCorrespWithTasksAndPj(
         CorrespDTO correspDTO,
@@ -323,7 +325,6 @@ public class CorrespService {
 
                 // fallback : si pas de liste, essaie le champ legacy "responsible" (string)
                 if ((inputResponsables == null || inputResponsables.isEmpty()) && tasksDTO.getResponsible() != null) {
-                    // tenter de parser une chaîne séparée par virgules (optionnel)
                     String raw = tasksDTO.getResponsible();
                     if (raw != null && !raw.trim().isEmpty()) {
                         String[] parts = raw.split(",");
@@ -332,7 +333,6 @@ public class CorrespService {
                             String s = p.trim();
                             if (s.isEmpty()) continue;
                             ResponsableTacheDTO r = new ResponsableTacheDTO();
-                            // si commence par "P:" ou "D:" on peut gérer; sinon on assume codeDept si contient "Dept-" sinon matricule
                             if (s.startsWith("P:")) {
                                 r.setMatriculePers(s.substring(2));
                             } else if (s.startsWith("D:")) {
@@ -465,17 +465,23 @@ public class CorrespService {
         correspToSave.setSenderReference(correspDTO.getSenderReference());
         correspToSave.setPriority(correspDTO.getPriority());
         correspToSave.setStatus(CorrespStatus.DRAFT);
-        correspToSave.setDispatchType(correspDTO.getDispatchType());
+
+        // === CHANGEMENT: DispatchType par défaut = LETTER si correspDTO.getDispatchType() est null
+        if (correspDTO.getDispatchType() != null) {
+            correspToSave.setDispatchType(correspDTO.getDispatchType());
+        } else {
+            correspToSave.setDispatchType(DispatchType.LETTER);
+        }
+
         correspToSave.setCorresptype(correspDTO.getCorresptype());
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
         correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
         correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
 
-        if (withRef) {
-            String generatedReference = configManageRestClient.getNextNumber(correspDTO.getCorresptype().name());
-            correspToSave.setReference(generatedReference);
-        } else if (correspDTO.getReference() != null) {
-            correspToSave.setReference(correspDTO.getReference());
+        // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
+        // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
+        if (correspDTO.getReference() != null && !correspDTO.getReference().isBlank()) {
+            correspToSave.setReference(correspDTO.getReference().trim());
         }
 
         correspToSave.setTasks(tasksSaved);
@@ -483,7 +489,31 @@ public class CorrespService {
         correspToSave.setUpdatedDate(ZonedDateTime.now());
         correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
-        Corresp saved = correspRepository.save(correspToSave);
+        // Save with handling of possible unique constraint violation on reference
+        Corresp saved;
+        try {
+            saved = correspRepository.save(correspToSave);
+        } catch (org.springframework.dao.DataIntegrityViolationException dive) {
+            // probable violation d'unicité sur la référence
+            throw new RuntimeException(
+                "Échec de la sauvegarde de la correspondance (contrainte possible sur la référence: "
+                    + correspToSave.getReference() + ")",
+                dive
+            );
+        }
+
+        // --- Persister les ContactCopieCorresp si fournis par le front
+        // Remarque : correspDTO.getContactCopies() doit être List<ContactCopieCorrespDTO>
+        try {
+            if (correspDTO.getContactCopies() != null) {
+                // appels dans le même transaction => rollback automatique en cas d'erreur
+                contactCopieCorrespService.saveAllForCorresp(saved.getId(), correspDTO.getContactCopies());
+                log.debug("ContactCopieCorresp sauvegardés pour correspId={}", saved.getId());
+            }
+        } catch (Exception ex) {
+            // Si erreur sur la sauvegarde des copies, on remonte une exception pour rollback complet
+            throw new RuntimeException("Erreur lors de la sauvegarde des contacts en copie pour la corresp " + saved.getId(), ex);
+        }
 
         // Body -> fichier / message (inchangé)
         String path = saveBodyToFile(correspDTO.getBody(), saved.getId());
@@ -499,7 +529,6 @@ public class CorrespService {
         log.debug("save corresp {}", saved);
         return saved;
     }
-
 
 
     public String removeExtension(String fileName) {
@@ -1462,6 +1491,7 @@ public class CorrespService {
         return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
     }
 
+
     @Transactional
     public CorrespPermissionsDTO getAndEnsurePermissionsForCurrentUser(Long correspId) {
         Corresp corresp = correspRepository.findById(correspId)
@@ -1507,16 +1537,25 @@ public class CorrespService {
             }
         }
 
-        boolean any = correspPerm.isCanRead() || correspPerm.isCanWrite() || correspPerm.isCanDelete() || correspPerm.isCanAdmin()
-            || taskPerms.values().stream().anyMatch(pp -> pp.isCanRead() || pp.isCanWrite() || pp.isCanDelete() || pp.isCanAdmin());
+        // =====================================================================
+        // FIX : Ne court-circuiter QUE si la CORRESP elle-même a des permissions.
+        // Si seules les tâches ont des permissions, continuer la vérification
+        // des départements pour résoudre les permissions de la corresp.
+        // =====================================================================
+        boolean correspHasDirectPerms = correspPerm.isCanRead() || correspPerm.isCanWrite()
+            || correspPerm.isCanDelete() || correspPerm.isCanAdmin();
 
-        if (any) {
+        if (correspHasDirectPerms) {
+            // La corresp a des permissions directes pour le PrincipalSid => on peut retourner
             result.setCorresp(correspPerm);
             result.setTasksPermissions(taskPerms);
             return result;
         }
 
-        // 2) if no direct perms -> check user's departments via OrgaCare using userId
+        // La corresp n'a PAS de permissions directes.
+        // On doit vérifier les départements même si les tâches ont des permissions.
+
+        // 2) check user's departments via OrgaCare using userId
         List<String> deptCodes = new ArrayList<>();
         if (userId != null) {
             try {
@@ -1536,6 +1575,7 @@ public class CorrespService {
         }
 
         if (deptCodes.isEmpty()) {
+            // Aucun département trouvé. Retourner les permissions telles quelles.
             result.setCorresp(correspPerm);
             result.setTasksPermissions(taskPerms);
             return result;

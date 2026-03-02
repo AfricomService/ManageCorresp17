@@ -213,41 +213,186 @@ public class TasksService {
     //        return tasksRepository.findTasksByCorrespId(correspId).stream().map(tasksMapper::toDto).toList();
     //    }
 
+//    public List<TasksDTO> getAllTasksByCorrespId(Long correspId) {
+//        log.debug("Request to get all Tasks by correspId : {}", correspId);
+//
+//        return tasksRepository
+//            .findTasksByCorrespId(correspId)
+//            .stream()
+//            .map(task -> {
+//                TasksDTO dto = new TasksDTO();
+//
+//                dto.setId(task.getId());
+//                dto.setObject(task.getObject());
+//                dto.setContent(task.getContent());
+//                dto.setContentContentType(task.getContentContentType());
+//                dto.setCreationDate(task.getCreationDate());
+//                dto.setStartDate(task.getStartDate());
+//                dto.setDueDate(task.getDueDate());
+//                dto.setCloseDate(task.getCloseDate());
+//                dto.setResponsible(task.getResponsible());
+//                dto.setStatus(task.getStatus());
+//                dto.setCreatedBy(task.getCreatedBy());
+//                dto.setUpdatedBy(task.getUpdatedBy());
+//                dto.setUpdatedDate(task.getUpdatedDate());
+//                dto.setTaskType(task.getTaskType());
+//                dto.setCommentaire(task.getCommentaire());
+//
+//                try {
+//                    String responsableName = orgaCareRestClient.getDepartementNomByCode(task.getResponsible());
+//                    dto.setResponsableName(responsableName);
+//                } catch (Exception e) {
+//                    log.warn("Could not fetch responsible name for code {}", task.getResponsible());
+//                }
+//
+//                return dto;
+//            })
+//            .toList();
+//    }
+
     public List<TasksDTO> getAllTasksByCorrespId(Long correspId) {
         log.debug("Request to get all Tasks by correspId : {}", correspId);
 
-        return tasksRepository
-            .findTasksByCorrespId(correspId)
-            .stream()
-            .map(task -> {
-                TasksDTO dto = new TasksDTO();
+        List<Tasks> taskEntities = tasksRepository.findTasksByCorrespId(correspId);
+        if (taskEntities == null || taskEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-                dto.setId(task.getId());
-                dto.setObject(task.getObject());
-                dto.setContent(task.getContent());
-                dto.setContentContentType(task.getContentContentType());
-                dto.setCreationDate(task.getCreationDate());
-                dto.setStartDate(task.getStartDate());
-                dto.setDueDate(task.getDueDate());
-                dto.setCloseDate(task.getCloseDate());
-                dto.setResponsible(task.getResponsible());
-                dto.setStatus(task.getStatus());
-                dto.setCreatedBy(task.getCreatedBy());
-                dto.setUpdatedBy(task.getUpdatedBy());
-                dto.setUpdatedDate(task.getUpdatedDate());
-                dto.setTaskType(task.getTaskType());
-                dto.setCommentaire(task.getCommentaire());
+        // 1) Mapper en DTO
+        List<TasksDTO> dtos = taskEntities.stream().map(task -> {
+            TasksDTO dto = new TasksDTO();
+            dto.setId(task.getId());
+            dto.setObject(task.getObject());
+            dto.setContent(task.getContent());
+            dto.setContentContentType(task.getContentContentType());
+            dto.setCreationDate(task.getCreationDate());
+            dto.setStartDate(task.getStartDate());
+            dto.setDueDate(task.getDueDate());
+            dto.setCloseDate(task.getCloseDate());
+            dto.setResponsible(task.getResponsible());
+            dto.setStatus(task.getStatus());
+            dto.setCreatedBy(task.getCreatedBy());
+            dto.setUpdatedBy(task.getUpdatedBy());
+            dto.setUpdatedDate(task.getUpdatedDate());
+            dto.setTaskType(task.getTaskType());
+            dto.setCommentaire(task.getCommentaire());
+            return dto;
+        }).collect(Collectors.toList());
 
-                try {
-                    String responsableName = orgaCareRestClient.getDepartementNomByCode(task.getResponsible());
-                    dto.setResponsableName(responsableName);
-                } catch (Exception e) {
-                    log.warn("Could not fetch responsible name for code {}", task.getResponsible());
+        // 2) Récupérer tous les ids de tâches pour batch DB
+        List<Long> tacheIds = dtos.stream()
+            .map(TasksDTO::getId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+
+        if (tacheIds.isEmpty()) {
+            return dtos;
+        }
+
+        // 3) Récupérer en une seule requête tous les ResponsableTache pour ces tâches
+        List<ResponsableTache> responsablesEntities = responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) {
+            responsablesEntities = Collections.emptyList();
+        }
+
+        // 4) Collecter codes et matricules uniques pour appel bulk OrgaCare
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur lors de l'appel OrgaCare pour noms responsables: {}", e.getMessage());
+            deptNamesByCode = deptNamesByCode == null ? Collections.emptyMap() : deptNamesByCode;
+            personNamesByMatricule = personNamesByMatricule == null ? Collections.emptyMap() : personNamesByMatricule;
+        }
+
+        // 5) Grouper les entités ResponsableTache par tacheId
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        // 6) Pour chaque TasksDTO, construire la liste des ResponsableTacheDTO avec les noms résolus
+        for (TasksDTO dto : dtos) {
+            List<ResponsableTache> listEnt = responsablesByTache.getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    String code = ent.getCodeDept().trim();
+                    String nomDept = deptNamesByCode.get(code);
+                    rDto.setDeptName(nomDept);
                 }
 
-                return dto;
-            })
-            .toList();
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    String mat = ent.getMatriculePers().trim();
+                    String nomPers = personNamesByMatricule.get(mat);
+                    rDto.setPersonneName(nomPers);
+                }
+
+                rDtos.add(rDto);
+            }
+
+            // Dédoublonner par (codeDept, matriculePers)
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:" + k.getCodeDept())
+                            + "|" + (k.getMatriculePers() == null ? "" : "P:" + k.getMatriculePers()),
+                        v -> v,
+                        (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+
+            dto.setResponsables(unique);
+
+            // Aussi construire le responsableName pour le frontend (fallback)
+            List<String> displayNames = new ArrayList<>();
+            for (ResponsableTacheDTO r : unique) {
+                if (r.getPersonneName() != null && !r.getPersonneName().trim().isEmpty()) {
+                    displayNames.add(r.getPersonneName().trim());
+                } else if (r.getDeptName() != null && !r.getDeptName().trim().isEmpty()) {
+                    displayNames.add(r.getDeptName().trim());
+                } else if (r.getCodeDept() != null && !r.getCodeDept().trim().isEmpty()) {
+                    displayNames.add(r.getCodeDept().trim());
+                } else if (r.getMatriculePers() != null && !r.getMatriculePers().trim().isEmpty()) {
+                    displayNames.add(r.getMatriculePers().trim());
+                }
+            }
+            if (!displayNames.isEmpty()) {
+                dto.setResponsableName(String.join(", ", displayNames.stream().distinct().collect(Collectors.toList())));
+            }
+        }
+
+        return dtos;
     }
 
     //    public List<TasksDTO> getAllTasksByAcl(String deptCode) {
