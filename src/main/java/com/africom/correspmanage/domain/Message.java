@@ -1,5 +1,11 @@
 package com.africom.correspmanage.domain;
 
+import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
+import com.vladmihalcea.hibernate.type.json.JsonNodeBinaryType;
+import org.hibernate.annotations.Type;
+import org.hibernate.annotations.TypeDef;
+import org.hibernate.annotations.TypeDefs;
+
 import java.io.Serializable;
 import java.time.ZonedDateTime;
 import javax.persistence.*;
@@ -9,6 +15,10 @@ import javax.persistence.*;
  */
 @Entity
 @Table(name = "message")
+@TypeDefs({
+    @TypeDef(name = "jsonb", typeClass = JsonBinaryType.class),
+    @TypeDef(name = "jsonb-node", typeClass = JsonNodeBinaryType.class)
+})
 @SuppressWarnings("common-java:DuplicatedBlocks")
 public class Message implements Serializable {
 
@@ -23,14 +33,17 @@ public class Message implements Serializable {
     @Column(name = "sender")
     private String sender;
 
-    @Column(name = "receiver")
-    private String receiver;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "receiver")
+    private Object receiver;
 
-    @Column(name = "copy_to")
-    private String copyTo;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "copy_to")
+    private Object copyTo;
 
-    @Column(name = "blind_copy_to")
-    private String blindCopyTo;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "blind_copy_to")
+    private Object blindCopyTo;
 
     @Column(name = "path")
     private String path;
@@ -99,42 +112,42 @@ public class Message implements Serializable {
         this.sender = sender;
     }
 
-    public String getReceiver() {
+    public Object getReceiver() {
         return this.receiver;
     }
 
-    public Message receiver(String receiver) {
+    public Message receiver(Object receiver) {
         this.setReceiver(receiver);
         return this;
     }
 
-    public void setReceiver(String receiver) {
+    public void setReceiver(Object receiver) {
         this.receiver = receiver;
     }
 
-    public String getCopyTo() {
+    public Object getCopyTo() {
         return this.copyTo;
     }
 
-    public Message copyTo(String copyTo) {
+    public Message copyTo(Object copyTo) {
         this.setCopyTo(copyTo);
         return this;
     }
 
-    public void setCopyTo(String copyTo) {
+    public void setCopyTo(Object copyTo) {
         this.copyTo = copyTo;
     }
 
-    public String getBlindCopyTo() {
+    public Object getBlindCopyTo() {
         return this.blindCopyTo;
     }
 
-    public Message blindCopyTo(String blindCopyTo) {
+    public Message blindCopyTo(Object blindCopyTo) {
         this.setBlindCopyTo(blindCopyTo);
         return this;
     }
 
-    public void setBlindCopyTo(String blindCopyTo) {
+    public void setBlindCopyTo(Object blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 
@@ -332,9 +345,9 @@ public class Message implements Serializable {
         return "Message{" +
             "id=" + getId() +
             ", sender='" + getSender() + "'" +
-            ", receiver='" + getReceiver() + "'" +
-            ", copyTo='" + getCopyTo() + "'" +
-            ", blindCopyTo='" + getBlindCopyTo() + "'" +
+            ", receiver='" + String.valueOf(getReceiver()) + "'" +
+            ", copyTo='" + String.valueOf(getCopyTo()) + "'" +
+            ", blindCopyTo='" + String.valueOf(getBlindCopyTo()) + "'" +
             ", path='" + getPath() + "'" +
             ", msgID='" + getMsgID() + "'" +
             ", parentID='" + getParentID() + "'" +
