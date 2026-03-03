@@ -14,11 +14,11 @@ public class MessageDTO implements Serializable {
 
     private String sender;
 
-    private String receiver;
+    private Object receiver;
 
-    private String copyTo;
+    private Object copyTo;
 
-    private String blindCopyTo;
+    private Object blindCopyTo;
 
     private String path;
 
@@ -62,27 +62,27 @@ public class MessageDTO implements Serializable {
         this.sender = sender;
     }
 
-    public String getReceiver() {
+    public Object getReceiver() {
         return receiver;
     }
 
-    public void setReceiver(String receiver) {
+    public void setReceiver(Object receiver) {
         this.receiver = receiver;
     }
 
-    public String getCopyTo() {
+    public Object getCopyTo() {
         return copyTo;
     }
 
-    public void setCopyTo(String copyTo) {
+    public void setCopyTo(Object copyTo) {
         this.copyTo = copyTo;
     }
 
-    public String getBlindCopyTo() {
+    public Object getBlindCopyTo() {
         return blindCopyTo;
     }
 
-    public void setBlindCopyTo(String blindCopyTo) {
+    public void setBlindCopyTo(Object blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 
@@ -217,9 +217,9 @@ public class MessageDTO implements Serializable {
         return "MessageDTO{" +
             "id=" + getId() +
             ", sender='" + getSender() + "'" +
-            ", receiver='" + getReceiver() + "'" +
-            ", copyTo='" + getCopyTo() + "'" +
-            ", blindCopyTo='" + getBlindCopyTo() + "'" +
+            ", receiver='" + String.valueOf(getReceiver()) + "'" +
+            ", copyTo='" + String.valueOf(getCopyTo()) + "'" +
+            ", blindCopyTo='" + String.valueOf(getBlindCopyTo()) + "'" +
             ", path='" + getPath() + "'" +
             ", msgID='" + getMsgID() + "'" +
             ", parentID='" + getParentID() + "'" +

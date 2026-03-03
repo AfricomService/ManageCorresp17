@@ -6,6 +6,7 @@ package com.africom.correspmanage.domain.enumeration;
 public enum CorrespStatus {
     DRAFT,
     IN_PROGRESS,
+    DISPATCH,
     CLOSED,
     CANCELLED,
 }

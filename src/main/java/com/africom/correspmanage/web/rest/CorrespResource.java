@@ -278,25 +278,29 @@ public class CorrespResource {
     //    }
 
     @PostMapping(value = "/correspsWithTasksAndPjsN8N", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public void saveCorrespWithTasksAndPj(
+    public ResponseEntity<Void> saveCorrespWithTasksAndPj(
         @RequestPart(value = "pjs", required = false) String pjs,
         @RequestPart("subject") String subject,
         @RequestPart("from") String from,
-        @RequestPart("bodyHtml") String bodyHtml
-    ) throws Exception {
+        @RequestPart("bodyHtml") String bodyHtml,
+        @RequestPart(value = "receiver") String receiverRaw,
+        @RequestPart(value = "copyTo", required = false) String copyToRaw
+    ) {
         ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            List<PjDTO> pjList = Collections.emptyList();
+            if (pjs != null && !pjs.trim().isEmpty()) {
+                pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
+            }
 
-        // Convert JSON string to List<PjDTO>
-        List<PjDTO> pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
+            // appelle le service en fournissant bien les 6 arguments
+            correspService.saveCorrespWithPjN8N(pjList, subject, from, bodyHtml, receiverRaw, copyToRaw);
 
-        // Debug
-        //        log.debug("pjs as list: {}", pjList);
-        //        log.debug("subject: {}", subject);
-        //        log.debug("from: {}", from);
-        //        log.debug("bodyHtml: {}", bodyHtml);
-
-        // Now you can pass pjList to your service
-        correspService.saveCorrespWithPjN8N(pjList, subject, from, bodyHtml);
+            return ResponseEntity.ok().build();
+        } catch (Exception ex) {
+            log.error("Erreur lors du traitement du webhook N8N", ex);
+            return ResponseEntity.status(500).build();
+        }
     }
 
     @GetMapping("/correspAcl")

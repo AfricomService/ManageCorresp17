@@ -30,6 +30,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
 import javax.persistence.EntityNotFoundException;
 import javax.persistence.criteria.Join;
 import javax.persistence.criteria.Predicate;
@@ -536,9 +538,15 @@ public class CorrespService {
         return (index == -1) ? fileName : fileName.substring(0, index);
     }
 
-    public Corresp saveCorrespWithPjN8N(List<PjDTO> pjs, String subject, String from, String bodyHtml) {
-        //        log.debug("pjs {}", pjs);
 
+    public Corresp saveCorrespWithPjN8N(
+        List<PjDTO> pjs,
+        String subject,
+        String from,
+        String bodyHtml,
+        String receiverRaw,
+        String copyToRaw
+    ) {
         Corresp correspToSave = new Corresp();
 
         UUID uuid = UUID.randomUUID();
@@ -549,54 +557,86 @@ public class CorrespService {
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
         correspToSave.setStatus(CorrespStatus.DRAFT);
-        //        correspToSave.setBody(bodyHtml);
         correspToSave.setCorresptype(CorrespType.INCOMING);
         correspToSave.setDispatchType(DispatchType.EMAIL);
 
+        // --- attachments (inchangé) ---
         if (pjs != null) {
             List<Pj> pjsList = new ArrayList<>();
-
             for (PjDTO pjDTO : pjs) {
                 Pj pjEntity = new Pj();
-                //            pjEntity.setName(pjDTO.getName());
                 pjEntity.setName(removeExtension(pjDTO.getName()));
-                //            pjEntity.setFileType(pjDTO.getFileType());
                 pjEntity.setFileType(pjDTO.getName().substring(pjDTO.getName().lastIndexOf(".") + 1));
                 pjEntity.setUniqueName(pjDTO.getUniqueName());
-                pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+                pjEntity.setCreatedBy(SecurityUtils.getCurrentUserLogin().orElse("N8N"));
                 pjEntity.setCreationDate(ZonedDateTime.now());
                 pjEntity.setPath(pjDTO.getPath());
-
                 pjsList.add(pjEntity);
             }
-
             Set<Pj> pjsSaved = new HashSet<>(pjRepository.saveAll(pjsList));
-
             correspToSave.setAttachments(pjsSaved);
         }
 
         correspToSave.setUpdatedDate(ZonedDateTime.now());
-
-        correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+        correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("N8N"));
 
         Corresp saved = correspRepository.save(correspToSave);
 
         String path = saveBodyToFile(bodyHtml, saved.getId());
 
         Message message = new Message();
-
         message.sender(correspToSave.getSender());
         message.setCorrespId(saved.getId());
-        message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+        message.setCreatedBy("N8N"); // provenance N8N
         message.setCreationDate(ZonedDateTime.now());
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
 
+        // --- parse et persist receiver / copyTo ---
+        try {
+            List<Map<String,String>> receivers = parseEmailListToMap(receiverRaw);
+            List<Map<String,String>> copyTos = parseEmailListToMap(copyToRaw);
+            message.setReceiver(receivers);
+            message.setCopyTo(copyTos);
+        } catch (Exception e) {
+            // fallback : store raw strings so on a toujours l'info brute
+            message.setReceiver(receiverRaw);
+            message.setCopyTo(copyToRaw);
+            // adapte selon ton logger (slf4j)
+            log.warn("Parsing emails failed for corresp {} : {}", saved.getId(), e.getMessage());
+        }
+
         messageRepository.save(message);
 
         log.debug("save corresp {}", saved);
-
         return saved;
+    }
+
+    /**
+     * Parse une chaîne contenant une ou plusieurs adresses (formats acceptés par InternetAddress),
+     * retourne une List<Map<String,String>> où chaque Map contient "name" et "email".
+     * Exemple de Map: { "name": "Mohamed", "email": "m@x.com" }
+     */
+    private List<Map<String,String>> parseEmailListToMap(String raw) throws AddressException {
+        if (raw == null || raw.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Nettoyage léger : suppression des retours chariot / tabs pour éviter des problèmes de parsing
+        String cleaned = raw.replaceAll("[\\n\\r\\t]+", " ").trim();
+
+        // InternetAddress.parse(cleaned, false) -> mode permissif (accepte aussi list séparée par , ; etc.)
+        InternetAddress[] addresses = InternetAddress.parse(cleaned, false);
+
+        List<Map<String,String>> result = new ArrayList<>(addresses.length);
+        for (InternetAddress addr : addresses) {
+            Map<String,String> entry = new HashMap<>();
+            String personal = addr.getPersonal();
+            entry.put("name", personal != null ? personal : "");
+            entry.put("email", addr.getAddress());
+            result.add(entry);
+        }
+        return result;
     }
 
     public Corresp updateCorrespDraft(Long id, CorrespDTO correspDTO, TypeDocumentFeignDTO typeDocumentDTO) {
