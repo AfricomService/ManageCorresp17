@@ -480,5 +480,19 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(dto);
     }
 
+    /**
+     * {@code GET  /corresps/:correspId/message} : get receiver and copyTo of the message linked to a corresp.
+     *
+     * @param correspId the id of the corresp.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body containing receiver and copyTo,
+     * or with status {@code 404 (Not Found)}.
+     */
+    @GetMapping("/corresps/{correspId}/message")
+    public ResponseEntity<Map<String, Object>> getMessageByCorrespId(@PathVariable Long correspId) {
+        log.debug("REST request to get Message (receiver, copyTo) by correspId : {}", correspId);
+        Map<String, Object> result = correspService.getMessageByCorrespId(correspId);
+        return ResponseEntity.ok(result);
+    }
+
 
 }
