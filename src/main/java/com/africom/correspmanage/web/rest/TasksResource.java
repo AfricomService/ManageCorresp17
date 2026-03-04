@@ -546,5 +546,26 @@ public class TasksResource {
         }
     }
 
+    // GET /api/tasks/{id}/can-modify
+    @GetMapping("/tasks/{id}/can-modify")
+    public ResponseEntity<Boolean> canCurrentUserModifyTasksEndpoint(@PathVariable Long id) {
+        if (id == null) {
+            return ResponseEntity.badRequest().body(false);
+        }
+        boolean can = tasksService.canCurrentUserModifyTask(id);
+        return ResponseEntity.ok(can);
+    }
+
+    // Alternative : accepter un TasksDTO (si tu veux vérifier un objet complet)
+    @PostMapping("/tasks/can-modify")
+    public ResponseEntity<Boolean> canCurrentUserModifyTasksByDto(@RequestBody TasksDTO tasksDTO) {
+        if (tasksDTO == null || tasksDTO.getId() == null) {
+            return ResponseEntity.badRequest().body(false);
+        }
+        // si tu as une méthode service prenant Tasks ou TasksDTO
+        boolean can = tasksService.canCurrentUserModifyTask(tasksDTO.getId());
+        return ResponseEntity.ok(can);
+    }
+
 
 }

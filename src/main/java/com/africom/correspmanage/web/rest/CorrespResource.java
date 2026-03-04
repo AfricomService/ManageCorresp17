@@ -276,6 +276,21 @@ public class CorrespResource {
     //        log.debug("pjs {}",bodyHtml);
     //    }
 
+    /**
+     * {@code GET  /corresps/:correspId/message} : get receiver and copyTo of the message linked to a corresp.
+     *
+     * @param correspId the id of the corresp.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body containing receiver and copyTo,
+     * or with status {@code 404 (Not Found)}.
+     */
+    @GetMapping("/corresps/{correspId}/message")
+    public ResponseEntity<Map<String, Object>> getMessageByCorrespId(@PathVariable Long correspId) {
+        log.debug("REST request to get Message (receiver, copyTo) by correspId : {}", correspId);
+        Map<String, Object> result = correspService.getMessageByCorrespId(correspId);
+        return ResponseEntity.ok(result);
+    }
+
+
     @PostMapping(value = "/correspsWithTasksAndPjsN8N", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Void> saveCorrespWithTasksAndPj(
         @RequestPart(value = "pjs", required = false) String pjs,
@@ -478,20 +493,6 @@ public ResponseEntity<?> addTaskToCorresp(
     public ResponseEntity<CorrespPermissionsDTO> getPermissions(@PathVariable Long id) {
         CorrespPermissionsDTO dto = correspService.getAndEnsurePermissionsForCurrentUser(id);
         return ResponseEntity.ok(dto);
-    }
-
-    /**
-     * {@code GET  /corresps/:correspId/message} : get receiver and copyTo of the message linked to a corresp.
-     *
-     * @param correspId the id of the corresp.
-     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body containing receiver and copyTo,
-     * or with status {@code 404 (Not Found)}.
-     */
-    @GetMapping("/corresps/{correspId}/message")
-    public ResponseEntity<Map<String, Object>> getMessageByCorrespId(@PathVariable Long correspId) {
-        log.debug("REST request to get Message (receiver, copyTo) by correspId : {}", correspId);
-        Map<String, Object> result = correspService.getMessageByCorrespId(correspId);
-        return ResponseEntity.ok(result);
     }
 
 

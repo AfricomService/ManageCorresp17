@@ -244,9 +244,6 @@ public class CorrespService {
                     case "CANCELLED":
                         predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CANCELLED));
                         break;
-                    case "DISPATCH":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.DISPATCH));
-                        break;
                     default:
                         break;
                 }
@@ -666,11 +663,32 @@ public class CorrespService {
         }
     }
 
+
+
+
+
+    /**
+     * Récupère le receiver et copyTo du message associé à une correspondance.
+     *
+     * @param correspId l'id de la correspondance.
+     * @return un Map contenant les clés "receiver" et "copyTo".
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getMessageByCorrespId(Long correspId) {
+        log.debug("Request to get Message receiver and copyTo by correspId : {}", correspId);
+        Message message = messageRepository.findByCorrespId(correspId)
+            .orElseThrow(() -> new EntityNotFoundException("Message not found for correspId: " + correspId));
+        Map<String, Object> result = new HashMap<>();
+        result.put("receiver", message.getReceiver());
+        result.put("copyTo", message.getCopyTo());
+        return result;
+    }
+
     public Corresp updateCorrespDraft(Long id, CorrespDTO correspDTO, TypeDocumentFeignDTO typeDocumentDTO) {
         Corresp existing = correspRepository.findById(id).orElseThrow(() -> new RuntimeException("Corresp not found with id " + id));
 
-        if (existing.getStatus() != CorrespStatus.DRAFT && existing.getStatus() != CorrespStatus.DISPATCH) {
-            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT ou DISPATCH");
+        if (existing.getStatus() != CorrespStatus.DRAFT) {
+            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT");
         }
 
         existing.setCourrierDate(correspDTO.getCourrierDate());
@@ -1717,23 +1735,6 @@ public class CorrespService {
 
         result.setCorresp(correspAfter);
         result.setTasksPermissions(taskPermsAfter);
-        return result;
-    }
-
-    /**
-     * Récupère le receiver et copyTo du message associé à une correspondance.
-     *
-     * @param correspId l'id de la correspondance.
-     * @return un Map contenant les clés "receiver" et "copyTo".
-     */
-    @Transactional(readOnly = true)
-    public Map<String, Object> getMessageByCorrespId(Long correspId) {
-        log.debug("Request to get Message receiver and copyTo by correspId : {}", correspId);
-        Message message = messageRepository.findByCorrespId(correspId)
-            .orElseThrow(() -> new EntityNotFoundException("Message not found for correspId: " + correspId));
-        Map<String, Object> result = new HashMap<>();
-        result.put("receiver", message.getReceiver());
-        result.put("copyTo", message.getCopyTo());
         return result;
     }
 
