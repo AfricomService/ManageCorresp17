@@ -244,9 +244,6 @@ public class CorrespService {
                     case "CANCELLED":
                         predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CANCELLED));
                         break;
-                    case "DISPATCH":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.DISPATCH));
-                        break;
                     default:
                         break;
                 }
@@ -559,7 +556,7 @@ public class CorrespService {
         correspToSave.setDateCreated(ZonedDateTime.now());
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
-        correspToSave.setStatus(CorrespStatus.DISPATCH);
+        correspToSave.setStatus(CorrespStatus.DRAFT);
         correspToSave.setCorresptype(CorrespType.INCOMING);
         correspToSave.setDispatchType(DispatchType.EMAIL);
 
@@ -620,57 +617,33 @@ public class CorrespService {
      * retourne une List<Map<String,String>> où chaque Map contient "name" et "email".
      * Exemple de Map: { "name": "Mohamed", "email": "m@x.com" }
      */
-    private List<Map<String,String>> parseEmailListToMap(String raw) {
+    private List<Map<String,String>> parseEmailListToMap(String raw) throws AddressException {
         if (raw == null || raw.trim().isEmpty()) {
             return Collections.emptyList();
         }
 
-        // Nettoyage léger
+        // Nettoyage léger : suppression des retours chariot / tabs pour éviter des problèmes de parsing
         String cleaned = raw.replaceAll("[\\n\\r\\t]+", " ").trim();
 
-        try {
-            InternetAddress[] addresses = InternetAddress.parse(cleaned, false);
-            List<Map<String,String>> result = new ArrayList<>(addresses.length);
+        // InternetAddress.parse(cleaned, false) -> mode permissif (accepte aussi list séparée par , ; etc.)
+        InternetAddress[] addresses = InternetAddress.parse(cleaned, false);
 
-            for (InternetAddress addr : addresses) {
-                String email = addr.getAddress();
-                if (email != null) {
-                    email = email.trim().toLowerCase();
-                    // Optionnel : validate() pour detecter email invalid (peut lancer AddressException)
-                    try {
-                        new InternetAddress(email).validate();
-                    } catch (AddressException ex) {
-                        // si invalide -> sauter ou logger; ici on saute
-                        log.warn("Email invalide ignoré: {}", email);
-                        continue;
-                    }
-                    Map<String,String> entry = new HashMap<>();
-                    entry.put("email", email);
-                    result.add(entry);
-                }
-            }
-            return result;
-        } catch (AddressException e) {
-            // Fallback permissif : découpe par virgule / point-virgule / espace et normalise
-            log.warn("Parsing permissif (fallback) pour la chaîne : {} — {}", raw, e.getMessage());
-            String[] parts = cleaned.split("[,;]+");
-            List<Map<String,String>> result = new ArrayList<>();
-            for (String part : parts) {
-                String email = part.trim().toLowerCase();
-                if (email.isEmpty()) continue;
-                Map<String,String> entry = new HashMap<>();
-                entry.put("email", email);
-                result.add(entry);
-            }
-            return result;
+        List<Map<String,String>> result = new ArrayList<>(addresses.length);
+        for (InternetAddress addr : addresses) {
+            Map<String,String> entry = new HashMap<>();
+            String personal = addr.getPersonal();
+            entry.put("name", personal != null ? personal : "");
+            entry.put("email", addr.getAddress());
+            result.add(entry);
         }
+        return result;
     }
 
     public Corresp updateCorrespDraft(Long id, CorrespDTO correspDTO, TypeDocumentFeignDTO typeDocumentDTO) {
         Corresp existing = correspRepository.findById(id).orElseThrow(() -> new RuntimeException("Corresp not found with id " + id));
 
-        if (existing.getStatus() != CorrespStatus.DRAFT && existing.getStatus() != CorrespStatus.DISPATCH) {
-            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT ou DISPATCH");
+        if (existing.getStatus() != CorrespStatus.DRAFT) {
+            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT");
         }
 
         existing.setCourrierDate(correspDTO.getCourrierDate());
@@ -1717,23 +1690,6 @@ public class CorrespService {
 
         result.setCorresp(correspAfter);
         result.setTasksPermissions(taskPermsAfter);
-        return result;
-    }
-
-    /**
-     * Récupère le receiver et copyTo du message associé à une correspondance.
-     *
-     * @param correspId l'id de la correspondance.
-     * @return un Map contenant les clés "receiver" et "copyTo".
-     */
-    @Transactional(readOnly = true)
-    public Map<String, Object> getMessageByCorrespId(Long correspId) {
-        log.debug("Request to get Message receiver and copyTo by correspId : {}", correspId);
-        Message message = messageRepository.findByCorrespId(correspId)
-            .orElseThrow(() -> new EntityNotFoundException("Message not found for correspId: " + correspId));
-        Map<String, Object> result = new HashMap<>();
-        result.put("receiver", message.getReceiver());
-        result.put("copyTo", message.getCopyTo());
         return result;
     }
 
