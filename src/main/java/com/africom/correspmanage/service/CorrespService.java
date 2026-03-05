@@ -1192,6 +1192,12 @@ public class CorrespService {
         Corresp existingCorresp = correspRepository.findById(correspId)
             .orElseThrow(() -> new RuntimeException("Corresp not found"));
 
+        // Si la corresp est en DRAFT, la passer automatiquement en IN_PROGRESS
+        if (existingCorresp.getStatus() == CorrespStatus.DRAFT) {
+            existingCorresp.setStatus(CorrespStatus.IN_PROGRESS);
+            log.debug("Corresp {} était en DRAFT, passage automatique en IN_PROGRESS", correspId);
+        }
+
         CorrespStatus newStatus;
         try {
             newStatus = CorrespStatus.valueOf(statusTo);
