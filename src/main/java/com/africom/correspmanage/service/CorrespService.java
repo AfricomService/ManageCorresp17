@@ -750,12 +750,95 @@ public class CorrespService {
 
         Set<Tasks> tasksSaved = corresp.getTasks();
 
-        // Passer les tâches DRAFT -> IN_PROGRESS
-        tasksSaved.forEach(task -> {
-            if (task.getStatus().equals(CorrespStatus.DRAFT)) {
-                task.setStatus(CorrespStatus.IN_PROGRESS);
-                task.setStartDate(ZonedDateTime.now());
+        // --- Récupérer le login et les départements de l'utilisateur courant ---
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
+        List<String> currentUserDeptCodes = new ArrayList<>();
+
+        if (currentLogin != null) {
+            try {
+                UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(currentLogin);
+                if (userDto != null && userDto.getId() != null) {
+                    List<Map<String, Object>> aff = orgaCareRestClient.getDepartementAffectationsByUserId(userDto.getId());
+                    if (aff != null) {
+                        for (Map<String, Object> m : aff) {
+                            Object codeObj = m.get("departementCode");
+                            if (codeObj != null) {
+                                String code = codeObj.toString().trim();
+                                if (!code.isEmpty()) currentUserDeptCodes.add(code);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Impossible de récupérer les départements de l'utilisateur {} : {}", currentLogin, e.getMessage());
             }
+        }
+
+        // Passer uniquement les tâches DRAFT dont l'utilisateur courant est responsable -> IN_PROGRESS
+        tasksSaved.forEach(task -> {
+            if (!task.getStatus().equals(CorrespStatus.DRAFT)) {
+                return; // skip les tâches non-DRAFT
+            }
+
+            boolean isResponsible = false;
+
+            // 1) Vérifier par matricule/login du responsable
+            if (currentLogin != null) {
+                List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(task.getId());
+                if (matricules != null) {
+                    List<String> distinctMatricules = matricules.stream()
+                        .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+                        .distinct().collect(Collectors.toList());
+
+                    // Vérifier si le login courant fait partie des matricules directement
+                    if (distinctMatricules.stream().anyMatch(mat -> mat.equalsIgnoreCase(currentLogin.trim()))) {
+                        isResponsible = true;
+                    }
+
+                    // Sinon, résoudre les matricules en logins via gateway
+                    if (!isResponsible && !distinctMatricules.isEmpty()) {
+                        try {
+                            List<com.africom.correspmanage.client.UserFeignDTO> users =
+                                correspGatewayRestClient.findUsersByLogins(distinctMatricules);
+                            if (users != null) {
+                                isResponsible = users.stream()
+                                    .filter(Objects::nonNull)
+                                    .map(u -> u.getLogin() != null ? u.getLogin().trim().toLowerCase() : null)
+                                    .filter(Objects::nonNull)
+                                    .anyMatch(login -> login.equals(currentLogin.trim().toLowerCase()));
+                            }
+                        } catch (Exception e) {
+                            log.warn("Erreur findUsersByLogins pour tache {} : {}", task.getId(), e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            // 2) Vérifier par département
+            if (!isResponsible && !currentUserDeptCodes.isEmpty()) {
+                List<String> taskDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(task.getId());
+                if (taskDeptCodes != null) {
+                    Set<String> taskDepts = taskDeptCodes.stream()
+                        .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+                        .collect(Collectors.toSet());
+
+                    for (String userDept : currentUserDeptCodes) {
+                        if (taskDepts.contains(userDept)) {
+                            isResponsible = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!isResponsible) {
+                log.debug("L'utilisateur {} n'est pas responsable de la tâche {} => skip soumission", currentLogin, task.getId());
+                return; // ne pas soumettre cette tâche
+            }
+
+            // L'utilisateur est responsable => passer en IN_PROGRESS
+            task.setStatus(CorrespStatus.IN_PROGRESS);
+            task.setStartDate(ZonedDateTime.now());
         });
 
         corresp.setTasks(tasksSaved);
@@ -764,7 +847,7 @@ public class CorrespService {
 
         corresp.setUpdatedDate(ZonedDateTime.now());
 
-        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+        corresp.setUpdatedBy(currentLogin != null ? currentLogin : SecurityUtils.getCurrentUserLogin().orElse("unknown"));
 
         // Persister d'abord le corresp (et les tâches si cascade)
         Corresp saved = correspRepository.save(corresp);
