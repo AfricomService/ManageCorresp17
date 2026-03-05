@@ -750,95 +750,12 @@ public class CorrespService {
 
         Set<Tasks> tasksSaved = corresp.getTasks();
 
-        // --- Récupérer le login et les départements de l'utilisateur courant ---
-        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse(null);
-        List<String> currentUserDeptCodes = new ArrayList<>();
-
-        if (currentLogin != null) {
-            try {
-                UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(currentLogin);
-                if (userDto != null && userDto.getId() != null) {
-                    List<Map<String, Object>> aff = orgaCareRestClient.getDepartementAffectationsByUserId(userDto.getId());
-                    if (aff != null) {
-                        for (Map<String, Object> m : aff) {
-                            Object codeObj = m.get("departementCode");
-                            if (codeObj != null) {
-                                String code = codeObj.toString().trim();
-                                if (!code.isEmpty()) currentUserDeptCodes.add(code);
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Impossible de récupérer les départements de l'utilisateur {} : {}", currentLogin, e.getMessage());
-            }
-        }
-
-        // Passer uniquement les tâches DRAFT dont l'utilisateur courant est responsable -> IN_PROGRESS
+        // Passer les tâches DRAFT -> IN_PROGRESS
         tasksSaved.forEach(task -> {
-            if (!task.getStatus().equals(CorrespStatus.DRAFT)) {
-                return; // skip les tâches non-DRAFT
+            if (task.getStatus().equals(CorrespStatus.DRAFT)) {
+                task.setStatus(CorrespStatus.IN_PROGRESS);
+                task.setStartDate(ZonedDateTime.now());
             }
-
-            boolean isResponsible = false;
-
-            // 1) Vérifier par matricule/login du responsable
-            if (currentLogin != null) {
-                List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(task.getId());
-                if (matricules != null) {
-                    List<String> distinctMatricules = matricules.stream()
-                        .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
-                        .distinct().collect(Collectors.toList());
-
-                    // Vérifier si le login courant fait partie des matricules directement
-                    if (distinctMatricules.stream().anyMatch(mat -> mat.equalsIgnoreCase(currentLogin.trim()))) {
-                        isResponsible = true;
-                    }
-
-                    // Sinon, résoudre les matricules en logins via gateway
-                    if (!isResponsible && !distinctMatricules.isEmpty()) {
-                        try {
-                            List<com.africom.correspmanage.client.UserFeignDTO> users =
-                                correspGatewayRestClient.findUsersByLogins(distinctMatricules);
-                            if (users != null) {
-                                isResponsible = users.stream()
-                                    .filter(Objects::nonNull)
-                                    .map(u -> u.getLogin() != null ? u.getLogin().trim().toLowerCase() : null)
-                                    .filter(Objects::nonNull)
-                                    .anyMatch(login -> login.equals(currentLogin.trim().toLowerCase()));
-                            }
-                        } catch (Exception e) {
-                            log.warn("Erreur findUsersByLogins pour tache {} : {}", task.getId(), e.getMessage());
-                        }
-                    }
-                }
-            }
-
-            // 2) Vérifier par département
-            if (!isResponsible && !currentUserDeptCodes.isEmpty()) {
-                List<String> taskDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(task.getId());
-                if (taskDeptCodes != null) {
-                    Set<String> taskDepts = taskDeptCodes.stream()
-                        .filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
-                        .collect(Collectors.toSet());
-
-                    for (String userDept : currentUserDeptCodes) {
-                        if (taskDepts.contains(userDept)) {
-                            isResponsible = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (!isResponsible) {
-                log.debug("L'utilisateur {} n'est pas responsable de la tâche {} => skip soumission", currentLogin, task.getId());
-                return; // ne pas soumettre cette tâche
-            }
-
-            // L'utilisateur est responsable => passer en IN_PROGRESS
-            task.setStatus(CorrespStatus.IN_PROGRESS);
-            task.setStartDate(ZonedDateTime.now());
         });
 
         corresp.setTasks(tasksSaved);
@@ -847,7 +764,7 @@ public class CorrespService {
 
         corresp.setUpdatedDate(ZonedDateTime.now());
 
-        corresp.setUpdatedBy(currentLogin != null ? currentLogin : SecurityUtils.getCurrentUserLogin().orElse("unknown"));
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
         // Persister d'abord le corresp (et les tâches si cascade)
         Corresp saved = correspRepository.save(corresp);
@@ -1684,6 +1601,75 @@ public class CorrespService {
     @Transactional(readOnly = true)
     public List<CorrespDTO> findAllWithReferenceList() {
         return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
+    }
+
+    /**
+     * Retourne toutes les correspondances accessibles par l'utilisateur courant (via ACL).
+     * Les SIDs vérifiés sont : les codes de départements de l'utilisateur + son login.
+     *
+     * @param userId l'id de l'utilisateur (pour récupérer ses départements via OrgaCare)
+     * @return liste de CorrespDTO accessibles
+     */
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> getAllCorrespsByUserAcl(Long userId) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        // 1) Récupérer les codes départements de l'utilisateur via OrgaCare
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations == null || affectations.isEmpty()) {
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        // 2) Récupérer le login de l'utilisateur
+        String userLogin = null;
+        try {
+            Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+            if (userMap != null) {
+                Object login = userMap.get("login");
+                if (login != null && !login.toString().trim().isEmpty()) {
+                    userLogin = login.toString().trim().toLowerCase();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer le login pour userId {} : {}", userId, e.getMessage());
+        }
+
+        // 3) Construire la liste complète des SIDs : deptCodes + login utilisateur
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 4) Requête native ACL : correspondances avec READ pour ces SIDs
+        int readMask = BasePermission.READ.getMask();
+        List<Corresp> correspEntities = correspRepository.findAllByAclForSids(allSids, readMask);
+
+        if (correspEntities == null || correspEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return correspEntities.stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
     }
 
 

@@ -511,5 +511,16 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(dto);
     }
 
+    /**
+     * GET /corresps/correspsByUserAcl?userId={userId}
+     * Retourne les correspondances accessibles par l'utilisateur via ses ACLs (départements + login).
+     */
+    @GetMapping("/corresps/correspsByUserAcl")
+    public ResponseEntity<List<CorrespDTO>> getCorrespsByUserAcl(@RequestParam(name = "userId") Long userId) {
+        log.debug("REST request to get Corresps by userId (ACL) : {}", userId);
+        List<CorrespDTO> corresps = correspService.getAllCorrespsByUserAcl(userId);
+        return ResponseEntity.ok(corresps != null ? corresps : Collections.emptyList());
+    }
+
 
 }
