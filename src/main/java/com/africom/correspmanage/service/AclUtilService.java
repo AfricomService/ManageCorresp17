@@ -11,6 +11,7 @@ import org.springframework.security.acls.domain.PrincipalSid;
 import org.springframework.security.acls.jdbc.JdbcMutableAclService;
 import org.springframework.security.acls.model.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -35,6 +36,7 @@ public class AclUtilService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createAcl(Object domainObject) {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         log.debug("createAcl for {}", domainObject);
@@ -46,6 +48,7 @@ public class AclUtilService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void ensureAclExists(Object domainObject) {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
@@ -60,6 +63,7 @@ public class AclUtilService {
      * Simple addPermission that always inserts ACE (may throw on duplicate sid insertion).
      * Use addPermissionIfNotExists when you want to avoid duplicates and race conditions.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void addPermission(Object domainObject, String username, Permission permission) {
         if (username == null || username.isBlank()) return;
         String normalized = username.trim().toLowerCase();
@@ -77,6 +81,7 @@ public class AclUtilService {
         aclService.updateAcl(acl);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void addPermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
         if (authoritySid == null || authoritySid.isBlank()) return;
         // NE PAS mettre en minuscules les départements - garder la casse originale
@@ -95,6 +100,7 @@ public class AclUtilService {
         aclService.updateAcl(acl);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deletePermission(Object domainObject, String username, Permission permission) {
         if (username == null || username.isBlank()) return;
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
@@ -116,7 +122,7 @@ public class AclUtilService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteAllPermissions(Object domainObject) {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         try {
@@ -133,6 +139,7 @@ public class AclUtilService {
      *  - checks existence of sid in acl_sid table (to avoid DuplicateKeyException),
      *  - on race DuplicateKeyException it will reload and retry safely.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void addPermissionIfNotExists(Object domainObject, Sid sid, Permission permission) {
         if (sid == null || permission == null) return;
 
@@ -232,6 +239,7 @@ public class AclUtilService {
     /**
      * Supprime une permission (ACE) pour un GrantedAuthoritySid si elle existe.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deletePermissionForAuthority(Object domainObject, String authoritySid, Permission permission) {
         if (authoritySid == null || authoritySid.isBlank()) return;
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
@@ -258,6 +266,7 @@ public class AclUtilService {
      * Supprime une permission pour un Sid donné (général).
      * Utile si on veut supprimer aussi bien PrincipalSid que GrantedAuthoritySid.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deletePermissionBySid(Object domainObject, Sid sid, Permission permission) {
         if (sid == null) return;
         // Réconcilier avec la base pour avoir le bon type de Sid
@@ -282,6 +291,7 @@ public class AclUtilService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public boolean hasPermissionForSid(Object domainObject, Sid sid, Permission permission) {
         if (domainObject == null || sid == null || permission == null) return false;
 

@@ -298,8 +298,12 @@ public class CorrespResource {
         @RequestPart("subject") String subject,
         @RequestPart("from") String from,
         @RequestPart("bodyHtml") String bodyHtml,
-        @RequestPart(value = "receiver") String receiverRaw,
-        @RequestPart(value = "copyTo", required = false) String copyToRaw
+        @RequestPart(value = "receiver", required = false) String receiverRaw,
+        @RequestPart(value = "copyTo", required = false) String copyToRaw,
+        // nouveaux champs reçus depuis n8n (optionnels)
+        @RequestPart(value = "status", required = false) String status,
+        @RequestPart(value = "corresptype", required = false) String corresptype,
+        @RequestPart(value = "dispatchType", required = false) String dispatchType
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -308,8 +312,18 @@ public class CorrespResource {
                 pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
             }
 
-            // appelle le service en fournissant bien les 6 arguments
-            correspService.saveCorrespWithPjN8N(pjList, subject, from, bodyHtml, receiverRaw, copyToRaw);
+            // passer les strings d'enum au service (le service fera la conversion sûre)
+            correspService.saveCorrespWithPjN8N(
+                pjList,
+                subject,
+                from,
+                bodyHtml,
+                receiverRaw,
+                copyToRaw,
+                status,
+                corresptype,
+                dispatchType
+            );
 
             return ResponseEntity.ok().build();
         } catch (Exception ex) {
@@ -317,6 +331,7 @@ public class CorrespResource {
             return ResponseEntity.status(500).build();
         }
     }
+
 
     @GetMapping("/correspAcl")
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {

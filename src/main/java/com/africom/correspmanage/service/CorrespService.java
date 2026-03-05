@@ -545,7 +545,10 @@ public class CorrespService {
         String from,
         String bodyHtml,
         String receiverRaw,
-        String copyToRaw
+        String copyToRaw,
+        String statusStr,
+        String corresptypeStr,
+        String dispatchTypeStr
     ) {
         Corresp correspToSave = new Corresp();
 
@@ -556,12 +559,37 @@ public class CorrespService {
         correspToSave.setDateCreated(ZonedDateTime.now());
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
-        correspToSave.setStatus(CorrespStatus.DISPATCH);
-        correspToSave.setCorresptype(CorrespType.INCOMING);
-        correspToSave.setDispatchType(DispatchType.EMAIL);
+
+        // --- conversion sûre des enums avec fallback ---
+        try {
+            correspToSave.setStatus(
+                statusStr != null ? CorrespStatus.valueOf(statusStr) : CorrespStatus.DISPATCH
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("Status invalide reçu: {} — fallback DISPATCH", statusStr);
+            correspToSave.setStatus(CorrespStatus.DISPATCH);
+        }
+
+        try {
+            correspToSave.setCorresptype(
+                corresptypeStr != null ? CorrespType.valueOf(corresptypeStr) : CorrespType.INCOMING
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("Corresptype invalide reçu: {} — fallback INCOMING", corresptypeStr);
+            correspToSave.setCorresptype(CorrespType.INCOMING);
+        }
+
+        try {
+            correspToSave.setDispatchType(
+                dispatchTypeStr != null ? DispatchType.valueOf(dispatchTypeStr) : DispatchType.EMAIL
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("DispatchType invalide reçu: {} — fallback EMAIL", dispatchTypeStr);
+            correspToSave.setDispatchType(DispatchType.EMAIL);
+        }
 
         // --- attachments (inchangé) ---
-        if (pjs != null) {
+        if (pjs != null && !pjs.isEmpty()) {
             List<Pj> pjsList = new ArrayList<>();
             for (PjDTO pjDTO : pjs) {
                 Pj pjEntity = new Pj();
@@ -587,7 +615,7 @@ public class CorrespService {
         Message message = new Message();
         message.sender(correspToSave.getSender());
         message.setCorrespId(saved.getId());
-        message.setCreatedBy("N8N"); // provenance N8N
+        message.setCreatedBy("N8N");
         message.setCreationDate(ZonedDateTime.now());
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
@@ -599,10 +627,8 @@ public class CorrespService {
             message.setReceiver(receivers);
             message.setCopyTo(copyTos);
         } catch (Exception e) {
-            // fallback : store raw strings so on a toujours l'info brute
             message.setReceiver(receiverRaw);
             message.setCopyTo(copyToRaw);
-            // adapte selon ton logger (slf4j)
             log.warn("Parsing emails failed for corresp {} : {}", saved.getId(), e.getMessage());
         }
 
@@ -611,6 +637,7 @@ public class CorrespService {
         log.debug("save corresp {}", saved);
         return saved;
     }
+
 
     /**
      * Parse une chaîne contenant une ou plusieurs adresses (formats acceptés par InternetAddress),
