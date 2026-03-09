@@ -1192,12 +1192,6 @@ public class CorrespService {
         Corresp existingCorresp = correspRepository.findById(correspId)
             .orElseThrow(() -> new RuntimeException("Corresp not found"));
 
-        // Si la corresp est en DRAFT, la passer automatiquement en IN_PROGRESS
-        if (existingCorresp.getStatus() == CorrespStatus.DRAFT) {
-            existingCorresp.setStatus(CorrespStatus.IN_PROGRESS);
-            log.debug("Corresp {} était en DRAFT, passage automatique en IN_PROGRESS", correspId);
-        }
-
         CorrespStatus newStatus;
         try {
             newStatus = CorrespStatus.valueOf(statusTo);
@@ -1669,7 +1663,27 @@ public class CorrespService {
         int readMask = BasePermission.READ.getMask();
         List<Corresp> correspEntities = correspRepository.findAllByAclForSids(allSids, readMask);
 
-        if (correspEntities == null || correspEntities.isEmpty()) {
+        if (correspEntities == null) {
+            correspEntities = new ArrayList<>();
+        }
+
+        // 5) Ajouter les correspondances DRAFT créées par l'utilisateur courant
+        if (userLogin != null) {
+            List<Corresp> draftCorresps = correspRepository.findAllDraftByCreatedBy(userLogin);
+            if (draftCorresps != null && !draftCorresps.isEmpty()) {
+                // Collecter les IDs déjà présents pour éviter les doublons
+                Set<Long> existingIds = correspEntities.stream()
+                    .map(Corresp::getId)
+                    .collect(Collectors.toSet());
+                for (Corresp draft : draftCorresps) {
+                    if (!existingIds.contains(draft.getId())) {
+                        correspEntities.add(draft);
+                    }
+                }
+            }
+        }
+
+        if (correspEntities.isEmpty()) {
             return Collections.emptyList();
         }
 

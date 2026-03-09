@@ -80,4 +80,7 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
         nativeQuery = true
     )
     List<Corresp> findAllByAclForSids(@Param("sids") List<String> sids, @Param("mask") int mask);
+
+    @Query("SELECT c FROM Corresp c WHERE LOWER(c.createdBy) = LOWER(:login) AND c.status = 'DRAFT' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllDraftByCreatedBy(@Param("login") String login);
 }
