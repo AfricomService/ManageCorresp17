@@ -1854,4 +1854,18 @@ public class CorrespService {
         return result;
     }
 
+    /**
+     * Get all corresps with status DISPATCH.
+     *
+     * @return list of CorrespDTO
+     */
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> findAllByStatusDispatch() {
+        log.debug("Request to get all Corresps with status DISPATCH");
+        return correspRepository.findAllByStatusDispatch()
+            .stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
+    }
+
 }

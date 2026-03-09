@@ -83,4 +83,7 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
 
     @Query("SELECT c FROM Corresp c WHERE LOWER(c.createdBy) = LOWER(:login) AND c.status = 'DRAFT' ORDER BY c.dateCreated DESC")
     List<Corresp> findAllDraftByCreatedBy(@Param("login") String login);
+
+    @Query("SELECT c FROM Corresp c WHERE c.status = 'DISPATCH' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllByStatusDispatch();
 }

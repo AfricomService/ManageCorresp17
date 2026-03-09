@@ -522,5 +522,16 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(corresps != null ? corresps : Collections.emptyList());
     }
 
+    /**
+     * GET /corresps/dispatched
+     * Retourne la liste des correspondances avec le statut DISPATCH.
+     */
+    @GetMapping("/corresps/dispatched")
+    public ResponseEntity<List<CorrespDTO>> getAllDispatchedCorresps() {
+        log.debug("REST request to get all Corresps with status DISPATCH");
+        List<CorrespDTO> corresps = correspService.findAllByStatusDispatch();
+        return ResponseEntity.ok(corresps);
+    }
+
 
 }
