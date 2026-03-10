@@ -312,14 +312,38 @@ public class CorrespResource {
                 pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
             }
 
-            // passer les strings d'enum au service (le service fera la conversion sûre)
+            // Détecter si receiverRaw / copyToRaw sont du JSON structuré ; si oui, désérialiser
+            Object receiverObj = null;
+            Object copyToObj = null;
+
+            if (receiverRaw != null && !receiverRaw.trim().isEmpty()) {
+                String t = receiverRaw.trim();
+                if (t.startsWith("[") || t.startsWith("{")) {
+                    // JSON structuré -> List<Map<String,String>> attendu
+                    receiverObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                } else {
+                    // format texte (liste d'adresses) -> garder la chaîne brute
+                    receiverObj = receiverRaw;
+                }
+            }
+
+            if (copyToRaw != null && !copyToRaw.trim().isEmpty()) {
+                String t = copyToRaw.trim();
+                if (t.startsWith("[") || t.startsWith("{")) {
+                    copyToObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                } else {
+                    copyToObj = copyToRaw;
+                }
+            }
+
+            // Appel au service — note: signature du service modifiée pour accepter Object receiverObj, Object copyToObj
             correspService.saveCorrespWithPjN8N(
                 pjList,
                 subject,
                 from,
                 bodyHtml,
-                receiverRaw,
-                copyToRaw,
+                receiverObj,
+                copyToObj,
                 status,
                 corresptype,
                 dispatchType

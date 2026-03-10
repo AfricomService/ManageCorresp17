@@ -8,6 +8,8 @@ import org.hibernate.annotations.TypeDefs;
 
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Map;
 import javax.persistence.*;
 
 /**
@@ -35,15 +37,15 @@ public class Message implements Serializable {
 
     @Type(type = "jsonb")
     @Column(columnDefinition = "jsonb", name = "receiver")
-    private Object receiver;
+    private List<Map<String, String>> receiver;
 
     @Type(type = "jsonb")
     @Column(columnDefinition = "jsonb", name = "copy_to")
-    private Object copyTo;
+    private List<Map<String, String>> copyTo;
 
     @Type(type = "jsonb")
     @Column(columnDefinition = "jsonb", name = "blind_copy_to")
-    private Object blindCopyTo;
+    private List<Map<String, String>> blindCopyTo;
 
     @Column(name = "path")
     private String path;
@@ -112,42 +114,42 @@ public class Message implements Serializable {
         this.sender = sender;
     }
 
-    public Object getReceiver() {
+    public List<Map<String, String>> getReceiver() {
         return this.receiver;
     }
 
-    public Message receiver(Object receiver) {
+    public Message receiver(List<Map<String, String>> receiver) {
         this.setReceiver(receiver);
         return this;
     }
 
-    public void setReceiver(Object receiver) {
+    public void setReceiver(List<Map<String, String>> receiver) {
         this.receiver = receiver;
     }
 
-    public Object getCopyTo() {
+    public List<Map<String, String>> getCopyTo() {
         return this.copyTo;
     }
 
-    public Message copyTo(Object copyTo) {
+    public Message copyTo(List<Map<String, String>> copyTo) {
         this.setCopyTo(copyTo);
         return this;
     }
 
-    public void setCopyTo(Object copyTo) {
+    public void setCopyTo(List<Map<String, String>> copyTo) {
         this.copyTo = copyTo;
     }
 
-    public Object getBlindCopyTo() {
+    public List<Map<String, String>> getBlindCopyTo() {
         return this.blindCopyTo;
     }
 
-    public Message blindCopyTo(Object blindCopyTo) {
+    public Message blindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.setBlindCopyTo(blindCopyTo);
         return this;
     }
 
-    public void setBlindCopyTo(Object blindCopyTo) {
+    public void setBlindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 

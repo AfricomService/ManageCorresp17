@@ -544,14 +544,14 @@ public class CorrespService {
         String subject,
         String from,
         String bodyHtml,
-        String receiverRaw,
-        String copyToRaw,
+        Object receiverObj,   // peut être String ou List<Map<String,String>>
+        Object copyToObj,     // idem
         String statusStr,
         String corresptypeStr,
         String dispatchTypeStr
     ) {
+        // --- (tout le code de création de corresp / attachments reste identique) ---
         Corresp correspToSave = new Corresp();
-
         UUID uuid = UUID.randomUUID();
         correspToSave.setIdinstance(uuid);
         correspToSave.setCourrierDate(ZonedDateTime.now());
@@ -560,7 +560,7 @@ public class CorrespService {
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
 
-        // --- conversion sûre des enums avec fallback ---
+        // enums safe conversion (inchangé)
         try {
             correspToSave.setStatus(
                 statusStr != null ? CorrespStatus.valueOf(statusStr) : CorrespStatus.DISPATCH
@@ -569,7 +569,6 @@ public class CorrespService {
             log.warn("Status invalide reçu: {} — fallback DISPATCH", statusStr);
             correspToSave.setStatus(CorrespStatus.DISPATCH);
         }
-
         try {
             correspToSave.setCorresptype(
                 corresptypeStr != null ? CorrespType.valueOf(corresptypeStr) : CorrespType.INCOMING
@@ -578,7 +577,6 @@ public class CorrespService {
             log.warn("Corresptype invalide reçu: {} — fallback INCOMING", corresptypeStr);
             correspToSave.setCorresptype(CorrespType.INCOMING);
         }
-
         try {
             correspToSave.setDispatchType(
                 dispatchTypeStr != null ? DispatchType.valueOf(dispatchTypeStr) : DispatchType.EMAIL
@@ -588,7 +586,7 @@ public class CorrespService {
             correspToSave.setDispatchType(DispatchType.EMAIL);
         }
 
-        // --- attachments (inchangé) ---
+        // attachments (inchangé)
         if (pjs != null && !pjs.isEmpty()) {
             List<Pj> pjsList = new ArrayList<>();
             for (PjDTO pjDTO : pjs) {
@@ -620,16 +618,64 @@ public class CorrespService {
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
 
-        // --- parse et persist receiver / copyTo ---
+        // --- Gestion flexible de receiver / copyTo ---
         try {
-            List<Map<String,String>> receivers = parseEmailListToMap(receiverRaw);
-            List<Map<String,String>> copyTos = parseEmailListToMap(copyToRaw);
-            message.setReceiver(receivers);
-            message.setCopyTo(copyTos);
+            if (receiverObj instanceof String) {
+                // cas texte -> parser en List<Map<String,String>>
+                List<Map<String,String>> receivers = parseEmailListToMap((String) receiverObj);
+                message.setReceiver(receivers);
+            } else if (receiverObj instanceof List) {
+                // cas JSON structuré déjà décodé -> safe cast
+                @SuppressWarnings("unchecked")
+                List<Map<String,String>> receivers = (List<Map<String,String>>) receiverObj;
+                message.setReceiver(receivers);
+            } else {
+                message.setReceiver(Collections.emptyList());
+            }
+
+            if (copyToObj instanceof String) {
+                List<Map<String,String>> copyTos = parseEmailListToMap((String) copyToObj);
+                message.setCopyTo(copyTos);
+            } else if (copyToObj instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String,String>> copyTos = (List<Map<String,String>>) copyToObj;
+                message.setCopyTo(copyTos);
+            } else {
+                message.setCopyTo(Collections.emptyList());
+            }
         } catch (Exception e) {
-            message.setReceiver(receiverRaw);
-            message.setCopyTo(copyToRaw);
-            log.warn("Parsing emails failed for corresp {} : {}", saved.getId(), e.getMessage());
+            // dernier recours : tenter un fallback permissif (transformer strings en liste simple)
+            log.warn("Parsing emails failed for corresp {} : {} — using structured fallback", saved.getId(), e.getMessage());
+
+            // fallback receivers
+            List<Map<String,String>> receiversFallback = new ArrayList<>();
+            if (receiverObj instanceof String) {
+                String cleaned = ((String) receiverObj).replaceAll("[\\n\\r\\t]+", " ").trim();
+                String[] parts = cleaned.split("[,;]+");
+                for (String part : parts) {
+                    String email = part.trim().toLowerCase();
+                    if (email.isEmpty()) continue;
+                    Map<String,String> entry = new HashMap<>();
+                    entry.put("email", email);
+                    receiversFallback.add(entry);
+                }
+            }
+            // fallback copyTo
+            List<Map<String,String>> copyTosFallback = new ArrayList<>();
+            if (copyToObj instanceof String) {
+                String cleaned = ((String) copyToObj).replaceAll("[\\n\\r\\t]+", " ").trim();
+                String[] parts = cleaned.split("[,;]+");
+                for (String part : parts) {
+                    String email = part.trim().toLowerCase();
+                    if (email.isEmpty()) continue;
+                    Map<String,String> entry = new HashMap<>();
+                    entry.put("email", email);
+                    copyTosFallback.add(entry);
+                }
+            }
+
+            message.setReceiver(receiversFallback);
+            message.setCopyTo(copyTosFallback);
         }
 
         messageRepository.save(message);
@@ -637,7 +683,6 @@ public class CorrespService {
         log.debug("save corresp {}", saved);
         return saved;
     }
-
 
     /**
      * Parse une chaîne contenant une ou plusieurs adresses (formats acceptés par InternetAddress),
