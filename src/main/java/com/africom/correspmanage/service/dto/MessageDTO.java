@@ -2,6 +2,8 @@ package com.africom.correspmanage.service.dto;
 
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -14,11 +16,11 @@ public class MessageDTO implements Serializable {
 
     private String sender;
 
-    private Object receiver;
+    private List<Map<String, String>> receiver;
 
-    private Object copyTo;
+    private List<Map<String, String>> copyTo;
 
-    private Object blindCopyTo;
+    private List<Map<String, String>> blindCopyTo;
 
     private String path;
 
@@ -62,27 +64,27 @@ public class MessageDTO implements Serializable {
         this.sender = sender;
     }
 
-    public Object getReceiver() {
+    public List<Map<String, String>> getReceiver() {
         return receiver;
     }
 
-    public void setReceiver(Object receiver) {
+    public void setReceiver(List<Map<String, String>> receiver) {
         this.receiver = receiver;
     }
 
-    public Object getCopyTo() {
+    public List<Map<String, String>> getCopyTo() {
         return copyTo;
     }
 
-    public void setCopyTo(Object copyTo) {
+    public void setCopyTo(List<Map<String, String>> copyTo) {
         this.copyTo = copyTo;
     }
 
-    public Object getBlindCopyTo() {
+    public List<Map<String, String>> getBlindCopyTo() {
         return blindCopyTo;
     }
 
-    public void setBlindCopyTo(Object blindCopyTo) {
+    public void setBlindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 

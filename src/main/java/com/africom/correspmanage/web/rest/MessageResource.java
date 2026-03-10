@@ -155,6 +155,19 @@ public class MessageResource {
     }
 
     /**
+     * {@code GET  /messages/by-corresp/:correspId} : get the message by corresp id.
+     *
+     * @param correspId the id of the corresp.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the messageDTO, or with status {@code 404 (Not Found)}.
+     */
+    @GetMapping("/messages/by-corresp/{correspId}")
+    public ResponseEntity<MessageDTO> getMessageByCorrespId(@PathVariable Long correspId) {
+        log.debug("REST request to get Message by correspId : {}", correspId);
+        Optional<MessageDTO> messageDTO = messageService.findByCorrespId(correspId);
+        return ResponseUtil.wrapOrNotFound(messageDTO);
+    }
+
+    /**
      * {@code DELETE  /messages/:id} : delete the "id" message.
      *
      * @param id the id of the messageDTO to delete.

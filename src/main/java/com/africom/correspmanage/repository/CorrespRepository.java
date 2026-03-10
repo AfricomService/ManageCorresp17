@@ -64,4 +64,26 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
         nativeQuery = true
     )
     Page<Corresp> findAllByAclForDeptWithPagination(@Param("deptCode") String deptCode, Pageable pageable);
+
+    @Query(
+        value = """
+            SELECT DISTINCT c.* FROM corresp c
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+            ORDER BY c.date_created DESC
+            """,
+        nativeQuery = true
+    )
+    List<Corresp> findAllByAclForSids(@Param("sids") List<String> sids, @Param("mask") int mask);
+
+    @Query("SELECT c FROM Corresp c WHERE LOWER(c.createdBy) = LOWER(:login) AND c.status = 'DRAFT' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllDraftByCreatedBy(@Param("login") String login);
+
+    @Query("SELECT c FROM Corresp c WHERE c.status = 'DISPATCH' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllByStatusDispatch();
 }

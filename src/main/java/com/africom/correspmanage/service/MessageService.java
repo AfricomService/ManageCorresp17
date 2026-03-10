@@ -101,6 +101,18 @@ public class MessageService {
     }
 
     /**
+     * Get the message by corresp id.
+     *
+     * @param correspId the id of the corresp.
+     * @return the entity.
+     */
+    @Transactional(readOnly = true)
+    public Optional<MessageDTO> findByCorrespId(Long correspId) {
+        log.debug("Request to get Message by correspId : {}", correspId);
+        return messageRepository.findByCorrespId(correspId).map(messageMapper::toDto);
+    }
+
+    /**
      * Delete the message by id.
      *
      * @param id the id of the entity.

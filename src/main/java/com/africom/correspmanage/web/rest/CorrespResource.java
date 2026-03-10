@@ -297,8 +297,12 @@ public class CorrespResource {
         @RequestPart("subject") String subject,
         @RequestPart("from") String from,
         @RequestPart("bodyHtml") String bodyHtml,
-        @RequestPart(value = "receiver") String receiverRaw,
-        @RequestPart(value = "copyTo", required = false) String copyToRaw
+        @RequestPart(value = "receiver", required = false) String receiverRaw,
+        @RequestPart(value = "copyTo", required = false) String copyToRaw,
+        // nouveaux champs reçus depuis n8n (optionnels)
+        @RequestPart(value = "status", required = false) String status,
+        @RequestPart(value = "corresptype", required = false) String corresptype,
+        @RequestPart(value = "dispatchType", required = false) String dispatchType
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -307,8 +311,42 @@ public class CorrespResource {
                 pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
             }
 
-            // appelle le service en fournissant bien les 6 arguments
-            correspService.saveCorrespWithPjN8N(pjList, subject, from, bodyHtml, receiverRaw, copyToRaw);
+            // Détecter si receiverRaw / copyToRaw sont du JSON structuré ; si oui, désérialiser
+            Object receiverObj = null;
+            Object copyToObj = null;
+
+            if (receiverRaw != null && !receiverRaw.trim().isEmpty()) {
+                String t = receiverRaw.trim();
+                if (t.startsWith("[") || t.startsWith("{")) {
+                    // JSON structuré -> List<Map<String,String>> attendu
+                    receiverObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                } else {
+                    // format texte (liste d'adresses) -> garder la chaîne brute
+                    receiverObj = receiverRaw;
+                }
+            }
+
+            if (copyToRaw != null && !copyToRaw.trim().isEmpty()) {
+                String t = copyToRaw.trim();
+                if (t.startsWith("[") || t.startsWith("{")) {
+                    copyToObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                } else {
+                    copyToObj = copyToRaw;
+                }
+            }
+
+            // Appel au service — note: signature du service modifiée pour accepter Object receiverObj, Object copyToObj
+            correspService.saveCorrespWithPjN8N(
+                pjList,
+                subject,
+                from,
+                bodyHtml,
+                receiverObj,
+                copyToObj,
+                status,
+                corresptype,
+                dispatchType
+            );
 
             return ResponseEntity.ok().build();
         } catch (Exception ex) {
@@ -316,6 +354,7 @@ public class CorrespResource {
             return ResponseEntity.status(500).build();
         }
     }
+
 
     @GetMapping("/correspAcl")
     public List<Corresp> getCorrespAcl(@RequestParam(required = false) String deptCode) {
@@ -493,6 +532,28 @@ public ResponseEntity<?> addTaskToCorresp(
     public ResponseEntity<CorrespPermissionsDTO> getPermissions(@PathVariable Long id) {
         CorrespPermissionsDTO dto = correspService.getAndEnsurePermissionsForCurrentUser(id);
         return ResponseEntity.ok(dto);
+    }
+
+    /**
+     * GET /corresps/correspsByUserAcl?userId={userId}
+     * Retourne les correspondances accessibles par l'utilisateur via ses ACLs (départements + login).
+     */
+    @GetMapping("/corresps/correspsByUserAcl")
+    public ResponseEntity<List<CorrespDTO>> getCorrespsByUserAcl(@RequestParam(name = "userId") Long userId) {
+        log.debug("REST request to get Corresps by userId (ACL) : {}", userId);
+        List<CorrespDTO> corresps = correspService.getAllCorrespsByUserAcl(userId);
+        return ResponseEntity.ok(corresps != null ? corresps : Collections.emptyList());
+    }
+
+    /**
+     * GET /corresps/dispatched
+     * Retourne la liste des correspondances avec le statut DISPATCH.
+     */
+    @GetMapping("/corresps/dispatched")
+    public ResponseEntity<List<CorrespDTO>> getAllDispatchedCorresps() {
+        log.debug("REST request to get all Corresps with status DISPATCH");
+        List<CorrespDTO> corresps = correspService.findAllByStatusDispatch();
+        return ResponseEntity.ok(corresps);
     }
 
 

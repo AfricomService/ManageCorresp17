@@ -544,11 +544,14 @@ public class CorrespService {
         String subject,
         String from,
         String bodyHtml,
-        String receiverRaw,
-        String copyToRaw
+        Object receiverObj,   // peut être String ou List<Map<String,String>>
+        Object copyToObj,     // idem
+        String statusStr,
+        String corresptypeStr,
+        String dispatchTypeStr
     ) {
+        // --- (tout le code de création de corresp / attachments reste identique) ---
         Corresp correspToSave = new Corresp();
-
         UUID uuid = UUID.randomUUID();
         correspToSave.setIdinstance(uuid);
         correspToSave.setCourrierDate(ZonedDateTime.now());
@@ -556,12 +559,35 @@ public class CorrespService {
         correspToSave.setDateCreated(ZonedDateTime.now());
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
-        correspToSave.setStatus(CorrespStatus.DISPATCH);
-        correspToSave.setCorresptype(CorrespType.INCOMING);
-        correspToSave.setDispatchType(DispatchType.EMAIL);
 
-        // --- attachments (inchangé) ---
-        if (pjs != null) {
+        // enums safe conversion (inchangé)
+        try {
+            correspToSave.setStatus(
+                statusStr != null ? CorrespStatus.valueOf(statusStr) : CorrespStatus.DISPATCH
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("Status invalide reçu: {} — fallback DISPATCH", statusStr);
+            correspToSave.setStatus(CorrespStatus.DISPATCH);
+        }
+        try {
+            correspToSave.setCorresptype(
+                corresptypeStr != null ? CorrespType.valueOf(corresptypeStr) : CorrespType.INCOMING
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("Corresptype invalide reçu: {} — fallback INCOMING", corresptypeStr);
+            correspToSave.setCorresptype(CorrespType.INCOMING);
+        }
+        try {
+            correspToSave.setDispatchType(
+                dispatchTypeStr != null ? DispatchType.valueOf(dispatchTypeStr) : DispatchType.EMAIL
+            );
+        } catch (IllegalArgumentException ex) {
+            log.warn("DispatchType invalide reçu: {} — fallback EMAIL", dispatchTypeStr);
+            correspToSave.setDispatchType(DispatchType.EMAIL);
+        }
+
+        // attachments (inchangé)
+        if (pjs != null && !pjs.isEmpty()) {
             List<Pj> pjsList = new ArrayList<>();
             for (PjDTO pjDTO : pjs) {
                 Pj pjEntity = new Pj();
@@ -587,23 +613,69 @@ public class CorrespService {
         Message message = new Message();
         message.sender(correspToSave.getSender());
         message.setCorrespId(saved.getId());
-        message.setCreatedBy("N8N"); // provenance N8N
+        message.setCreatedBy("N8N");
         message.setCreationDate(ZonedDateTime.now());
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
 
-        // --- parse et persist receiver / copyTo ---
+        // --- Gestion flexible de receiver / copyTo ---
         try {
-            List<Map<String,String>> receivers = parseEmailListToMap(receiverRaw);
-            List<Map<String,String>> copyTos = parseEmailListToMap(copyToRaw);
-            message.setReceiver(receivers);
-            message.setCopyTo(copyTos);
+            if (receiverObj instanceof String) {
+                // cas texte -> parser en List<Map<String,String>>
+                List<Map<String,String>> receivers = parseEmailListToMap((String) receiverObj);
+                message.setReceiver(receivers);
+            } else if (receiverObj instanceof List) {
+                // cas JSON structuré déjà décodé -> safe cast
+                @SuppressWarnings("unchecked")
+                List<Map<String,String>> receivers = (List<Map<String,String>>) receiverObj;
+                message.setReceiver(receivers);
+            } else {
+                message.setReceiver(Collections.emptyList());
+            }
+
+            if (copyToObj instanceof String) {
+                List<Map<String,String>> copyTos = parseEmailListToMap((String) copyToObj);
+                message.setCopyTo(copyTos);
+            } else if (copyToObj instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String,String>> copyTos = (List<Map<String,String>>) copyToObj;
+                message.setCopyTo(copyTos);
+            } else {
+                message.setCopyTo(Collections.emptyList());
+            }
         } catch (Exception e) {
-            // fallback : store raw strings so on a toujours l'info brute
-            message.setReceiver(receiverRaw);
-            message.setCopyTo(copyToRaw);
-            // adapte selon ton logger (slf4j)
-            log.warn("Parsing emails failed for corresp {} : {}", saved.getId(), e.getMessage());
+            // dernier recours : tenter un fallback permissif (transformer strings en liste simple)
+            log.warn("Parsing emails failed for corresp {} : {} — using structured fallback", saved.getId(), e.getMessage());
+
+            // fallback receivers
+            List<Map<String,String>> receiversFallback = new ArrayList<>();
+            if (receiverObj instanceof String) {
+                String cleaned = ((String) receiverObj).replaceAll("[\\n\\r\\t]+", " ").trim();
+                String[] parts = cleaned.split("[,;]+");
+                for (String part : parts) {
+                    String email = part.trim().toLowerCase();
+                    if (email.isEmpty()) continue;
+                    Map<String,String> entry = new HashMap<>();
+                    entry.put("email", email);
+                    receiversFallback.add(entry);
+                }
+            }
+            // fallback copyTo
+            List<Map<String,String>> copyTosFallback = new ArrayList<>();
+            if (copyToObj instanceof String) {
+                String cleaned = ((String) copyToObj).replaceAll("[\\n\\r\\t]+", " ").trim();
+                String[] parts = cleaned.split("[,;]+");
+                for (String part : parts) {
+                    String email = part.trim().toLowerCase();
+                    if (email.isEmpty()) continue;
+                    Map<String,String> entry = new HashMap<>();
+                    entry.put("email", email);
+                    copyTosFallback.add(entry);
+                }
+            }
+
+            message.setReceiver(receiversFallback);
+            message.setCopyTo(copyTosFallback);
         }
 
         messageRepository.save(message);
@@ -1576,6 +1648,95 @@ public class CorrespService {
         return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
     }
 
+    /**
+     * Retourne toutes les correspondances accessibles par l'utilisateur courant (via ACL).
+     * Les SIDs vérifiés sont : les codes de départements de l'utilisateur + son login.
+     *
+     * @param userId l'id de l'utilisateur (pour récupérer ses départements via OrgaCare)
+     * @return liste de CorrespDTO accessibles
+     */
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> getAllCorrespsByUserAcl(Long userId) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        // 1) Récupérer les codes départements de l'utilisateur via OrgaCare
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations == null || affectations.isEmpty()) {
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        // 2) Récupérer le login de l'utilisateur
+        String userLogin = null;
+        try {
+            Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+            if (userMap != null) {
+                Object login = userMap.get("login");
+                if (login != null && !login.toString().trim().isEmpty()) {
+                    userLogin = login.toString().trim().toLowerCase();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer le login pour userId {} : {}", userId, e.getMessage());
+        }
+
+        // 3) Construire la liste complète des SIDs : deptCodes + login utilisateur
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 4) Requête native ACL : correspondances avec READ pour ces SIDs
+        int readMask = BasePermission.READ.getMask();
+        List<Corresp> correspEntities = correspRepository.findAllByAclForSids(allSids, readMask);
+
+        if (correspEntities == null) {
+            correspEntities = new ArrayList<>();
+        }
+
+        // 5) Ajouter les correspondances DRAFT créées par l'utilisateur courant
+        if (userLogin != null) {
+            List<Corresp> draftCorresps = correspRepository.findAllDraftByCreatedBy(userLogin);
+            if (draftCorresps != null && !draftCorresps.isEmpty()) {
+                // Collecter les IDs déjà présents pour éviter les doublons
+                Set<Long> existingIds = correspEntities.stream()
+                    .map(Corresp::getId)
+                    .collect(Collectors.toSet());
+                for (Corresp draft : draftCorresps) {
+                    if (!existingIds.contains(draft.getId())) {
+                        correspEntities.add(draft);
+                    }
+                }
+            }
+        }
+
+        if (correspEntities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return correspEntities.stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
+    }
+
 
     @Transactional
     public CorrespPermissionsDTO getAndEnsurePermissionsForCurrentUser(Long correspId) {
@@ -1736,6 +1897,20 @@ public class CorrespService {
         result.setCorresp(correspAfter);
         result.setTasksPermissions(taskPermsAfter);
         return result;
+    }
+
+    /**
+     * Get all corresps with status DISPATCH.
+     *
+     * @return list of CorrespDTO
+     */
+    @Transactional(readOnly = true)
+    public List<CorrespDTO> findAllByStatusDispatch() {
+        log.debug("Request to get all Corresps with status DISPATCH");
+        return correspRepository.findAllByStatusDispatch()
+            .stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
     }
 
 }
