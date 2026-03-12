@@ -759,8 +759,8 @@ public class CorrespService {
     public Corresp updateCorrespDraft(Long id, CorrespDTO correspDTO, TypeDocumentFeignDTO typeDocumentDTO) {
         Corresp existing = correspRepository.findById(id).orElseThrow(() -> new RuntimeException("Corresp not found with id " + id));
 
-        if (existing.getStatus() != CorrespStatus.DRAFT) {
-            throw new RuntimeException("Modification impossible : le courrier n'est pas en statut DRAFT");
+        if (existing.getStatus() != CorrespStatus.DRAFT && existing.getStatus() != CorrespStatus.DISPATCH) {
+            throw new RuntimeException("Modification impossible : le courrier doit être en statut DRAFT ou DISPATCH");
         }
 
         existing.setCourrierDate(correspDTO.getCourrierDate());
@@ -772,7 +772,10 @@ public class CorrespService {
         existing.setResponseTo(correspDTO.getResponseTo());
         existing.setSenderReference(correspDTO.getSenderReference());
         existing.setPriority(correspDTO.getPriority());
-        //        existing.setBody(correspDTO.getBody());
+        String newBody = correspDTO.getBody();
+        if (newBody != null) {
+            existing.setBody(newBody);
+        }
         existing.setDispatchType(correspDTO.getDispatchType());
         existing.setCorresptype(correspDTO.getCorresptype());
         existing.setTypeDocumentId(typeDocumentDTO.getId());
@@ -785,7 +788,26 @@ public class CorrespService {
         Corresp updated = correspRepository.save(existing);
         log.debug("Updated DRAFT corresp {}", updated);
 
-        saveBodyToFile(correspDTO.getBody(), existing.getId());
+        if (newBody != null) {
+            String path = saveBodyToFile(newBody, existing.getId());
+            java.util.Optional<com.africom.correspmanage.domain.Message> optMsg = messageRepository.findByCorrespId(existing.getId());
+            if (optMsg.isPresent()) {
+                com.africom.correspmanage.domain.Message msg = optMsg.get();
+                msg.setPath(path);
+                msg.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
+                msg.setUpdatedDate(ZonedDateTime.now());
+                messageRepository.save(msg);
+            } else {
+                com.africom.correspmanage.domain.Message message = new com.africom.correspmanage.domain.Message();
+                message.sender(existing.getSender());
+                message.setCorrespId(existing.getId());
+                message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
+                message.setCreationDate(ZonedDateTime.now());
+                message.setUniqueName(existing.getId() + ".html");
+                message.setPath(path);
+                messageRepository.save(message);
+            }
+        }
 
         return updated;
     }
