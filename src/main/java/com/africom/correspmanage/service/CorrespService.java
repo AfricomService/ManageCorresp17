@@ -658,11 +658,15 @@ public class CorrespService {
                 aclUtilService.ensureAclExists(savedBocTask);
                 aclUtilService.ensureAclExists(saved);
 
-                GrantedAuthoritySid deptSid = new GrantedAuthoritySid(effectiveCodeDept);
-                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.READ);
-                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.WRITE);
-                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.READ);
-                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.WRITE);
+                if (effectiveCodeDept != null) {
+                    GrantedAuthoritySid deptSid = new GrantedAuthoritySid(effectiveCodeDept);
+                    aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.READ);
+                    aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.WRITE);
+                    aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.READ);
+                    aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.WRITE);
+                } else {
+                    log.warn("Aucun codeDept fourni — ACL département non configurée pour corresp {}", saved.getId());
+                }
             } catch (Exception e) {
                 log.warn("Erreur lors de la configuration des ACLs pour la corresp {} : {}",
                     saved.getId(), e.getMessage());
