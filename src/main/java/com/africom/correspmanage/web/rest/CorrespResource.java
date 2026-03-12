@@ -334,21 +334,12 @@ public class CorrespResource {
                 }
             }
 
-            correspService.saveCorrespWithPjN8N(
-                pjList,
-                subject,
-                from,
-                bodyHtml,
-                receiverObj,
-                copyToObj,
-                status,
-                corresptype,
-                dispatchType,
-                taskObject,
-                taskType,
-                taskResponsableCodeDept
+            Corresp saved = correspService.saveCorrespWithPjN8N(
+                pjList, subject, from, bodyHtml,
+                receiverObj, copyToObj, status, corresptype,
+                dispatchType, taskObject, taskType, taskResponsableCodeDept
             );
-
+            log.debug("Corresp N8N créée avec id={}", saved.getId());
             return ResponseEntity.ok().build();
         } catch (Exception ex) {
             log.error("Erreur lors du traitement du webhook N8N", ex);
