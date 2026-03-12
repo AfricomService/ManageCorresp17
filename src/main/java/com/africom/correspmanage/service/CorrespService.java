@@ -653,24 +653,22 @@ public class CorrespService {
         Corresp saved = correspRepository.save(correspToSave);
 
         // --- ACL : donner READ + WRITE au département sur la tâche et la corresp ---
-        if (effectiveCodeDept != null) {
-            try {
-                aclUtilService.ensureAclExists(savedBocTask);
-                aclUtilService.ensureAclExists(saved);
+        try {
+            aclUtilService.ensureAclExists(savedBocTask);
+            aclUtilService.ensureAclExists(saved);
 
-                if (effectiveCodeDept != null) {
-                    GrantedAuthoritySid deptSid = new GrantedAuthoritySid(effectiveCodeDept);
-                    aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.READ);
-                    aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.WRITE);
-                    aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.READ);
-                    aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.WRITE);
-                } else {
-                    log.warn("Aucun codeDept fourni — ACL département non configurée pour corresp {}", saved.getId());
-                }
-            } catch (Exception e) {
-                log.warn("Erreur lors de la configuration des ACLs pour la corresp {} : {}",
-                    saved.getId(), e.getMessage());
+            if (effectiveCodeDept != null) {
+                GrantedAuthoritySid deptSid = new GrantedAuthoritySid(effectiveCodeDept);
+                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.READ);
+                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.WRITE);
+                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.READ);
+                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.WRITE);
+            } else {
+                log.warn("Aucun codeDept fourni — ACL département non configurée pour corresp {}", saved.getId());
             }
+        } catch (Exception e) {
+            log.warn("Erreur lors de la configuration des ACLs pour la corresp {} : {}",
+                saved.getId(), e.getMessage());
         }
 
         // --- Message ---
