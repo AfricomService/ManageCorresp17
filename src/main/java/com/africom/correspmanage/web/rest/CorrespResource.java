@@ -300,10 +300,12 @@ public class CorrespResource {
         @RequestPart("bodyHtml") String bodyHtml,
         @RequestPart(value = "receiver", required = false) String receiverRaw,
         @RequestPart(value = "copyTo", required = false) String copyToRaw,
-        // nouveaux champs reçus depuis n8n (optionnels)
         @RequestPart(value = "status", required = false) String status,
         @RequestPart(value = "corresptype", required = false) String corresptype,
-        @RequestPart(value = "dispatchType", required = false) String dispatchType
+        @RequestPart(value = "dispatchType", required = false) String dispatchType,
+        @RequestPart(value = "taskObject", required = false) String taskObject,
+        @RequestPart(value = "taskType", required = false) String taskType,
+        @RequestPart(value = "taskResponsableCodeDept", required = false) String taskResponsableCodeDept
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -312,17 +314,14 @@ public class CorrespResource {
                 pjList = objectMapper.readValue(pjs, new TypeReference<List<PjDTO>>() {});
             }
 
-            // Détecter si receiverRaw / copyToRaw sont du JSON structuré ; si oui, désérialiser
             Object receiverObj = null;
             Object copyToObj = null;
 
             if (receiverRaw != null && !receiverRaw.trim().isEmpty()) {
                 String t = receiverRaw.trim();
                 if (t.startsWith("[") || t.startsWith("{")) {
-                    // JSON structuré -> List<Map<String,String>> attendu
-                    receiverObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                    receiverObj = objectMapper.readValue(t, new TypeReference<List<Map<String, String>>>() {});
                 } else {
-                    // format texte (liste d'adresses) -> garder la chaîne brute
                     receiverObj = receiverRaw;
                 }
             }
@@ -330,13 +329,12 @@ public class CorrespResource {
             if (copyToRaw != null && !copyToRaw.trim().isEmpty()) {
                 String t = copyToRaw.trim();
                 if (t.startsWith("[") || t.startsWith("{")) {
-                    copyToObj = objectMapper.readValue(t, new TypeReference<List<Map<String,String>>>() {});
+                    copyToObj = objectMapper.readValue(t, new TypeReference<List<Map<String, String>>>() {});
                 } else {
                     copyToObj = copyToRaw;
                 }
             }
 
-            // Appel au service — note: signature du service modifiée pour accepter Object receiverObj, Object copyToObj
             correspService.saveCorrespWithPjN8N(
                 pjList,
                 subject,
@@ -346,7 +344,10 @@ public class CorrespResource {
                 copyToObj,
                 status,
                 corresptype,
-                dispatchType
+                dispatchType,
+                taskObject,
+                taskType,
+                taskResponsableCodeDept
             );
 
             return ResponseEntity.ok().build();

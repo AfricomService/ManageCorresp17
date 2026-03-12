@@ -544,13 +544,16 @@ public class CorrespService {
         String subject,
         String from,
         String bodyHtml,
-        Object receiverObj,   // peut être String ou List<Map<String,String>>
-        Object copyToObj,     // idem
+        Object receiverObj,
+        Object copyToObj,
         String statusStr,
         String corresptypeStr,
-        String dispatchTypeStr
+        String dispatchTypeStr,
+        String taskObject,
+        String taskType,
+        String taskCodeDept
     ) {
-        // --- (tout le code de création de corresp / attachments reste identique) ---
+        // --- Création de la Corresp ---
         Corresp correspToSave = new Corresp();
         UUID uuid = UUID.randomUUID();
         correspToSave.setIdinstance(uuid);
@@ -560,7 +563,6 @@ public class CorrespService {
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
 
-        // enums safe conversion (inchangé)
         try {
             correspToSave.setStatus(
                 statusStr != null ? CorrespStatus.valueOf(statusStr) : CorrespStatus.DISPATCH
@@ -586,7 +588,7 @@ public class CorrespService {
             correspToSave.setDispatchType(DispatchType.EMAIL);
         }
 
-        // attachments (inchangé)
+        // --- Attachments ---
         if (pjs != null && !pjs.isEmpty()) {
             List<Pj> pjsList = new ArrayList<>();
             for (PjDTO pjDTO : pjs) {
@@ -603,11 +605,71 @@ public class CorrespService {
             correspToSave.setAttachments(pjsSaved);
         }
 
+        // --- Création de la tâche avec les données venant de N8N ---
+        String effectiveTaskObject = (taskObject != null && !taskObject.isBlank())
+            ? taskObject : "tache sans description";
+        String effectiveTaskType = (taskType != null && !taskType.isBlank())
+            ? taskType : "traitement";
+        String effectiveCodeDept = (taskCodeDept != null && !taskCodeDept.isBlank())
+            ? taskCodeDept : null;
+
+        Tasks bocTask = new Tasks();
+        bocTask.setObject(effectiveTaskObject);
+        bocTask.setTaskType(effectiveTaskType);
+        bocTask.setCreatedBy("n8n");
+        bocTask.setCreationDate(ZonedDateTime.now());
+        bocTask.setStartDate(ZonedDateTime.now());
+        bocTask.setStatus(CorrespStatus.IN_PROGRESS);
+
+        Tasks savedBocTask = tasksRepository.save(bocTask);
+
+        // --- Responsable de la tâche ---
+        if (effectiveCodeDept != null) {
+            ResponsableTacheDTO bocResponsable = new ResponsableTacheDTO();
+            bocResponsable.setTacheId(savedBocTask.getId());
+            bocResponsable.setCodeDept(effectiveCodeDept);
+            try {
+                responsableTacheService.saveAllForTask(
+                    savedBocTask.getId(),
+                    Collections.singletonList(bocResponsable)
+                );
+            } catch (Exception e) {
+                log.warn("Erreur lors de la sauvegarde du responsable pour la tâche {} : {}",
+                    savedBocTask.getId(), e.getMessage());
+            }
+        } else {
+            log.warn("Aucun codeDept fourni par N8N pour la tâche {} — aucun responsable affecté",
+                savedBocTask.getId());
+        }
+
+        // --- Lier la tâche à la corresp ---
+        Set<Tasks> taskSet = new HashSet<>();
+        taskSet.add(savedBocTask);
+        correspToSave.setTasks(taskSet);
+
         correspToSave.setUpdatedDate(ZonedDateTime.now());
         correspToSave.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("N8N"));
 
         Corresp saved = correspRepository.save(correspToSave);
 
+        // --- ACL : donner READ + WRITE au département sur la tâche et la corresp ---
+        if (effectiveCodeDept != null) {
+            try {
+                aclUtilService.ensureAclExists(savedBocTask);
+                aclUtilService.ensureAclExists(saved);
+
+                GrantedAuthoritySid deptSid = new GrantedAuthoritySid(effectiveCodeDept);
+                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.READ);
+                aclUtilService.addPermissionIfNotExists(savedBocTask, deptSid, BasePermission.WRITE);
+                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.READ);
+                aclUtilService.addPermissionIfNotExists(saved, deptSid, BasePermission.WRITE);
+            } catch (Exception e) {
+                log.warn("Erreur lors de la configuration des ACLs pour la corresp {} : {}",
+                    saved.getId(), e.getMessage());
+            }
+        }
+
+        // --- Message ---
         String path = saveBodyToFile(bodyHtml, saved.getId());
 
         Message message = new Message();
@@ -618,69 +680,50 @@ public class CorrespService {
         message.setUniqueName(saved.getId() + ".html");
         message.setPath(path);
 
-        // --- Gestion flexible de receiver / copyTo ---
         try {
             if (receiverObj instanceof String) {
-                // cas texte -> parser en List<Map<String,String>>
-                List<Map<String,String>> receivers = parseEmailListToMap((String) receiverObj);
-                message.setReceiver(receivers);
+                message.setReceiver(parseEmailListToMap((String) receiverObj));
             } else if (receiverObj instanceof List) {
-                // cas JSON structuré déjà décodé -> safe cast
                 @SuppressWarnings("unchecked")
-                List<Map<String,String>> receivers = (List<Map<String,String>>) receiverObj;
+                List<Map<String, String>> receivers = (List<Map<String, String>>) receiverObj;
                 message.setReceiver(receivers);
             } else {
                 message.setReceiver(Collections.emptyList());
             }
 
             if (copyToObj instanceof String) {
-                List<Map<String,String>> copyTos = parseEmailListToMap((String) copyToObj);
-                message.setCopyTo(copyTos);
+                message.setCopyTo(parseEmailListToMap((String) copyToObj));
             } else if (copyToObj instanceof List) {
                 @SuppressWarnings("unchecked")
-                List<Map<String,String>> copyTos = (List<Map<String,String>>) copyToObj;
+                List<Map<String, String>> copyTos = (List<Map<String, String>>) copyToObj;
                 message.setCopyTo(copyTos);
             } else {
                 message.setCopyTo(Collections.emptyList());
             }
         } catch (Exception e) {
-            // dernier recours : tenter un fallback permissif (transformer strings en liste simple)
-            log.warn("Parsing emails failed for corresp {} : {} — using structured fallback", saved.getId(), e.getMessage());
+            log.warn("Parsing emails failed pour corresp {} : {} — fallback", saved.getId(), e.getMessage());
 
-            // fallback receivers
-            List<Map<String,String>> receiversFallback = new ArrayList<>();
+            List<Map<String, String>> receiversFallback = new ArrayList<>();
             if (receiverObj instanceof String) {
-                String cleaned = ((String) receiverObj).replaceAll("[\\n\\r\\t]+", " ").trim();
-                String[] parts = cleaned.split("[,;]+");
-                for (String part : parts) {
+                for (String part : ((String) receiverObj).replaceAll("[\\n\\r\\t]+", " ").split("[,;]+")) {
                     String email = part.trim().toLowerCase();
-                    if (email.isEmpty()) continue;
-                    Map<String,String> entry = new HashMap<>();
-                    entry.put("email", email);
-                    receiversFallback.add(entry);
+                    if (!email.isEmpty()) receiversFallback.add(Map.of("email", email));
                 }
             }
-            // fallback copyTo
-            List<Map<String,String>> copyTosFallback = new ArrayList<>();
+            List<Map<String, String>> copyTosFallback = new ArrayList<>();
             if (copyToObj instanceof String) {
-                String cleaned = ((String) copyToObj).replaceAll("[\\n\\r\\t]+", " ").trim();
-                String[] parts = cleaned.split("[,;]+");
-                for (String part : parts) {
+                for (String part : ((String) copyToObj).replaceAll("[\\n\\r\\t]+", " ").split("[,;]+")) {
                     String email = part.trim().toLowerCase();
-                    if (email.isEmpty()) continue;
-                    Map<String,String> entry = new HashMap<>();
-                    entry.put("email", email);
-                    copyTosFallback.add(entry);
+                    if (!email.isEmpty()) copyTosFallback.add(Map.of("email", email));
                 }
             }
-
             message.setReceiver(receiversFallback);
             message.setCopyTo(copyTosFallback);
         }
 
         messageRepository.save(message);
 
-        log.debug("save corresp {}", saved);
+        log.debug("save corresp avec tâche N8N {}", saved);
         return saved;
     }
 
