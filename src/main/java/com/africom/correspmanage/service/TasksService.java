@@ -467,9 +467,13 @@ public class TasksService {
         // Si aucun status fourni, garder le comportement précédent (IN_PROGRESS)
         CorrespStatus filterStatus = (status == null) ? CorrespStatus.IN_PROGRESS : status;
 
-        // Filtrer par status demandé
+// Filtrer par status demandé + trier par creationDate DESC (plus récent en premier)
         List<TasksDTO> filtered = all.stream()
             .filter(t -> t.getStatus() != null && filterStatus.equals(t.getStatus()))
+            .sorted(Comparator.comparing(
+                TasksDTO::getCreationDate,
+                Comparator.nullsLast(Comparator.reverseOrder())
+            ))
             .collect(Collectors.toList());
 
         if (filtered.isEmpty()) {
