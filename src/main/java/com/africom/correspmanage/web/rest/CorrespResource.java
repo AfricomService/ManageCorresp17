@@ -24,7 +24,6 @@ import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.configurationprocessor.json.JSONException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -231,7 +230,7 @@ public class CorrespResource {
         @RequestParam(name = "dispatchType", required = false) String dispatchType,
         @RequestParam(name = "startDate", required = false) String startDate,
         @RequestParam(name = "endDate", required = false) String endDate
-    ) throws JsonProcessingException, JSONException {
+    ) {
         return correspService.findAllCorrespByFilter(reference, status, dispatchType, startDate, endDate, pageIndex, pageSize);
     }
 
