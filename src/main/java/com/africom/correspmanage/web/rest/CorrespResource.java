@@ -538,6 +538,32 @@ public ResponseEntity<?> addTaskToCorresp(
     }
 
     /**
+     * GET /corresps/correspsByUserAclPaged?userId={userId}&page=1&size=15
+     * Retourne les correspondances accessibles paginées (ACL + DRAFT).
+     */
+    @GetMapping("/corresps/correspsByUserAclPaged")
+    public ResponseEntity<Map<String, Object>> getCorrespsByUserAclPaged(
+        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "page", defaultValue = "1") int page,
+        @RequestParam(name = "size", defaultValue = "15") int size
+    ) {
+        log.debug("REST request to get Corresps paged by userId (ACL) : {}, page={}, size={}", userId, page, size);
+
+        Page<CorrespDTO> correspPage = correspService.getAllCorrespsByUserAclPaged(userId, page, size);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", correspPage.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize", size);
+        response.put("totalItems", correspPage.getTotalElements());
+        response.put("totalPages", correspPage.getTotalPages());
+        response.put("hasNext", correspPage.hasNext());
+        response.put("hasPrevious", correspPage.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * GET /corresps/dispatched
      * Retourne la liste des correspondances avec le statut DISPATCH.
      */
