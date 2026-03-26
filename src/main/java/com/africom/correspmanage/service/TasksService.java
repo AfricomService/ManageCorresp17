@@ -9,6 +9,8 @@ import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.TasksRepository;
+import com.africom.correspmanage.service.dto.CorrespDTO;
+import com.africom.correspmanage.service.dto.PagedTaskDTO;
 import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.core.Authentication;
@@ -47,6 +50,7 @@ public class TasksService {
     private final ResponsableTacheService responsableTacheService;
 
     private final CorrespGatewayRestClient correspGatewayRestClient;
+    private final CorrespService correspService;
 
     public TasksService(
         TasksRepository tasksRepository,
@@ -54,14 +58,15 @@ public class TasksService {
         CorrespRepository correspRepository,
         OrgaCareRestClient orgaCareRestClient,
         ResponsableTacheService responsableTacheService,
-        CorrespGatewayRestClient correspGatewayRestClient
-    ) {
+        CorrespGatewayRestClient correspGatewayRestClient,
+        CorrespService correspService) {
         this.tasksRepository = tasksRepository;
         this.tasksMapper = tasksMapper;
         this.correspRepository = correspRepository;
         this.orgaCareRestClient = orgaCareRestClient;
         this.responsableTacheService = responsableTacheService;
         this.correspGatewayRestClient = correspGatewayRestClient;
+        this.correspService = correspService;
     }
 
     /**
@@ -572,6 +577,291 @@ public class TasksService {
         }
 
         return filtered;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllTasksByUserAclPaged(Long userId, CorrespStatus status, int pageIndex, int pageSize) {
+        if (userId == null) {
+            return buildEmptyPageResponse(pageIndex, pageSize);
+        }
+
+        // 1) Récupérer les SIDs (deptCodes + login)
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            deptCodes = (affectations == null || affectations.isEmpty()) ? new ArrayList<>()
+                : affectations.stream()
+                .map(a -> a.get("departementCode"))
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les deptCodes pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        String userLogin = getUserLogin(userId);
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        if (allSids.isEmpty()) {
+            return buildEmptyPageResponse(pageIndex, pageSize);
+        }
+
+        // 2) Pageable sans Sort (le tri est dans le SQL)
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+        int readMask = BasePermission.READ.getMask();
+        String statusStr = (status != null) ? status.name() : null;
+
+        // 3) Requête paginée sur les IDs uniquement
+        Page<Object> idsPage = tasksRepository.findAllIdsByAclForSidsAndStatusPaged(
+            allSids, readMask, statusStr, pageable
+        );
+
+        if (idsPage.isEmpty()) {
+            return buildEmptyPageResponse(pageIndex, pageSize);
+        }
+
+        // 4) Charger les entités complètes
+        List<Long> ids = idsPage.getContent().stream()
+            .map(obj -> {
+                if (obj instanceof Long) return (Long) obj;
+                if (obj instanceof java.math.BigInteger) return ((java.math.BigInteger) obj).longValue();
+                return Long.valueOf(obj.toString());
+            })
+            .collect(Collectors.toList());
+        List<Tasks> taskEntities = tasksRepository.findAllByIds(ids);
+
+        // 5) Maintenir l'ordre
+        Map<Long, Tasks> taskMap = taskEntities.stream()
+            .collect(Collectors.toMap(Tasks::getId, t -> t));
+        List<Tasks> ordered = ids.stream()
+            .map(taskMap::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        // 6) Mapper en DTO
+        List<PagedTaskDTO> dtos = ordered.stream()
+            .map(this::toPagedTaskDTO)          // mapping léger, pas de content/byte[]
+            .collect(Collectors.toList());
+
+        // 7) Enrichir les responsables (même logique existante)
+        dtos = enrichWithResponsablesLight(dtos);
+
+        // 8) Construire la réponse paginée
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", dtos);
+        response.put("currentPage", pageIndex);
+        response.put("pageSize", pageSize);
+        response.put("totalItems", idsPage.getTotalElements());
+        response.put("totalPages", idsPage.getTotalPages());
+        response.put("hasNext", idsPage.hasNext());
+        response.put("hasPrevious", idsPage.hasPrevious());
+        return response;
+    }
+
+    /** Mapping léger Tasks → PagedTaskDTO (sans content, sans parentDoc, etc.) */
+    private PagedTaskDTO toPagedTaskDTO(Tasks task) {
+        PagedTaskDTO dto = new PagedTaskDTO();
+        dto.setId(task.getId());
+        dto.setObject(task.getObject());
+        dto.setCreationDate(task.getCreationDate());
+        dto.setDueDate(task.getDueDate());
+        dto.setStatus(task.getStatus());
+        dto.setTaskType(task.getTaskType());
+        dto.setCommentaire(task.getCommentaire());
+        // responsible brut conservé temporairement pour fallback enrichissement
+        // (sera résolu dans enrichWithResponsablesLight)
+        return dto;
+    }
+
+    /**
+     * Variante légère de enrichWithResponsables pour PagedTaskDTO.
+     * Même logique batch OrgaCare, même dédoublonnage.
+     */
+    private List<PagedTaskDTO> enrichWithResponsablesLight(List<PagedTaskDTO> dtos) {
+        if (dtos == null || dtos.isEmpty()) return dtos;
+
+        List<Long> tacheIds = dtos.stream()
+            .map(PagedTaskDTO::getId).filter(Objects::nonNull).distinct()
+            .collect(Collectors.toList());
+
+        List<ResponsableTache> responsablesEntities = responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) responsablesEntities = Collections.emptyList();
+
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur OrgaCare enrichissement responsables (light): {}", e.getMessage());
+        }
+
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        final Map<String, String> finalDeptNames = deptNamesByCode;
+        final Map<String, String> finalPersonNames = personNamesByMatricule;
+
+        for (PagedTaskDTO dto : dtos) {
+            List<ResponsableTache> listEnt = responsablesByTache
+                .getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    rDto.setDeptName(finalDeptNames.get(ent.getCodeDept().trim()));
+                }
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    rDto.setPersonneName(finalPersonNames.get(ent.getMatriculePers().trim()));
+                }
+                rDtos.add(rDto);
+            }
+
+            // Dédoublonner par (codeDept, matriculePers)
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:" + k.getCodeDept())
+                            + "|" + (k.getMatriculePers() == null ? "" : "P:" + k.getMatriculePers()),
+                        v -> v, (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+
+            dto.setResponsables(unique);
+
+            // Construire responsableName (fallback chaîne pour le frontend)
+            List<String> displayNames = new ArrayList<>();
+            for (ResponsableTacheDTO r : unique) {
+                if (r.getPersonneName() != null && !r.getPersonneName().trim().isEmpty()) {
+                    displayNames.add(r.getPersonneName().trim());
+                } else if (r.getDeptName() != null && !r.getDeptName().trim().isEmpty()) {
+                    displayNames.add(r.getDeptName().trim());
+                } else if (r.getCodeDept() != null && !r.getCodeDept().trim().isEmpty()) {
+                    displayNames.add(r.getCodeDept().trim());
+                } else if (r.getMatriculePers() != null && !r.getMatriculePers().trim().isEmpty()) {
+                    displayNames.add(r.getMatriculePers().trim());
+                }
+            }
+            if (!displayNames.isEmpty()) {
+                dto.setResponsableName(
+                    displayNames.stream().distinct().collect(Collectors.joining(", "))
+                );
+            }
+        }
+
+        return dtos;
+    }
+
+    private Map<String, Object> buildEmptyPageResponse(int pageIndex, int pageSize) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", Collections.emptyList());
+        response.put("currentPage", pageIndex);
+        response.put("pageSize", pageSize);
+        response.put("totalItems", 0L);
+        response.put("totalPages", 0);
+        response.put("hasNext", false);
+        response.put("hasPrevious", false);
+        return response;
+    }
+
+    // Méthode utilitaire pour enrichir les DTOs avec les responsables (extrait la logique commune)
+    private List<TasksDTO> enrichWithResponsables(List<TasksDTO> dtos) {
+        if (dtos == null || dtos.isEmpty()) return dtos;
+
+        List<Long> tacheIds = dtos.stream()
+            .map(TasksDTO::getId).filter(Objects::nonNull).distinct()
+            .collect(Collectors.toList());
+
+        List<ResponsableTache> responsablesEntities = responsableTacheService.findByTacheIdIn(tacheIds);
+        if (responsablesEntities == null) responsablesEntities = Collections.emptyList();
+
+        Set<String> allCodeDepts = responsablesEntities.stream()
+            .map(ResponsableTache::getCodeDept).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Set<String> allMatricules = responsablesEntities.stream()
+            .map(ResponsableTache::getMatriculePers).filter(Objects::nonNull).map(String::trim)
+            .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+
+        Map<String, String> deptNamesByCode = Collections.emptyMap();
+        Map<String, String> personNamesByMatricule = Collections.emptyMap();
+
+        try {
+            if (!allCodeDepts.isEmpty()) {
+                deptNamesByCode = orgaCareRestClient.getDepartementNamesByCodes(new ArrayList<>(allCodeDepts));
+                if (deptNamesByCode == null) deptNamesByCode = Collections.emptyMap();
+            }
+            if (!allMatricules.isEmpty()) {
+                personNamesByMatricule = orgaCareRestClient.getPersonneNamesByMatricules(new ArrayList<>(allMatricules));
+                if (personNamesByMatricule == null) personNamesByMatricule = Collections.emptyMap();
+            }
+        } catch (Exception e) {
+            log.warn("Erreur OrgaCare enrichissement responsables: {}", e.getMessage());
+        }
+
+        Map<Long, List<ResponsableTache>> responsablesByTache = responsablesEntities.stream()
+            .collect(Collectors.groupingBy(ResponsableTache::getTacheId));
+
+        final Map<String, String> finalDeptNames = deptNamesByCode;
+        final Map<String, String> finalPersonNames = personNamesByMatricule;
+
+        for (TasksDTO dto : dtos) {
+            List<ResponsableTache> listEnt = responsablesByTache.getOrDefault(dto.getId(), Collections.emptyList());
+            List<ResponsableTacheDTO> rDtos = new ArrayList<>();
+
+            for (ResponsableTache ent : listEnt) {
+                ResponsableTacheDTO rDto = new ResponsableTacheDTO();
+                rDto.setId(ent.getId());
+                rDto.setTacheId(ent.getTacheId());
+                rDto.setCodeDept(ent.getCodeDept());
+                rDto.setMatriculePers(ent.getMatriculePers());
+                if (ent.getCodeDept() != null && !ent.getCodeDept().trim().isEmpty()) {
+                    rDto.setDeptName(finalDeptNames.get(ent.getCodeDept().trim()));
+                }
+                if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
+                    rDto.setPersonneName(finalPersonNames.get(ent.getMatriculePers().trim()));
+                }
+                rDtos.add(rDto);
+            }
+
+            List<ResponsableTacheDTO> unique = rDtos.stream()
+                .collect(Collectors.collectingAndThen(
+                    Collectors.toMap(
+                        k -> (k.getCodeDept() == null ? "" : "D:" + k.getCodeDept())
+                            + "|" + (k.getMatriculePers() == null ? "" : "P:" + k.getMatriculePers()),
+                        v -> v, (a, b) -> a
+                    ),
+                    m -> new ArrayList<>(m.values())
+                ));
+            dto.setResponsables(unique);
+        }
+
+        return dtos;
     }
 
 

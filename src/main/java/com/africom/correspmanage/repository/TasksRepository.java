@@ -3,8 +3,10 @@ package com.africom.correspmanage.repository;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -109,5 +111,45 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         @Param("subject") String subject,
         @Param("reference") String reference
     );
+
+    @Query(
+        value = """
+        SELECT combined.id FROM (
+            SELECT DISTINCT t.id, t.creation_date AS dc FROM tasks t
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = t.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Tasks'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+              AND (:status IS NULL OR t.status = :status)
+        ) combined
+        ORDER BY combined.dc DESC
+        """,
+        countQuery = """
+        SELECT COUNT(*) FROM (
+            SELECT DISTINCT t.id FROM tasks t
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = t.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Tasks'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+              AND (:status IS NULL OR t.status = :status)
+        ) combined
+        """,
+        nativeQuery = true
+    )
+    Page<Object> findAllIdsByAclForSidsAndStatusPaged(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("status") String status,
+        Pageable pageable
+    );
+
+    @Query("SELECT t FROM Tasks t WHERE t.id IN (:ids)")
+    List<Tasks> findAllByIds(@Param("ids") List<Long> ids);
 
 }

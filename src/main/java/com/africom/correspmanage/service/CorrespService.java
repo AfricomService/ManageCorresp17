@@ -39,10 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.configurationprocessor.json.JSONException;
 import org.springframework.boot.configurationprocessor.json.JSONObject;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.acls.domain.BasePermission;
 import org.springframework.security.acls.domain.GrantedAuthoritySid;
@@ -214,86 +211,201 @@ public class CorrespService {
         }
     }
 
-    public Page<CorrespDTO> findAllCorrespByFilter(
-        String reference,
-        String status,
-        String dispatchType,
-        String startDate,
-        String endDate,
-        int pageIndex,
-        int pageSize
-    ) {
-        List<Predicate> predicates = new ArrayList<>();
+//    public Page<CorrespDTO> findAllCorrespByFilter(
+//        String reference,
+//        String status,
+//        String dispatchType,
+//        String startDate,
+//        String endDate,
+//        int pageIndex,
+//        int pageSize
+//    ) {
+//        List<Predicate> predicates = new ArrayList<>();
+//
+//        Specification<Corresp> spec = (root, query, criteriaBuilder) -> {
+//            if (reference != null && !reference.isEmpty()) {
+//                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("reference")), "%" + reference.toLowerCase() + "%"));
+//            }
+//
+//            if (status != null && !status.isEmpty()) {
+//                switch (status.toUpperCase()) {
+//                    case "DRAFT":
+//                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.DRAFT));
+//                        break;
+//                    case "IN_PROGRESS":
+//                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.IN_PROGRESS));
+//                        break;
+//                    case "CLOSED":
+//                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CLOSED));
+//                        break;
+//                    case "CANCELLED":
+//                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CANCELLED));
+//                        break;
+//                    default:
+//                        break;
+//                }
+//            }
+//
+//            if (dispatchType != null && !dispatchType.isEmpty()) {
+//                switch (dispatchType.toUpperCase()) {
+//                    case "LETTER":
+//                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.LETTER));
+//                        break;
+//                    case "REGISTERED_LETTER":
+//                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.REGISTERED_LETTER));
+//                        break;
+//                    case "EMAIL":
+//                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.EMAIL));
+//                        break;
+//                    case "FAX":
+//                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.FAX));
+//                        break;
+//                    default:
+//                        break;
+//                }
+//            }
+//
+//            if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
+//                //                log.debug("THIS IS THE DATE {}",dateCreation.substring(0,10));
+//
+//                LocalDate dateStart = LocalDate.parse(startDate.substring(0, 10));
+//                int yearStart = dateStart.getYear();
+//                int monthStart = dateStart.getMonthValue();
+//                int dayStart = dateStart.getDayOfMonth();
+//
+//                LocalDate dateEnd = LocalDate.parse(endDate.substring(0, 10));
+//                int yearEnd = dateEnd.getYear();
+//                int monthEnd = dateEnd.getMonthValue();
+//                int dayEnd = dateEnd.getDayOfMonth();
+//
+//                ZonedDateTime startDateZoned = ZonedDateTime.of(yearStart, monthStart, dayStart, 0, 0, 0, 0, ZoneId.of("UTC"));
+//                ZonedDateTime endDateZoned = ZonedDateTime.of(yearEnd, monthEnd, dayEnd, 23, 59, 59, 999999999, ZoneId.of("UTC"));
+//
+//                predicates.add(criteriaBuilder.between(root.get("courrierDate"), startDateZoned, endDateZoned));
+//            }
+//
+//            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+//        };
+//
+//        Pageable pageable = PageRequest.of(pageIndex - 1, pageSize, Sort.by("id").descending());
+//
+//        return correspRepository.findAll(spec, pageable).map(correspMapper::toDto);
+//    }
+public Page<CorrespDTO> findAllCorrespByFilter(
+    Long userId,
+    String reference,
+    String status,
+    String dispatchType,
+    String startDate,
+    String endDate,
+    int pageIndex,
+    int pageSize
+) {
+    // 1) Résoudre les SIDs de l'utilisateur (deptCodes + login)
+    List<String> deptCodes = new ArrayList<>();
+    String userLogin = "";
 
-        Specification<Corresp> spec = (root, query, criteriaBuilder) -> {
-            if (reference != null && !reference.isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("reference")), "%" + reference.toLowerCase() + "%"));
+    if (userId != null) {
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations != null && !affectations.isEmpty()) {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
             }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les deptCodes pour userId {} : {}", userId, e.getMessage());
+        }
 
-            if (status != null && !status.isEmpty()) {
-                switch (status.toUpperCase()) {
-                    case "DRAFT":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.DRAFT));
-                        break;
-                    case "IN_PROGRESS":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.IN_PROGRESS));
-                        break;
-                    case "CLOSED":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CLOSED));
-                        break;
-                    case "CANCELLED":
-                        predicates.add(criteriaBuilder.equal(root.get("status"), CorrespStatus.CANCELLED));
-                        break;
-                    default:
-                        break;
+        try {
+            Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+            if (userMap != null) {
+                Object login = userMap.get("login");
+                if (login != null && !login.toString().trim().isEmpty()) {
+                    userLogin = login.toString().trim().toLowerCase();
                 }
             }
-
-            if (dispatchType != null && !dispatchType.isEmpty()) {
-                switch (dispatchType.toUpperCase()) {
-                    case "LETTER":
-                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.LETTER));
-                        break;
-                    case "REGISTERED_LETTER":
-                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.REGISTERED_LETTER));
-                        break;
-                    case "EMAIL":
-                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.EMAIL));
-                        break;
-                    case "FAX":
-                        predicates.add(criteriaBuilder.equal(root.get("dispatchType"), DispatchType.FAX));
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
-                //                log.debug("THIS IS THE DATE {}",dateCreation.substring(0,10));
-
-                LocalDate dateStart = LocalDate.parse(startDate.substring(0, 10));
-                int yearStart = dateStart.getYear();
-                int monthStart = dateStart.getMonthValue();
-                int dayStart = dateStart.getDayOfMonth();
-
-                LocalDate dateEnd = LocalDate.parse(endDate.substring(0, 10));
-                int yearEnd = dateEnd.getYear();
-                int monthEnd = dateEnd.getMonthValue();
-                int dayEnd = dateEnd.getDayOfMonth();
-
-                ZonedDateTime startDateZoned = ZonedDateTime.of(yearStart, monthStart, dayStart, 0, 0, 0, 0, ZoneId.of("UTC"));
-                ZonedDateTime endDateZoned = ZonedDateTime.of(yearEnd, monthEnd, dayEnd, 23, 59, 59, 999999999, ZoneId.of("UTC"));
-
-                predicates.add(criteriaBuilder.between(root.get("courrierDate"), startDateZoned, endDateZoned));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        Pageable pageable = PageRequest.of(pageIndex - 1, pageSize, Sort.by("id").descending());
-
-        return correspRepository.findAll(spec, pageable).map(correspMapper::toDto);
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer le login pour userId {} : {}", userId, e.getMessage());
+        }
     }
+
+    List<String> allSids = new ArrayList<>(deptCodes);
+    if (!userLogin.isEmpty() && !allSids.contains(userLogin)) {
+        allSids.add(userLogin);
+    }
+    // Eviter liste vide (SQL IN vide = erreur)
+    if (allSids.isEmpty()) {
+        allSids.add("__NO_SID__");
+    }
+
+    int readMask = BasePermission.READ.getMask();
+    Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+    // 2) Récupérer tous les IDs candidats (ACL + DRAFT + DISPATCH)
+    Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatch(
+        allSids, readMask, userLogin, pageable
+    );
+
+    if (idsPage.isEmpty()) {
+        return Page.empty(pageable);
+    }
+
+    List<Long> ids = idsPage.getContent().stream()
+        .map(Number::longValue)
+        .collect(Collectors.toList());
+
+    List<Corresp> corresps = correspRepository.findAllByIds(ids);
+
+    // 3) Maintenir l'ordre
+    Map<Long, Corresp> correspMap = corresps.stream()
+        .collect(Collectors.toMap(Corresp::getId, c -> c));
+    List<Corresp> ordered = ids.stream()
+        .map(correspMap::get)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
+
+    // 4) Appliquer les filtres en mémoire (reference, status, dispatchType, dates)
+    List<Corresp> filtered = ordered.stream().filter(c -> {
+        if (reference != null && !reference.isEmpty()) {
+            if (c.getReference() == null || !c.getReference().toLowerCase().contains(reference.toLowerCase())) {
+                return false;
+            }
+        }
+        if (status != null && !status.isEmpty()) {
+            try {
+                CorrespStatus cs = CorrespStatus.valueOf(status.toUpperCase());
+                if (!cs.equals(c.getStatus())) return false;
+            } catch (IllegalArgumentException ignored) {}
+        }
+        if (dispatchType != null && !dispatchType.isEmpty()) {
+            try {
+                DispatchType dt = DispatchType.valueOf(dispatchType.toUpperCase());
+                if (!dt.equals(c.getDispatchType())) return false;
+            } catch (IllegalArgumentException ignored) {}
+        }
+        if (startDate != null && !startDate.isEmpty() && endDate != null && !endDate.isEmpty()) {
+            try {
+                LocalDate dateStart = LocalDate.parse(startDate.substring(0, 10));
+                LocalDate dateEnd   = LocalDate.parse(endDate.substring(0, 10));
+                ZonedDateTime from = ZonedDateTime.of(dateStart.getYear(), dateStart.getMonthValue(), dateStart.getDayOfMonth(), 0, 0, 0, 0, ZoneId.of("UTC"));
+                ZonedDateTime to   = ZonedDateTime.of(dateEnd.getYear(),   dateEnd.getMonthValue(),   dateEnd.getDayOfMonth(),   23, 59, 59, 999999999, ZoneId.of("UTC"));
+                if (c.getCourrierDate() == null) return false;
+                if (c.getCourrierDate().isBefore(from) || c.getCourrierDate().isAfter(to)) return false;
+            } catch (Exception ignored) {}
+        }
+        return true;
+    }).collect(Collectors.toList());
+
+    // 5) Construire la Page avec la liste filtrée
+    List<CorrespDTO> dtos = filtered.stream()
+        .map(correspMapper::toDto)
+        .collect(Collectors.toList());
+
+    return new PageImpl<>(dtos, pageable, idsPage.getTotalElements());
+}
 
     public Page<CorrespDTO> findAllCorresps(int pageIndex, int pageSize) {
         Pageable pageable = PageRequest.of(pageIndex - 1, pageSize, Sort.by("id").descending());
@@ -1873,6 +1985,113 @@ public class CorrespService {
         return correspEntities.stream()
             .map(correspMapper::toDto)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Retourne les correspondances accessibles par l'utilisateur (via ACL), paginées.
+     *
+     * @param userId    l'id de l'utilisateur
+     * @param pageIndex numéro de page (commence à 1)
+     * @param pageSize  taille de page (ex: 15)
+     * @return Page de CorrespDTO
+     */
+    @Transactional(readOnly = true)
+    public Page<CorrespDTO> getAllCorrespsByUserAclPaged(Long userId, int pageIndex, int pageSize) {
+        if (userId == null) {
+            return Page.empty();
+        }
+
+        // 1) Récupérer les codes départements de l'utilisateur via OrgaCare
+        List<String> deptCodes;
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations == null || affectations.isEmpty()) {
+                deptCodes = new ArrayList<>();
+            } else {
+                deptCodes = affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les départements pour userId {} : {}", userId, e.getMessage());
+            deptCodes = new ArrayList<>();
+        }
+
+        // 2) Récupérer le login de l'utilisateur
+        String userLogin = null;
+        try {
+            Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+            if (userMap != null) {
+                Object login = userMap.get("login");
+                if (login != null && !login.toString().trim().isEmpty()) {
+                    userLogin = login.toString().trim().toLowerCase();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer le login pour userId {} : {}", userId, e.getMessage());
+        }
+
+        // 3) Construire la liste des SIDs (deptCodes + login)
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (userLogin != null && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+
+        // Cas où l'utilisateur n'a ni département ni login résolu
+        if (allSids.isEmpty() && userLogin == null) {
+            log.warn("Aucun SID trouvé pour userId {} — retour vide", userId);
+            return Page.empty();
+        }
+
+        // Si la liste des SIDs est vide mais qu'on a un login (ex: pas de département),
+        // on met quand même le login dans allSids pour la requête DRAFT
+        if (allSids.isEmpty()) {
+            allSids.add(userLogin);
+        }
+
+        // 4) Construire le Pageable (pageIndex commence à 1 côté client)
+        Pageable pageable = PageRequest.of(
+            Math.max(0, pageIndex - 1),
+            pageSize
+        );
+
+        int readMask = BasePermission.READ.getMask();
+        String loginForQuery = userLogin != null ? userLogin : "";
+
+        // 5) Requête UNION paginée sur les IDs uniquement
+// Après : convertir Number -> Long explicitement
+        Page<Number> idsPage = correspRepository.findAllIdsByAclForSidsOrDraft(
+            allSids, readMask, loginForQuery, pageable
+        );
+
+        if (idsPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, 0);
+        }
+
+        List<Long> ids = idsPage.getContent()
+            .stream()
+            .map(Number::longValue)   // <-- conversion sûre quel que soit le type numérique retourné
+            .collect(Collectors.toList());
+
+        List<Corresp> corresps = correspRepository.findAllByIds(ids);
+
+        // 7) Maintenir l'ordre de la page (la requête native trie, mais findAllByIds peut changer l'ordre)
+        Map<Long, Corresp> correspMap = corresps.stream()
+            .collect(Collectors.toMap(Corresp::getId, c -> c));
+        List<Corresp> orderedCorresps = ids.stream()
+            .map(correspMap::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        // 8) Mapper en DTO et retourner la Page avec le bon totalElements
+        List<CorrespDTO> dtos = orderedCorresps.stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, idsPage.getTotalElements());
     }
 
 

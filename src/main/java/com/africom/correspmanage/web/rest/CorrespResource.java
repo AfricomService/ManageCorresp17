@@ -221,18 +221,46 @@ public class CorrespResource {
         return correspService.findAllCorresps(pageIndex, pageSize);
     }
 
-    @GetMapping("/corresps-filter")
-    public Page<CorrespDTO> getRapportRequestSpec(
-        @RequestParam(name = "pageIndex") Integer pageIndex,
-        @RequestParam(name = "pageSize") Integer pageSize,
-        @RequestParam(name = "reference", required = false) String reference,
-        @RequestParam(name = "status", required = false) String status,
-        @RequestParam(name = "dispatchType", required = false) String dispatchType,
-        @RequestParam(name = "startDate", required = false) String startDate,
-        @RequestParam(name = "endDate", required = false) String endDate
-    ) {
-        return correspService.findAllCorrespByFilter(reference, status, dispatchType, startDate, endDate, pageIndex, pageSize);
-    }
+//    @GetMapping("/corresps-filter")
+//    public Page<CorrespDTO> getRapportRequestSpec(
+//        @RequestParam(name = "pageIndex") Integer pageIndex,
+//        @RequestParam(name = "pageSize") Integer pageSize,
+//        @RequestParam(name = "reference", required = false) String reference,
+//        @RequestParam(name = "status", required = false) String status,
+//        @RequestParam(name = "dispatchType", required = false) String dispatchType,
+//        @RequestParam(name = "startDate", required = false) String startDate,
+//        @RequestParam(name = "endDate", required = false) String endDate
+//    ) {
+//        return correspService.findAllCorrespByFilter(reference, status, dispatchType, startDate, endDate, pageIndex, pageSize);
+//    }
+@GetMapping("/corresps-filter")
+public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
+    @RequestParam(name = "userId") Long userId,
+    @RequestParam(name = "pageIndex", defaultValue = "1") Integer pageIndex,
+    @RequestParam(name = "pageSize", defaultValue = "15") Integer pageSize,
+    @RequestParam(name = "reference", required = false) String reference,
+    @RequestParam(name = "status", required = false) String status,
+    @RequestParam(name = "dispatchType", required = false) String dispatchType,
+    @RequestParam(name = "startDate", required = false) String startDate,
+    @RequestParam(name = "endDate", required = false) String endDate
+) {
+    log.debug("REST request corresps-filter userId={} page={} size={}", userId, pageIndex, pageSize);
+
+    Page<CorrespDTO> page = correspService.findAllCorrespByFilter(
+        userId, reference, status, dispatchType, startDate, endDate, pageIndex, pageSize
+    );
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("content",     page.getContent());
+    response.put("currentPage", pageIndex);
+    response.put("pageSize",    pageSize);
+    response.put("totalItems",  page.getTotalElements());
+    response.put("totalPages",  page.getTotalPages());
+    response.put("hasNext",     page.hasNext());
+    response.put("hasPrevious", page.hasPrevious());
+
+    return ResponseEntity.ok(response);
+}
 
     /**
      * {@code DELETE  /corresps/:id} : delete the "id" corresp.
@@ -535,6 +563,32 @@ public ResponseEntity<?> addTaskToCorresp(
         log.debug("REST request to get Corresps by userId (ACL) : {}", userId);
         List<CorrespDTO> corresps = correspService.getAllCorrespsByUserAcl(userId);
         return ResponseEntity.ok(corresps != null ? corresps : Collections.emptyList());
+    }
+
+    /**
+     * GET /corresps/correspsByUserAclPaged?userId={userId}&page=1&size=15
+     * Retourne les correspondances accessibles paginées (ACL + DRAFT).
+     */
+    @GetMapping("/corresps/correspsByUserAclPaged")
+    public ResponseEntity<Map<String, Object>> getCorrespsByUserAclPaged(
+        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "page", defaultValue = "1") int page,
+        @RequestParam(name = "size", defaultValue = "15") int size
+    ) {
+        log.debug("REST request to get Corresps paged by userId (ACL) : {}, page={}, size={}", userId, page, size);
+
+        Page<CorrespDTO> correspPage = correspService.getAllCorrespsByUserAclPaged(userId, page, size);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content", correspPage.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize", size);
+        response.put("totalItems", correspPage.getTotalElements());
+        response.put("totalPages", correspPage.getTotalPages());
+        response.put("hasNext", correspPage.hasNext());
+        response.put("hasPrevious", correspPage.hasPrevious());
+
+        return ResponseEntity.ok(response);
     }
 
     /**
