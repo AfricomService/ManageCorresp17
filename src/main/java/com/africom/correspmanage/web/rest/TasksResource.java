@@ -252,6 +252,30 @@ public class TasksResource {
         return ResponseEntity.ok(tasks);
     }
 
+    @GetMapping("/tasks/tasksByUserAclPaged")
+    public ResponseEntity<Map<String, Object>> getTasksByUserAclPaged(
+        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "page", defaultValue = "1") int page,
+        @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}",
+            userId, status, page, size);
+
+        CorrespStatus cs = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                cs = CorrespStatus.valueOf(status.trim());
+            } catch (IllegalArgumentException ex) {
+                log.warn("Invalid status parameter: {}", status);
+                return ResponseEntity.badRequest().build();
+            }
+        }
+
+        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/tasks/tasksByUserAclAllStatuses")
     public List<TasksDTO> getTasksByUserAclAllStatuses(@RequestParam(name = "userId") Long userId) {
         log.debug("REST request to get Tasks by userId (ACL) all statuses : {}", userId);
