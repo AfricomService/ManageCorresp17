@@ -602,5 +602,17 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(corresps);
     }
 
+    @GetMapping("/corresps/by-task/{taskId}/summary")
+    public ResponseEntity<CorrespSummaryDTO> getCorrespSummaryByTask(@PathVariable Long taskId) {
+        log.debug("REST request to get Corresp summary (subject+reference) by taskId : {}", taskId);
+        CorrespSummaryDTO summary = correspService.findCorrespSummaryByTaskId(taskId);
+        return ResponseEntity.ok(summary);
+    }
 
+    @PostMapping("/corresps/summaries-by-tasks")
+    public ResponseEntity<Map<Long, CorrespSummaryDTO>> getCorrespSummariesByTasks(
+        @RequestBody List<Long> taskIds
+    ) {
+        return ResponseEntity.ok(correspService.findCorrespSummariesByTaskIds(taskIds));
+    }
 }
