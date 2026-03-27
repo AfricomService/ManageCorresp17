@@ -2270,4 +2270,24 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public CorrespSummaryDTO findCorrespSummaryByTaskId(Long taskId) {
+        return tasksRepository
+            .findById(taskId)
+            .map(task -> task.getCorresps().stream().findFirst()
+                .map(c -> new CorrespSummaryDTO(c.getSubject(), c.getReference()))
+                .orElse(new CorrespSummaryDTO()))
+            .orElse(new CorrespSummaryDTO());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, CorrespSummaryDTO> findCorrespSummariesByTaskIds(List<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) return Collections.emptyMap();
+        Map<Long, CorrespSummaryDTO> result = new HashMap<>();
+        for (Long taskId : taskIds) {
+            result.put(taskId, findCorrespSummaryByTaskId(taskId));
+        }
+        return result;
+    }
+
 }
