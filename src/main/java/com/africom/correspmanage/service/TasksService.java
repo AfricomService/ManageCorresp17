@@ -312,7 +312,7 @@ public class TasksService {
         Set<String> allMatricules = responsablesEntities.stream()
             .map(ResponsableTache::getMatriculePers)
             .filter(Objects::nonNull)
-            .map(String::trim)
+            .map(m -> m.trim().toLowerCase())
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
 
@@ -357,7 +357,7 @@ public class TasksService {
                 }
 
                 if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
-                    String mat = ent.getMatriculePers().trim();
+                    String mat = ent.getMatriculePers().trim().toLowerCase();
                     String nomPers = personNamesByMatricule.get(mat);
                     rDto.setPersonneName(nomPers);
                 }
@@ -509,7 +509,7 @@ public class TasksService {
         Set<String> allMatricules = responsablesEntities.stream()
             .map(ResponsableTache::getMatriculePers)
             .filter(Objects::nonNull)
-            .map(String::trim)
+            .map(m -> m.trim().toLowerCase())
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
 
@@ -554,7 +554,7 @@ public class TasksService {
                 }
 
                 if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
-                    String mat = ent.getMatriculePers().trim();
+                    String mat = ent.getMatriculePers().trim().toLowerCase();
                     String nomPers = personNamesByMatricule.get(mat);
                     rDto.setPersonneName(nomPers);
                 }
@@ -697,7 +697,8 @@ public class TasksService {
             .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
         Set<String> allMatricules = responsablesEntities.stream()
-            .map(ResponsableTache::getMatriculePers).filter(Objects::nonNull).map(String::trim)
+            .map(ResponsableTache::getMatriculePers).filter(Objects::nonNull)
+            .map(m -> m.trim().toLowerCase())
             .filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
         Map<String, String> deptNamesByCode = Collections.emptyMap();
@@ -736,7 +737,7 @@ public class TasksService {
                     rDto.setDeptName(finalDeptNames.get(ent.getCodeDept().trim()));
                 }
                 if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
-                    rDto.setPersonneName(finalPersonNames.get(ent.getMatriculePers().trim()));
+                    rDto.setPersonneName(finalPersonNames.get(ent.getMatriculePers().trim().toLowerCase()));
                 }
                 rDtos.add(rDto);
             }
@@ -937,7 +938,7 @@ public class TasksService {
         Set<String> allMatricules = responsablesEntities.stream()
             .map(ResponsableTache::getMatriculePers)
             .filter(Objects::nonNull)
-            .map(String::trim)
+            .map(m -> m.trim().toLowerCase())
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
 
@@ -982,7 +983,7 @@ public class TasksService {
                 }
 
                 if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
-                    String mat = ent.getMatriculePers().trim();
+                    String mat = ent.getMatriculePers().trim().toLowerCase();
                     String nomPers = personNamesByMatricule.get(mat);
                     rDto.setPersonneName(nomPers);
                 }
@@ -1008,16 +1009,18 @@ public class TasksService {
     }
 
     @Transactional(readOnly = true)
-    public List<TasksDTO> searchTasksByUserAcl(Long userId, String reference) {
+    public List<TasksDTO> searchTasksByUserAcl(Long userId, String reference, String subject)
+ {
         if (userId == null) {
             return Collections.emptyList();
         }
 
-        if (reference == null || reference.trim().isEmpty()) {
-            // Ici on choisit de renvoyer 400 côté controller ; en service on renvoie vide pour robustesse
-            return Collections.emptyList();
-        }
-        String refTrim = reference.trim();
+     String refTrim     = (reference != null && !reference.trim().isEmpty()) ? reference.trim() : null;
+     String subjectTrim = (subject   != null && !subject.trim().isEmpty())   ? subject.trim()   : null;
+
+     if (refTrim == null && subjectTrim == null) {
+         return Collections.emptyList();
+     }
 
         // 1) récupérer les deptCodes via OrgaCare (comme avant)
         List<String> deptCodes;
@@ -1053,7 +1056,7 @@ public class TasksService {
 
         // 2) repo natif: ACL + filtre référence LIKE (insensible à la casse)
         int readMask = BasePermission.READ.getMask();
-        List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespReferenceLike(allSids, readMask, refTrim);
+     List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespKeyword(allSids, readMask, refTrim, subjectTrim);
         if (tasks == null || tasks.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1085,7 +1088,7 @@ public class TasksService {
         Set<String> allMatricules = responsablesEntities.stream()
             .map(ResponsableTache::getMatriculePers)
             .filter(Objects::nonNull)
-            .map(String::trim)
+            .map(m -> m.trim().toLowerCase())
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
 
@@ -1128,7 +1131,7 @@ public class TasksService {
                 }
 
                 if (ent.getMatriculePers() != null && !ent.getMatriculePers().trim().isEmpty()) {
-                    String mat = ent.getMatriculePers().trim();
+                    String mat = ent.getMatriculePers().trim().toLowerCase();
                     String nomPers = personNamesByMatricule.get(mat);
                     rDto.setPersonneName(nomPers);
                 }

@@ -285,17 +285,21 @@ public class TasksResource {
     @GetMapping("/tasks/searchByUserAcl")
     public ResponseEntity<List<TasksDTO>> searchTasksByUserAcl(
         @RequestParam(name = "userId") Long userId,
-        @RequestParam(name = "reference") String reference
+        @RequestParam(name = "reference", required = false) String reference,
+        @RequestParam(name = "subject",   required = false) String subject
     ) {
         log.debug("REST request to search Tasks by userId (ACL) : {} - reference: {}", userId, reference);
 
-        if (userId == null || reference == null || reference.isBlank()) {
-            // userId or reference manquant -> 400 Bad Request
+        boolean referenceBlank = (reference == null || reference.isBlank());
+        boolean subjectBlank   = (subject   == null || subject.isBlank());
+
+        if (userId == null || (referenceBlank && subjectBlank)) {
+            // Au moins un critère de recherche doit être fourni
             return ResponseEntity.badRequest().build();
         }
 
         try {
-            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference);
+            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference, subject);
 
             if (results == null) {
                 results = Collections.emptyList();
