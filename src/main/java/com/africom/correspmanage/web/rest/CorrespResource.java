@@ -548,6 +548,27 @@ public ResponseEntity<?> addTaskToCorresp(
         return ResponseEntity.ok(list);
     }
 
+    @GetMapping("/corresps/references")
+    public ResponseEntity<Map<String, Object>> getCorrespReferences(
+        @RequestParam(value = "page",   defaultValue = "1")  int page,
+        @RequestParam(value = "size",   defaultValue = "20") int size,
+        @RequestParam(value = "search", required = false)    String search
+    ) {
+        Page<CorrespReferenceDTO> result =
+            correspService.findReferencesPagedProjected(page, size, search);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content",     result.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize",    size);
+        response.put("totalItems",  result.getTotalElements());
+        response.put("totalPages",  result.getTotalPages());
+        response.put("hasNext",     result.hasNext());
+        response.put("hasPrevious", result.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/corresps/{id}/permissions")
     public ResponseEntity<CorrespPermissionsDTO> getPermissions(@PathVariable Long id) {
         CorrespPermissionsDTO dto = correspService.getAndEnsurePermissionsForCurrentUser(id);

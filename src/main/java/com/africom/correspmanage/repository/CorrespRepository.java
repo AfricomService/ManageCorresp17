@@ -183,4 +183,36 @@ SELECT COUNT(*) FROM (
         Pageable pageable
     );
 
+    // Dans CorrespRepository.java
+
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c WHERE c.reference IS NOT NULL
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedRaw(Pageable pageable);
+
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search
+        OR LOWER(c.subject)   LIKE :search)
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search
+        OR LOWER(c.subject)   LIKE :search)
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedFilteredRaw(
+        @Param("search") String search, Pageable pageable);
+
 }

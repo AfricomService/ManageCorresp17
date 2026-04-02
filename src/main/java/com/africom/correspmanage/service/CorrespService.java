@@ -1898,6 +1898,28 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         return correspRepository.findAllByReferenceIsNotNull().stream().map(correspMapper::toDto).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public Page<CorrespReferenceDTO> findReferencesPagedProjected(
+        int pageIndex, int pageSize, String search) {
+
+        Pageable pageable = PageRequest.of(
+            Math.max(0, pageIndex - 1), pageSize, Sort.by("id").descending());
+
+        Page<Object[]> raw;
+        if (search != null && !search.isBlank()) {
+            raw = correspRepository
+                .findReferencesPagedFilteredRaw("%" + search.toLowerCase() + "%", pageable);
+        } else {
+            raw = correspRepository.findReferencesPagedRaw(pageable);
+        }
+
+        return raw.map(row -> new CorrespReferenceDTO(
+            ((Number) row[0]).longValue(),
+            (String) row[1],
+            (String) row[2]
+        ));
+    }
+
     /**
      * Retourne toutes les correspondances accessibles par l'utilisateur courant (via ACL).
      * Les SIDs vérifiés sont : les codes de départements de l'utilisateur + son login.
