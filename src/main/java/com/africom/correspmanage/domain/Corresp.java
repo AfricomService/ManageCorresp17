@@ -33,7 +33,7 @@ public class Corresp implements Serializable {
     @Column(name = "idinstance", nullable = false)
     private UUID idinstance;
 
-    @Column(name = "reference")
+    @Column(name = "reference", unique = true)
     private String reference;
 
     @NotNull

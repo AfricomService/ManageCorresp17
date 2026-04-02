@@ -1,7 +1,15 @@
 package com.africom.correspmanage.domain;
 
+import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
+import com.vladmihalcea.hibernate.type.json.JsonNodeBinaryType;
+import org.hibernate.annotations.Type;
+import org.hibernate.annotations.TypeDef;
+import org.hibernate.annotations.TypeDefs;
+
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Map;
 import javax.persistence.*;
 
 /**
@@ -9,6 +17,10 @@ import javax.persistence.*;
  */
 @Entity
 @Table(name = "message")
+@TypeDefs({
+    @TypeDef(name = "jsonb", typeClass = JsonBinaryType.class),
+    @TypeDef(name = "jsonb-node", typeClass = JsonNodeBinaryType.class)
+})
 @SuppressWarnings("common-java:DuplicatedBlocks")
 public class Message implements Serializable {
 
@@ -23,14 +35,17 @@ public class Message implements Serializable {
     @Column(name = "sender")
     private String sender;
 
-    @Column(name = "receiver")
-    private String receiver;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "receiver")
+    private List<Map<String, String>> receiver;
 
-    @Column(name = "copy_to")
-    private String copyTo;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "copy_to")
+    private List<Map<String, String>> copyTo;
 
-    @Column(name = "blind_copy_to")
-    private String blindCopyTo;
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "blind_copy_to")
+    private List<Map<String, String>> blindCopyTo;
 
     @Column(name = "path")
     private String path;
@@ -99,42 +114,42 @@ public class Message implements Serializable {
         this.sender = sender;
     }
 
-    public String getReceiver() {
+    public List<Map<String, String>> getReceiver() {
         return this.receiver;
     }
 
-    public Message receiver(String receiver) {
+    public Message receiver(List<Map<String, String>> receiver) {
         this.setReceiver(receiver);
         return this;
     }
 
-    public void setReceiver(String receiver) {
+    public void setReceiver(List<Map<String, String>> receiver) {
         this.receiver = receiver;
     }
 
-    public String getCopyTo() {
+    public List<Map<String, String>> getCopyTo() {
         return this.copyTo;
     }
 
-    public Message copyTo(String copyTo) {
+    public Message copyTo(List<Map<String, String>> copyTo) {
         this.setCopyTo(copyTo);
         return this;
     }
 
-    public void setCopyTo(String copyTo) {
+    public void setCopyTo(List<Map<String, String>> copyTo) {
         this.copyTo = copyTo;
     }
 
-    public String getBlindCopyTo() {
+    public List<Map<String, String>> getBlindCopyTo() {
         return this.blindCopyTo;
     }
 
-    public Message blindCopyTo(String blindCopyTo) {
+    public Message blindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.setBlindCopyTo(blindCopyTo);
         return this;
     }
 
-    public void setBlindCopyTo(String blindCopyTo) {
+    public void setBlindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 
@@ -332,9 +347,9 @@ public class Message implements Serializable {
         return "Message{" +
             "id=" + getId() +
             ", sender='" + getSender() + "'" +
-            ", receiver='" + getReceiver() + "'" +
-            ", copyTo='" + getCopyTo() + "'" +
-            ", blindCopyTo='" + getBlindCopyTo() + "'" +
+            ", receiver='" + String.valueOf(getReceiver()) + "'" +
+            ", copyTo='" + String.valueOf(getCopyTo()) + "'" +
+            ", blindCopyTo='" + String.valueOf(getBlindCopyTo()) + "'" +
             ", path='" + getPath() + "'" +
             ", msgID='" + getMsgID() + "'" +
             ", parentID='" + getParentID() + "'" +

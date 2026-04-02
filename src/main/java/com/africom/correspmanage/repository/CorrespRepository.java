@@ -33,31 +33,186 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
 
     Page<Corresp> findAllByCorresptype(CorrespType corresptype, Pageable pageable);
 
+    Page<Corresp> findAllByReferenceIsNotNull(Pageable pageable);
+
+    List<Corresp> findAllByReferenceIsNotNull();
+
     Page<Corresp> findAll(Specification<Corresp> spec, Pageable pageable);
 
     @Query(
         value = "SELECT c.* FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode " +
-        "AND ae.mask = 1", // READ or higher
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode " +
+            "AND (ae.mask & 1) <> 0", // READ bit set
         nativeQuery = true
     )
     List<Corresp> findAllByAclForDept(@Param("deptCode") String deptCode);
 
     @Query(
         value = "SELECT c.* FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode AND ae.mask = 1",
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode AND (ae.mask & 1) <> 0",
         countQuery = "SELECT COUNT(*) FROM corresp c " +
-        "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
-        "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
-        "JOIN acl_sid sid ON sid.id = ae.sid " +
-        "WHERE sid.sid = :deptCode AND ae.mask = 1",
+            "JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id " +
+            "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
+            "JOIN acl_sid sid ON sid.id = ae.sid " +
+            "WHERE sid.sid = :deptCode AND (ae.mask & 1) <> 0",
         nativeQuery = true
     )
     Page<Corresp> findAllByAclForDeptWithPagination(@Param("deptCode") String deptCode, Pageable pageable);
+
+    @Query(
+        value = """
+            SELECT DISTINCT c.* FROM corresp c
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+            ORDER BY c.date_created DESC
+            """,
+        nativeQuery = true
+    )
+    List<Corresp> findAllByAclForSids(@Param("sids") List<String> sids, @Param("mask") int mask);
+
+    @Query("SELECT c FROM Corresp c WHERE LOWER(c.createdBy) = LOWER(:login) AND c.status = 'DRAFT' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllDraftByCreatedBy(@Param("login") String login);
+
+    @Query("SELECT c FROM Corresp c WHERE c.status = 'DISPATCH' ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllByStatusDispatch();
+
+    @Query(
+        value = """
+        SELECT combined.id FROM (
+            SELECT DISTINCT c.id, c.date_created AS dc FROM corresp c
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+            UNION
+            SELECT c.id, c.date_created AS dc FROM corresp c
+            WHERE LOWER(c.created_by) = LOWER(:login)
+              AND c.status = 'DRAFT'
+        ) combined
+        ORDER BY combined.dc DESC
+        """,
+        countQuery = """
+        SELECT COUNT(*) FROM (
+            SELECT DISTINCT c.id FROM corresp c
+            JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+            JOIN acl_class ac ON ac.id = aoi.object_id_class
+            JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+            JOIN acl_sid sid ON sid.id = ae.sid
+            WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+              AND sid.sid IN (:sids)
+              AND (ae.mask & :mask) <> 0
+            UNION
+            SELECT c.id FROM corresp c
+            WHERE LOWER(c.created_by) = LOWER(:login)
+              AND c.status = 'DRAFT'
+        ) combined
+        """,
+        nativeQuery = true
+    )
+    Page<Number> findAllIdsByAclForSidsOrDraft(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("login") String login,
+        Pageable pageable
+    );
+
+    // Récupérer les entités complètes par IDs (avec eager relationships si besoin)
+    @Query("SELECT c FROM Corresp c WHERE c.id IN (:ids) ORDER BY c.dateCreated DESC")
+    List<Corresp> findAllByIds(@Param("ids") List<Long> ids);
+
+    @Query(
+        value = """
+SELECT combined.id FROM (
+    SELECT DISTINCT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+    JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+    JOIN acl_class ac ON ac.id = aoi.object_id_class
+    JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+    JOIN acl_sid sid ON sid.id = ae.sid
+    WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+      AND sid.sid IN (:sids)
+      AND (ae.mask & :mask) <> 0
+    UNION
+    SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+    WHERE LOWER(c.created_by) = LOWER(:login)
+      AND c.status = 'DRAFT'
+    UNION
+    SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+    WHERE c.status = 'DISPATCH'
+) combined
+ORDER BY combined.dc DESC, combined.cid DESC
+""",
+        countQuery = """
+SELECT COUNT(*) FROM (
+    SELECT DISTINCT c.id FROM corresp c
+    JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+    JOIN acl_class ac ON ac.id = aoi.object_id_class
+    JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+    JOIN acl_sid sid ON sid.id = ae.sid
+    WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+      AND sid.sid IN (:sids)
+      AND (ae.mask & :mask) <> 0
+    UNION
+    SELECT c.id FROM corresp c
+    WHERE LOWER(c.created_by) = LOWER(:login)
+      AND c.status = 'DRAFT'
+    UNION
+    SELECT c.id FROM corresp c
+    WHERE c.status = 'DISPATCH'
+) combined
+""",
+        nativeQuery = true
+    )
+    Page<Number> findAllIdsByAclOrDraftOrDispatch(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("login") String login,
+        Pageable pageable
+    );
+
+    // Dans CorrespRepository.java
+
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c WHERE c.reference IS NOT NULL
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedRaw(Pageable pageable);
+
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search
+        OR LOWER(c.subject)   LIKE :search)
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search
+        OR LOWER(c.subject)   LIKE :search)
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedFilteredRaw(
+        @Param("search") String search, Pageable pageable);
+
 }

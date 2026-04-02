@@ -1,0 +1,35 @@
+{
+  "microserviceName": "correspManage",
+  "clientRootFolder": "correspManage",
+  "databaseType": "sql",
+  "fields": [
+    {
+      "fieldName": "idCorrsp",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "idDept",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "codeDept",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "nomDept",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "emailDept",
+      "fieldType": "String"
+    }
+  ],
+  "relationships": [],
+  "service": "serviceClass",
+  "dto": "mapstruct",
+  "jpaMetamodelFiltering": false,
+  "readOnly": false,
+  "pagination": "no",
+  "name": "ContactCopieCorresp",
+  "changelogDate": "20260227082630"
+}

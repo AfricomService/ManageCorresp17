@@ -15,16 +15,16 @@
 
 logging:
   level:
-    ROOT: INFO
-    tech.jhipster: INFO
-    com.africom.correspmanage: INFO
+    ROOT: DEBUG
+    tech.jhipster: DEBUG
+    com.africom.correspmanage: DEBUG
 
 eureka:
   instance:
     prefer-ip-address: true
   client:
     service-url:
-      defaultZone: http://admin:${jhipster.registry.password}@localhost:8761/eureka/
+      defaultZone: http://africomServices:${jhipster.registry.password}@${hostserver}:8761/eureka/
 
 management:
   metrics:
@@ -33,6 +33,11 @@ management:
         enabled: false
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+      enabled: true
   devtools:
     restart:
       enabled: false
@@ -44,7 +49,7 @@ spring:
         initial-interval: 1000
         max-interval: 2000
         max-attempts: 100
-      uri: http://admin:${jhipster.registry.password}@localhost:8761/config
+      uri: http://africomServices:${jhipster.registry.password}@${hostserver}:8761/config
       # name of the config server's property source (file.yml) that we want to use
       name: correspManage
       profile: prod
@@ -52,9 +57,9 @@ spring:
       # it can be set to any label, branch or commit of the configuration source Git repository
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://localhost:5432/correspManage
-    username: correspManage
-    password:
+    url: jdbc:postgresql://${hostserver}:5555/correspManage
+    username: postgres
+    password: africomSaVpPostGreSQL10DataBase
     hikari:
       poolName: Hikari
       auto-commit: false
@@ -100,7 +105,7 @@ spring:
 #     ciphers: TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 ,TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 ,TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 ,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,TLS_DHE_RSA_WITH_AES_128_CBC_SHA,TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,TLS_DHE_RSA_WITH_AES_256_CBC_SHA,TLS_RSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,TLS_RSA_WITH_CAMELLIA_256_CBC_SHA,TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA,TLS_RSA_WITH_CAMELLIA_128_CBC_SHA
 # ===================================================================
 server:
-  port: 8081
+  port: 8056
   shutdown: graceful # see https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-graceful-shutdown
   compression:
     enabled: true
@@ -122,7 +127,7 @@ jhipster:
       time-to-live-seconds: 3600
       backup-count: 1
   registry:
-    password: admin
+    password: africomOrgaCareRegistryEureka
   security:
     authentication:
       jwt:
@@ -151,4 +156,7 @@ jhipster:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
 
-# application:
+application:
+  slash: /
+  dir_pj: /home/corresp/pjs
+  dir_body: /home/corresp/body

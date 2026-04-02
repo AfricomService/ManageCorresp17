@@ -2,6 +2,8 @@ package com.africom.correspmanage.service.dto;
 
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -14,11 +16,11 @@ public class MessageDTO implements Serializable {
 
     private String sender;
 
-    private String receiver;
+    private List<Map<String, String>> receiver;
 
-    private String copyTo;
+    private List<Map<String, String>> copyTo;
 
-    private String blindCopyTo;
+    private List<Map<String, String>> blindCopyTo;
 
     private String path;
 
@@ -62,27 +64,27 @@ public class MessageDTO implements Serializable {
         this.sender = sender;
     }
 
-    public String getReceiver() {
+    public List<Map<String, String>> getReceiver() {
         return receiver;
     }
 
-    public void setReceiver(String receiver) {
+    public void setReceiver(List<Map<String, String>> receiver) {
         this.receiver = receiver;
     }
 
-    public String getCopyTo() {
+    public List<Map<String, String>> getCopyTo() {
         return copyTo;
     }
 
-    public void setCopyTo(String copyTo) {
+    public void setCopyTo(List<Map<String, String>> copyTo) {
         this.copyTo = copyTo;
     }
 
-    public String getBlindCopyTo() {
+    public List<Map<String, String>> getBlindCopyTo() {
         return blindCopyTo;
     }
 
-    public void setBlindCopyTo(String blindCopyTo) {
+    public void setBlindCopyTo(List<Map<String, String>> blindCopyTo) {
         this.blindCopyTo = blindCopyTo;
     }
 
@@ -217,9 +219,9 @@ public class MessageDTO implements Serializable {
         return "MessageDTO{" +
             "id=" + getId() +
             ", sender='" + getSender() + "'" +
-            ", receiver='" + getReceiver() + "'" +
-            ", copyTo='" + getCopyTo() + "'" +
-            ", blindCopyTo='" + getBlindCopyTo() + "'" +
+            ", receiver='" + String.valueOf(getReceiver()) + "'" +
+            ", copyTo='" + String.valueOf(getCopyTo()) + "'" +
+            ", blindCopyTo='" + String.valueOf(getBlindCopyTo()) + "'" +
             ", path='" + getPath() + "'" +
             ", msgID='" + getMsgID() + "'" +
             ", parentID='" + getParentID() + "'" +

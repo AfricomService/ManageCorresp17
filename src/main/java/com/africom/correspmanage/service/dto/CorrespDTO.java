@@ -5,7 +5,9 @@ import com.africom.correspmanage.domain.enumeration.CorrespType;
 import com.africom.correspmanage.domain.enumeration.DispatchType;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -96,6 +98,9 @@ public class CorrespDTO implements Serializable {
     private Set<PjDTO> attachments = new HashSet<>();
 
     private Set<TasksDTO> tasks = new HashSet<>();
+
+    // Nouvelle propriété pour les contacts en copie (liste envoyée par le front)
+    private List<ContactCopieCorrespDTO> contactCopies = new ArrayList<>();
 
     public Long getId() {
         return id;
@@ -377,6 +382,14 @@ public class CorrespDTO implements Serializable {
         this.tasks = tasks;
     }
 
+    public List<ContactCopieCorrespDTO> getContactCopies() {
+        return contactCopies;
+    }
+
+    public void setContactCopies(List<ContactCopieCorrespDTO> contactCopies) {
+        this.contactCopies = contactCopies;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -437,6 +450,7 @@ public class CorrespDTO implements Serializable {
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +
             ", tasks=" + getTasks() +
+            ", contactCopies=" + getContactCopies() +
             "}";
     }
 }
