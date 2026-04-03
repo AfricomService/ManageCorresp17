@@ -183,10 +183,8 @@ SELECT COUNT(*) FROM (
         Pageable pageable
     );
 
-    // Dans CorrespRepository.java
-
     @Query(value = """
-    SELECT c.id, c.reference, c.subject
+    SELECT c.id, c.reference, c.subject, c.date_created, c.sender
     FROM corresp c
     WHERE c.reference IS NOT NULL
     ORDER BY c.date_created DESC
@@ -198,7 +196,7 @@ SELECT COUNT(*) FROM (
     Page<Object[]> findReferencesPagedRaw(Pageable pageable);
 
     @Query(value = """
-    SELECT c.id, c.reference, c.subject
+    SELECT c.id, c.reference, c.subject, c.date_created, c.sender
     FROM corresp c
     WHERE c.reference IS NOT NULL
       AND (LOWER(c.reference) LIKE :search
