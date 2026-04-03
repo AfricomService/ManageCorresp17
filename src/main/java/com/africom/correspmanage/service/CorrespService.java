@@ -1907,16 +1907,22 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         Page<Object[]> raw;
         if (search != null && !search.isBlank()) {
-            raw = correspRepository
-                .findReferencesPagedFilteredRaw("%" + search.toLowerCase() + "%", pageable);
+            raw = correspRepository.findReferencesPagedFilteredRaw(
+                "%" + search.toLowerCase() + "%", pageable);
         } else {
             raw = correspRepository.findReferencesPagedRaw(pageable);
         }
 
         return raw.map(row -> new CorrespReferenceDTO(
-            ((Number) row[0]).longValue(),
-            (String) row[1],
-            (String) row[2]
+            ((Number) row[0]).longValue(),          // id
+            (String) row[1],                         // reference
+            (String) row[2],                         // subject
+            row[3] != null
+                ? ((java.sql.Timestamp) row[3])
+                .toInstant()
+                .atZone(java.time.ZoneId.of("UTC"))
+                : null,                              // dateCreated
+            (String) row[4]                          // sender
         ));
     }
 
