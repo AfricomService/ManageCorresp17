@@ -213,4 +213,103 @@ SELECT COUNT(*) FROM (
     Page<Object[]> findReferencesPagedFilteredRaw(
         @Param("search") String search, Pageable pageable);
 
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject, c.date_created, c.sender
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND c.id IN (
+          SELECT DISTINCT sub.id FROM (
+              SELECT c2.id FROM corresp c2
+              JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c2.id
+              JOIN acl_class ac ON ac.id = aoi.object_id_class
+              JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+              JOIN acl_sid sid ON sid.id = ae.sid
+              WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+                AND sid.sid IN (:sids)
+                AND (ae.mask & 1) <> 0
+              UNION
+              SELECT c3.id FROM corresp c3
+              WHERE LOWER(c3.created_by) = LOWER(:login)
+                AND c3.status = 'DRAFT'
+          ) sub
+      )
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND c.id IN (
+          SELECT DISTINCT sub.id FROM (
+              SELECT c2.id FROM corresp c2
+              JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c2.id
+              JOIN acl_class ac ON ac.id = aoi.object_id_class
+              JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+              JOIN acl_sid sid ON sid.id = ae.sid
+              WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+                AND sid.sid IN (:sids)
+                AND (ae.mask & 1) <> 0
+              UNION
+              SELECT c3.id FROM corresp c3
+              WHERE LOWER(c3.created_by) = LOWER(:login)
+                AND c3.status = 'DRAFT'
+          ) sub
+      )
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedByAclRaw(
+        @Param("sids") List<String> sids,
+        @Param("login") String login,
+        Pageable pageable);
+
+    @Query(value = """
+    SELECT c.id, c.reference, c.subject, c.date_created, c.sender
+    FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search OR LOWER(c.subject) LIKE :search)
+      AND c.id IN (
+          SELECT DISTINCT sub.id FROM (
+              SELECT c2.id FROM corresp c2
+              JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c2.id
+              JOIN acl_class ac ON ac.id = aoi.object_id_class
+              JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+              JOIN acl_sid sid ON sid.id = ae.sid
+              WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+                AND sid.sid IN (:sids)
+                AND (ae.mask & 1) <> 0
+              UNION
+              SELECT c3.id FROM corresp c3
+              WHERE LOWER(c3.created_by) = LOWER(:login)
+                AND c3.status = 'DRAFT'
+          ) sub
+      )
+    ORDER BY c.date_created DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM corresp c
+    WHERE c.reference IS NOT NULL
+      AND (LOWER(c.reference) LIKE :search OR LOWER(c.subject) LIKE :search)
+      AND c.id IN (
+          SELECT DISTINCT sub.id FROM (
+              SELECT c2.id FROM corresp c2
+              JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c2.id
+              JOIN acl_class ac ON ac.id = aoi.object_id_class
+              JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+              JOIN acl_sid sid ON sid.id = ae.sid
+              WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+                AND sid.sid IN (:sids)
+                AND (ae.mask & 1) <> 0
+              UNION
+              SELECT c3.id FROM corresp c3
+              WHERE LOWER(c3.created_by) = LOWER(:login)
+                AND c3.status = 'DRAFT'
+          ) sub
+      )
+    """,
+        nativeQuery = true)
+    Page<Object[]> findReferencesPagedByAclFilteredRaw(
+        @Param("sids") List<String> sids,
+        @Param("login") String login,
+        @Param("search") String search,
+        Pageable pageable);
+
 }

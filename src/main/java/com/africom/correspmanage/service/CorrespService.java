@@ -1902,28 +1902,89 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     public Page<CorrespReferenceDTO> findReferencesPagedProjected(
         int pageIndex, int pageSize, String search) {
 
-        Pageable pageable = PageRequest.of(
-            Math.max(0, pageIndex - 1), pageSize, Sort.by("id").descending());
+        // 1. Login de l'utilisateur connecté
+        String login = SecurityUtils.getCurrentUserLogin()
+            .orElseThrow(() -> new RuntimeException("Utilisateur non authentifié"));
 
+        // 2. Construire la liste des SIDs (login + codes départements)
+        //    Même logique que dans getAllCorrespsByUserAclPaged / findAllCorrespByFilter
+        List<String> sids = buildSidsForCurrentUser(login);
+
+        // 3. Pagination (1-based → 0-based)
+        Pageable pageable = PageRequest.of(
+            Math.max(0, pageIndex - 1),
+            pageSize);
+
+        // 4. Appel repository selon présence du filtre search
         Page<Object[]> raw;
         if (search != null && !search.isBlank()) {
-            raw = correspRepository.findReferencesPagedFilteredRaw(
-                "%" + search.toLowerCase() + "%", pageable);
+            raw = correspRepository.findReferencesPagedByAclFilteredRaw(
+                sids, login, "%" + search.toLowerCase() + "%", pageable);
         } else {
-            raw = correspRepository.findReferencesPagedRaw(pageable);
+            raw = correspRepository.findReferencesPagedByAclRaw(sids, login, pageable);
         }
 
+        // 5. Mapping Object[] → CorrespReferenceDTO
         return raw.map(row -> new CorrespReferenceDTO(
-            ((Number) row[0]).longValue(),          // id
-            (String) row[1],                         // reference
-            (String) row[2],                         // subject
+            ((Number) row[0]).longValue(),
+            (String) row[1],
+            (String) row[2],
             row[3] != null
                 ? ((java.sql.Timestamp) row[3])
                 .toInstant()
                 .atZone(java.time.ZoneId.of("UTC"))
-                : null,                              // dateCreated
-            (String) row[4]                          // sender
+                : null,
+            (String) row[4]
         ));
+    }
+
+    private List<String> buildSidsForCurrentUser(String login) {
+        List<String> sids = new ArrayList<>();
+
+        // Toujours inclure le login de l'utilisateur connecté
+        if (login != null && !login.isBlank()) {
+            sids.add(login.trim().toLowerCase());
+        }
+
+        // Récupérer l'userId via le gateway (même pattern que getAndEnsurePermissionsForCurrentUser)
+        Long userId = null;
+        try {
+            UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(login);
+            if (userDto != null) {
+                userId = userDto.getId();
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer l'userId pour login '{}': {}", login, e.getMessage());
+        }
+
+        // Récupérer les codes des départements via OrgaCare (même pattern que findAllCorrespByFilter)
+        if (userId != null) {
+            try {
+                List<Map<String, Object>> affectations =
+                    orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+
+                if (affectations != null && !affectations.isEmpty()) {
+                    List<String> deptCodes = affectations.stream()
+                        .map(a -> a.get("departementCode"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .filter(code -> !code.isBlank())
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                    sids.addAll(deptCodes);
+                }
+            } catch (Exception e) {
+                log.warn("Impossible de récupérer les départements pour userId {}: {}", userId, e.getMessage());
+            }
+        }
+
+        // Sécurité : éviter liste vide (SQL IN vide = erreur)
+        if (sids.isEmpty()) {
+            sids.add("__NO_SID__");
+        }
+
+        return sids;
     }
 
     /**
