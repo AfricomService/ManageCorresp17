@@ -1,6 +1,7 @@
 package com.africom.correspmanage.web.rest;
 
 import com.africom.correspmanage.client.ConfigManageRestClient;
+import com.africom.correspmanage.client.ModelNotifDTO;
 import com.africom.correspmanage.client.TypeDocumentFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Message;
@@ -9,7 +10,9 @@ import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
+import com.africom.correspmanage.service.CorrespEmailService;
 import com.africom.correspmanage.service.CorrespService;
+import com.africom.correspmanage.service.TemplateRenderService;
 import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -19,6 +22,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.ZonedDateTime;
 import java.util.*;
+import javax.persistence.EntityNotFoundException;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -56,17 +60,24 @@ public class CorrespResource {
 
     private final CorrespRepository correspRepository;
     private final MessageRepository messageRepository;
+    private final CorrespEmailService correspEmailService;
+    private final TemplateRenderService templateRenderService;
+
 
     public CorrespResource(
         ConfigManageRestClient configManageRestClient,
         CorrespService correspService,
         CorrespRepository correspRepository,
-        MessageRepository messageRepository
+        MessageRepository messageRepository,
+        CorrespEmailService correspEmailService,
+        TemplateRenderService templateRenderService
     ) {
         this.configManageRestClient = configManageRestClient;
         this.correspService = correspService;
         this.correspRepository = correspRepository;
         this.messageRepository = messageRepository;
+        this.correspEmailService = correspEmailService;
+        this.templateRenderService = templateRenderService;
     }
 
     /**
@@ -635,5 +646,79 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestBody List<Long> taskIds
     ) {
         return ResponseEntity.ok(correspService.findCorrespSummariesByTaskIds(taskIds));
+    }
+
+    @PostMapping("/corresps/send-email")
+    public ResponseEntity<Map<String, Object>> prepareCorrespEmail(
+        @RequestBody SendCorrespEmailRequestDTO request
+    ) {
+        log.debug("REST request to prepare email for correspId={}", request.getCorrespId());
+        try {
+            Message message = correspEmailService.prepareAndPersistEmail(request);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("messageId", message.getId());
+            response.put("status", "PENDING");
+            response.put("correspId", request.getCorrespId());
+            return ResponseEntity.ok(response);
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Erreur lors de la préparation de l'email", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Erreur lors de la préparation de l'email : " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/corresps/preview-email")
+    public ResponseEntity<Map<String, Object>> previewCorrespEmail(
+        @RequestBody SendCorrespEmailRequestDTO request
+    ) {
+        log.debug("REST request to preview email for modelNotifId={}", request.getModelNotifId());
+        try {
+            // 1) Récupérer le ModelNotif
+            ModelNotifDTO modelNotif = configManageRestClient.getModelNotifById(request.getModelNotifId());
+            if (modelNotif == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "ModelNotif introuvable"));
+            }
+
+            // 2) Construire le contexte FreeMarker à partir du request
+            Map<String, Object> ctx = new HashMap<>();
+            ctx.put("reference",         request.getCorrespReference() != null ? request.getCorrespReference() : "");
+            ctx.put("objet",             request.getCorrespObjet() != null ? request.getCorrespObjet() : "");
+            ctx.put("date",              request.getCorrespDate() != null ? request.getCorrespDate() : "");
+            ctx.put("destinataire",      request.getDestinataireLabel() != null ? request.getDestinataireLabel() : "");
+            ctx.put("corps",             request.getCorrespBody() != null ? request.getCorrespBody() : "");
+            ctx.put("expediteur",        request.getSenderDepartement() != null ? request.getSenderDepartement() : "");
+            ctx.put("nomComplet",        request.getSenderFullName() != null ? request.getSenderFullName() : "");
+            ctx.put("departement",       request.getSenderDepartement() != null ? request.getSenderDepartement() : "");
+            ctx.put("emailEmetteur",     request.getSenderEmail() != null ? request.getSenderEmail() : "");
+            ctx.put("emailDestinataire", request.getReceiver() != null ? request.getReceiver() : "");
+            ctx.put("emailCopie",        request.getCopyTo() != null ? request.getCopyTo() : "");
+            ctx.put("dateAujourdhui",    java.time.ZonedDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+
+            // 3) Rendre le template
+            TemplateRenderService templateRenderService = new TemplateRenderService();
+            String renderedHtml  = templateRenderService.render(modelNotif.getContent(), ctx);
+            String renderedSubject = modelNotif.getSubjectFormula() != null
+                ? templateRenderService.render(modelNotif.getSubjectFormula(), ctx)
+                : request.getCorrespObjet();
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("html",    renderedHtml);
+            response.put("subject", renderedSubject);
+            response.put("from",    request.getSenderEmail());
+            response.put("to",      request.getReceiver());
+            response.put("cc",      request.getCopyTo());
+            response.put("modelName", modelNotif.getName());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Erreur preview email", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Erreur : " + e.getMessage()));
+        }
     }
 }
