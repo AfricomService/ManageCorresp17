@@ -15,6 +15,16 @@ public class ApplicationProperties {
     private String dir_pj;
     private String dir_body;
 
+    private final Mail mail = new Mail();
+
+    public Mail getMail() { return mail; }
+
+    public static class Mail {
+        private String fromName = "CorrespCare";
+        public String getFromName() { return fromName; }
+        public void setFromName(String fromName) { this.fromName = fromName; }
+    }
+
     public String getSlash() {
         return slash;
     }

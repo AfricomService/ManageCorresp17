@@ -82,6 +82,21 @@ spring:
     locator:
       discovery:
         enabled: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:africomservices1@gmail.com}
+    password: ${MAIL_PASSWORD:dkmfhjvcjnwfshyg}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    default-encoding: UTF-8
 
 server:
   port: 8081
@@ -137,3 +152,5 @@ application:
   slash: \
   dir_pj: D:\pjs
   dir_body: D:\body
+  mail:
+    from-name: CorrespCare

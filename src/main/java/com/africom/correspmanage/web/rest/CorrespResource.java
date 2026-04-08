@@ -12,6 +12,7 @@ import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespEmailService;
 import com.africom.correspmanage.service.CorrespService;
+import com.africom.correspmanage.service.EmailSendService;
 import com.africom.correspmanage.service.TemplateRenderService;
 import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
@@ -62,6 +63,7 @@ public class CorrespResource {
     private final MessageRepository messageRepository;
     private final CorrespEmailService correspEmailService;
     private final TemplateRenderService templateRenderService;
+    private final EmailSendService emailSendService;
 
 
     public CorrespResource(
@@ -70,7 +72,8 @@ public class CorrespResource {
         CorrespRepository correspRepository,
         MessageRepository messageRepository,
         CorrespEmailService correspEmailService,
-        TemplateRenderService templateRenderService
+        TemplateRenderService templateRenderService,
+        EmailSendService emailSendService
     ) {
         this.configManageRestClient = configManageRestClient;
         this.correspService = correspService;
@@ -78,6 +81,7 @@ public class CorrespResource {
         this.messageRepository = messageRepository;
         this.correspEmailService = correspEmailService;
         this.templateRenderService = templateRenderService;
+        this.emailSendService = emailSendService;
     }
 
     /**
@@ -719,6 +723,34 @@ public ResponseEntity<?> addTaskToCorresp(
             log.error("Erreur preview email", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Erreur : " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/corresps/send-email/{messageId}")
+    public ResponseEntity<Map<String, Object>> sendEmailFromMessage(
+        @PathVariable Long                messageId,
+        @RequestBody  Map<String, String> body
+    ) {
+        log.debug("REST request to send SMTP email from messageId={}", messageId);
+        try {
+            String subject = body.getOrDefault("subject", "Correspondance");
+            Message sent   = emailSendService.sendEmailFromMessage(messageId, subject);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("messageId", sent.getId());
+            response.put("status",    sent.getEtat());       // "SENT"
+            response.put("sender",    sent.getSender());     // email expéditeur utilisé
+            response.put("sent",      true);
+
+            return ResponseEntity.ok(response);
+
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", e.getMessage(), "sent", false));
+        } catch (Exception e) {
+            log.error("Erreur envoi SMTP messageId={}", messageId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", e.getMessage(), "sent", false));
         }
     }
 }
