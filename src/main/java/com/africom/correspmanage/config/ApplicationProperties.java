@@ -15,15 +15,43 @@ public class ApplicationProperties {
     private String dir_pj;
     private String dir_body;
 
-//    private final Mail mail = new Mail();
-//
-//    public Mail getMail() { return mail; }
-//
-//    public static class Mail {
-//        private String fromName = "CorrespCare";
-//        public String getFromName() { return fromName; }
-//        public void setFromName(String fromName) { this.fromName = fromName; }
-//    }
+    private final Mail mail = new Mail();
+
+    public Mail getMail() { return mail; }
+
+    public static class Mail {
+
+        private String fromName = "CorrespCare";
+
+        // SMTP à utiliser pour l'envoi (topnet dans votre cas)
+        private String smtpHost = "smtp.topnet.tn";
+        private int    smtpPort = 25;
+
+        // Compte SMTP d'authentification (celui qui a accès au relay topnet)
+        private String smtpUsername = "";
+        private String smtpPassword = "";
+
+        // Activer STARTTLS ou pas (topnet:25 → false)
+        private boolean starttls = false;
+
+        public String getFromName()               { return fromName; }
+        public void   setFromName(String v)       { this.fromName = v; }
+
+        public String getSmtpHost()               { return smtpHost; }
+        public void   setSmtpHost(String v)       { this.smtpHost = v; }
+
+        public int    getSmtpPort()               { return smtpPort; }
+        public void   setSmtpPort(int v)          { this.smtpPort = v; }
+
+        public String getSmtpUsername()           { return smtpUsername; }
+        public void   setSmtpUsername(String v)   { this.smtpUsername = v; }
+
+        public String getSmtpPassword()           { return smtpPassword; }
+        public void   setSmtpPassword(String v)   { this.smtpPassword = v; }
+
+        public boolean isStarttls()               { return starttls; }
+        public void    setStarttls(boolean v)     { this.starttls = v; }
+    }
 
     public String getSlash() {
         return slash;
