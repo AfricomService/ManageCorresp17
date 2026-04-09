@@ -312,4 +312,7 @@ SELECT COUNT(*) FROM (
         @Param("search") String search,
         Pageable pageable);
 
+    @Query("select c from Corresp c left join fetch c.attachments where c.id = :id")
+    Optional<Corresp> findOneWithEagerRelationshipss(@Param("id") Long id);
+
 }

@@ -1,26 +1,29 @@
 package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.config.ApplicationProperties;
+import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Message;
+import com.africom.correspmanage.domain.Pj;
+import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.activation.DataHandler;
+import javax.activation.FileDataSource;
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import javax.persistence.EntityNotFoundException;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 @Service
 @Transactional
@@ -30,14 +33,16 @@ public class EmailSendService {
 
     private final MessageRepository     messageRepository;
     private final ApplicationProperties applicationProperties;
+    private final CorrespRepository     correspRepository;
 
-    // Plus de JavaMailSender Spring Boot — on gère notre propre session JavaMail
     public EmailSendService(
         MessageRepository     messageRepository,
-        ApplicationProperties applicationProperties
+        ApplicationProperties applicationProperties,
+        CorrespRepository correspRepository
     ) {
         this.messageRepository     = messageRepository;
         this.applicationProperties = applicationProperties;
+        this.correspRepository     = correspRepository;
     }
 
     // =========================================================================
@@ -124,13 +129,18 @@ public class EmailSendService {
             }
 
             // Corps HTML
+// Corps HTML
             MimeBodyPart htmlPart = new MimeBodyPart();
             htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
 
             MimeMultipart multipart = new MimeMultipart("mixed");
             multipart.addBodyPart(htmlPart);
-            mimeMessage.setContent(multipart);
 
+// ── PJs de la correspondance ──────────────────────────────────────
+// On récupère les pièces jointes via le correspId du Message
+            attachPjsFromCorresp(message.getCorrespId(), multipart);
+
+            mimeMessage.setContent(multipart);
             mimeMessage.saveChanges();
 
             // Envoi via SMTP topnet
@@ -282,5 +292,92 @@ public class EmailSendService {
             addresses[i] = new InternetAddress(emails.get(i));
         }
         return addresses;
+    }
+
+    /**
+     * Récupère les PJs de la correspondance et les attache au MimeMultipart.
+     * Si une PJ n'existe pas sur le disque, elle est ignorée avec un warning.
+     *
+     * @param correspId  id de la correspondance (depuis message.getCorrespId())
+     * @param multipart  le multipart MIME auquel on va ajouter les attachments
+     */
+    private void attachPjsFromCorresp(Long correspId, MimeMultipart multipart)
+        throws Exception {
+
+        if (correspId == null) {
+            log.warn("correspId null — aucune PJ attachée");
+            return;
+        }
+
+        // Récupérer la correspondance avec ses PJs (eager load via JPA)
+        Corresp corresp = correspRepository.findOneWithEagerRelationshipss(correspId)
+            .orElse(null);
+
+        if (corresp == null) {
+            log.warn("Corresp introuvable pour correspId={} — aucune PJ attachée", correspId);
+            return;
+        }
+
+        Set<Pj> pjs = corresp.getAttachments();
+
+        if (pjs == null || pjs.isEmpty()) {
+            log.info("Aucune PJ pour correspId={}", correspId);
+            return;
+        }
+
+        log.info("{} PJ(s) trouvée(s) pour correspId={}", pjs.size(), correspId);
+
+        for (Pj pj : pjs) {
+            String filePath = pj.getPath();
+
+            if (filePath == null || filePath.isBlank()) {
+                log.warn("PJ id={} — path null ou vide, ignorée", pj.getId());
+                continue;
+            }
+
+            File file = new File(filePath);
+
+            if (!file.exists() || !file.isFile()) {
+                log.warn("PJ id={} — fichier introuvable : {}", pj.getId(), filePath);
+                continue;
+            }
+
+            // Construire le nom d'affichage de la pièce jointe
+            String attachmentName = buildAttachmentName(pj);
+
+            try {
+                MimeBodyPart attachmentPart = new MimeBodyPart();
+                attachmentPart.setDataHandler(
+                    new DataHandler(new FileDataSource(file))
+                );
+                // Nom du fichier visible dans le client email (encodé UTF-8)
+                attachmentPart.setFileName(
+                    javax.mail.internet.MimeUtility.encodeText(attachmentName, "UTF-8", "B")
+                );
+                multipart.addBodyPart(attachmentPart);
+                log.info("✅ PJ attachée : {} ({})", attachmentName, filePath);
+            } catch (Exception e) {
+                log.error("❌ Impossible d'attacher la PJ id={} : {}", pj.getId(), e.getMessage());
+                // On continue les autres PJs même si l'une échoue
+            }
+        }
+    }
+
+    /**
+     * Construit le nom complet du fichier attachment à partir de l'entité Pj.
+     * Exemple : "MonDocument.pdf"
+     */
+    private String buildAttachmentName(Pj pj) {
+        String name = pj.getName() != null ? pj.getName().trim() : "document";
+        String ext  = pj.getFileType() != null ? pj.getFileType().trim() : "";
+
+        if (ext.isEmpty()) {
+            return name;
+        }
+        // Eviter double extension si name contient déjà l'extension
+        if (name.toLowerCase().endsWith("." + ext.toLowerCase())) {
+            return name;
+        }
+        return name + "." + ext;
     }
 }
