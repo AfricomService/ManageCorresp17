@@ -82,6 +82,24 @@ spring:
     locator:
       discovery:
         enabled: true
+  mail:
+    host: smtp.topnet.tn
+    port: 25
+#    username: boc@africomservices.com
+#    password: "Boc@fr25+"
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+      mail.smtp.ssl.enable: false
+      mail.smtp.connectiontimeout: 30000
+      mail.smtp.timeout: 30000
+      mail.smtp.writetimeout: 30000
+      mail.smtp.localhost: africomservices.com
+      mail.smtp.auth.login.disable: true
+      mail.smtp.auth.digest-md5.disable: true
+      mail.smtp.auth.ntlm.disable: true
+      mail.smtp.auth.xoauth2.disable: true
+      mail.debug: true
 
 server:
   port: 8081
@@ -137,3 +155,11 @@ application:
   slash: \
   dir_pj: D:\pjs
   dir_body: D:\body
+  mail:
+    from-name: CorrespCare
+    smtp-host: smtp.topnet.tn
+    smtp-port: 25
+    smtp-username: ""        # ← vider
+    smtp-password: ""        # ← vider
+    starttls: false
+

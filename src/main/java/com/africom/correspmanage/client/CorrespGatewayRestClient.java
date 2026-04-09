@@ -2,6 +2,8 @@ package com.africom.correspmanage.client;
 
 
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +29,9 @@ public interface CorrespGatewayRestClient {
 
     @GetMapping(value = "/api/admin/users/id/{id}")
     Map<String, Object> getUserById(@PathVariable("id") Long id);
+
+    @GetMapping(value = "/api/admin/users/me/email-password", produces = MediaType.TEXT_PLAIN_VALUE)
+    ResponseEntity<String> getCurrentUserEmailPassword();
 
 
 }
