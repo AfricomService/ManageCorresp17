@@ -83,20 +83,35 @@ spring:
       discovery:
         enabled: true
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME:africomservices1@gmail.com}
-    password: ${MAIL_PASSWORD:dkmfhjvcjnwfshyg}
+    host: smtp.topnet.tn
+    port: 25
+    username: boc@africomservices.com
+    password: "Boc@fr25+"
     properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
-    default-encoding: UTF-8
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: false
+      mail.smtp.ssl.enable: false
+      mail.smtp.connectiontimeout: 30000
+      mail.smtp.timeout: 30000
+      mail.smtp.writetimeout: 30000
+      mail.smtp.localhost: africomservices.com
+      mail.smtp.auth.login.disable: true
+      mail.smtp.auth.digest-md5.disable: true
+      mail.smtp.auth.ntlm.disable: true
+      mail.smtp.auth.xoauth2.disable: true
+      mail.debug: true
+#    username: ${MAIL_USERNAME:mohamedamine.trabelsi@africomservices.com}
+#    password: ${MAIL_PASSWORD:Trabelsi@25+}
+#    properties:
+#      mail:
+#        smtp:
+#          auth: true
+#          starttls:
+#            enable: true
+#          connectiontimeout: 5000
+#          timeout: 5000
+#          writetimeout: 5000
+#    default-encoding: UTF-8
 
 server:
   port: 8081
@@ -152,5 +167,5 @@ application:
   slash: \
   dir_pj: D:\pjs
   dir_body: D:\body
-  mail:
-    from-name: CorrespCare
+#  mail:
+#    from-name: CorrespCare

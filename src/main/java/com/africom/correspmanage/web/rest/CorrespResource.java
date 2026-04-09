@@ -726,31 +726,74 @@ public ResponseEntity<?> addTaskToCorresp(
         }
     }
 
-    @PostMapping("/corresps/send-email/{messageId}")
-    public ResponseEntity<Map<String, Object>> sendEmailFromMessage(
-        @PathVariable Long                messageId,
-        @RequestBody  Map<String, String> body
-    ) {
-        log.debug("REST request to send SMTP email from messageId={}", messageId);
-        try {
-            String subject = body.getOrDefault("subject", "Correspondance");
-            Message sent   = emailSendService.sendEmailFromMessage(messageId, subject);
+//    @PostMapping("/corresps/send-email/{messageId}")
+//    public ResponseEntity<Map<String, Object>> sendEmailFromMessage(
+//        @PathVariable Long                messageId,
+//        @RequestBody  Map<String, String> body
+//    ) {
+//        log.debug("REST request to send SMTP email from messageId={}", messageId);
+//        try {
+//            String subject = body.getOrDefault("subject", "Correspondance");
+//            Message sent   = emailSendService.sendEmailFromMessage(messageId, subject);
+//
+//            Map<String, Object> response = new LinkedHashMap<>();
+//            response.put("messageId", sent.getId());
+//            response.put("status",    sent.getEtat());       // "SENT"
+//            response.put("sender",    sent.getSender());     // email expéditeur utilisé
+//            response.put("sent",      true);
+//
+//            return ResponseEntity.ok(response);
+//
+//        } catch (EntityNotFoundException e) {
+//            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+//                .body(Map.of("error", e.getMessage(), "sent", false));
+//        } catch (Exception e) {
+//            log.error("Erreur envoi SMTP messageId={}", messageId, e);
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                .body(Map.of("error", e.getMessage(), "sent", false));
+//        }
+//    }
 
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("messageId", sent.getId());
-            response.put("status",    sent.getEtat());       // "SENT"
-            response.put("sender",    sent.getSender());     // email expéditeur utilisé
-            response.put("sent",      true);
 
-            return ResponseEntity.ok(response);
+    /**
+     * POST /api/corresps/test-email
+     * Endpoint de test uniquement — envoie un email hardcodé via sendTestEmailHardcoded().
+     * À supprimer ou sécuriser avant la mise en production.
+     */
+//    @PostMapping("/corresps/test-email")
+//    public ResponseEntity<Map<String, Object>> sendTestEmail() {
+//        log.debug("REST request to send hardcoded test email");
+//        try {
+//            EmailSendService.sendEmail();
+//
+//            Map<String, Object> response = new LinkedHashMap<>();
+//            response.put("sent",    true);
+//            response.put("subject", "Test Email");
+//            response.put("to",      "trabelsimedamine999@gmail.com");
+//            response.put("status",  "SUCCESS");
+//            return ResponseEntity.ok(response);
+//
+//        } catch (Exception e) {
+//            log.error("❌ Erreur test email", e);
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                .body(Map.of(
+//                    "sent",   false,
+//                    "status", "FAILED",
+//                    "error",  e.getMessage()
+//                ));
+//        }
+//    }
 
-        } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("error", e.getMessage(), "sent", false));
-        } catch (Exception e) {
-            log.error("Erreur envoi SMTP messageId={}", messageId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", e.getMessage(), "sent", false));
-        }
+    @GetMapping("/send-email")
+    public ResponseEntity<Map<String, String>> sendTestEmail() {
+        log.info("REST request pour envoyer un email de test");
+        String result = emailSendService.sendTestEmailWithStaticConfig();
+
+        boolean success = result.contains("✅");  // ← CORRECTION
+
+        return success
+            ? ResponseEntity.ok(Map.of("status", "SUCCESS", "message", result))
+            : ResponseEntity.internalServerError()
+            .body(Map.of("status", "ERROR", "message", result));
     }
 }

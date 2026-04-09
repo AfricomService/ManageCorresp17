@@ -101,7 +101,7 @@ management:
       enabled: true
   health:
     mail:
-      enabled: true # When using the MailService, configure an SMTP server and set this to true
+      enabled: false # When using the MailService, configure an SMTP server and set this to true
   metrics:
     export:
       # Prometheus is the default metrics backend
@@ -130,6 +130,9 @@ management:
 spring:
   application:
     name: correspManage
+  mail:
+    host: smtp.topnet.tn
+    port: 25
   profiles:
     # The commented value for `active` can be replaced with valid Spring profiles to load.
     # Otherwise, it will be filled in by maven when building the JAR file
