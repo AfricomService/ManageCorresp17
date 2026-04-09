@@ -12,6 +12,7 @@ import com.africom.correspmanage.repository.MessageRepository;
 import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.service.CorrespEmailService;
 import com.africom.correspmanage.service.CorrespService;
+import com.africom.correspmanage.service.EmailSendService;
 import com.africom.correspmanage.service.TemplateRenderService;
 import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
@@ -62,6 +63,7 @@ public class CorrespResource {
     private final MessageRepository messageRepository;
     private final CorrespEmailService correspEmailService;
     private final TemplateRenderService templateRenderService;
+    private final EmailSendService emailSendService;
 
 
     public CorrespResource(
@@ -70,7 +72,8 @@ public class CorrespResource {
         CorrespRepository correspRepository,
         MessageRepository messageRepository,
         CorrespEmailService correspEmailService,
-        TemplateRenderService templateRenderService
+        TemplateRenderService templateRenderService,
+        EmailSendService emailSendService
     ) {
         this.configManageRestClient = configManageRestClient;
         this.correspService = correspService;
@@ -78,6 +81,7 @@ public class CorrespResource {
         this.messageRepository = messageRepository;
         this.correspEmailService = correspEmailService;
         this.templateRenderService = templateRenderService;
+        this.emailSendService = emailSendService;
     }
 
     /**
@@ -720,5 +724,30 @@ public ResponseEntity<?> addTaskToCorresp(
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Erreur : " + e.getMessage()));
         }
+    }
+
+    // Endpoint principal d'envoi (depuis message persisté)
+    @PostMapping("/corresps/send-email/{messageId}")
+    public ResponseEntity<Map<String, Object>> sendEmailFromMessage(
+        @PathVariable Long messageId,
+        @RequestBody Map<String, String> body
+    ) {
+        String subject = body.getOrDefault("subject", "Correspondance");
+        Message sent = emailSendService.sendEmailFromMessage(messageId, subject);
+        return ResponseEntity.ok(Map.of(
+            "messageId", sent.getId(),
+            "status",    sent.getEtat(),
+            "sender",    sent.getSender(),
+            "sent",      "SENT".equals(sent.getEtat())
+        ));
+    }
+
+    // Endpoint de test (temporaire)
+    @PostMapping("/corresps/test-email")
+    public ResponseEntity<Map<String, Object>> sendTestEmail(
+        @RequestParam(defaultValue = "trabelsimedamine999@gmail.com") String to
+    ) {
+        emailSendService.sendTestEmail(to);
+        return ResponseEntity.ok(Map.of("sent", true, "to", to));
     }
 }
