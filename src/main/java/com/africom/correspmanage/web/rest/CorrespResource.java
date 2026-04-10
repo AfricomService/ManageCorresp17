@@ -743,11 +743,25 @@ public ResponseEntity<?> addTaskToCorresp(
     }
 
     // Endpoint de test (temporaire)
+// Endpoint de test — utilise la config SMTP en base
     @PostMapping("/corresps/test-email")
     public ResponseEntity<Map<String, Object>> sendTestEmail(
         @RequestParam(defaultValue = "trabelsimedamine999@gmail.com") String to
     ) {
-        emailSendService.sendTestEmail(to);
-        return ResponseEntity.ok(Map.of("sent", true, "to", to));
+        try {
+            emailSendService.sendTestEmail(to);
+            return ResponseEntity.ok(Map.of(
+                "sent",   true,
+                "to",     to,
+                "status", "SUCCESS"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "sent",   false,
+                "to",     to,
+                "status", "ERROR",
+                "error",  e.getMessage()
+            ));
+        }
     }
 }

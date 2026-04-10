@@ -29,7 +29,8 @@
       "CustomSearch",
       "Message",
       "ResponsableTache",
-      "ContactCopieCorresp"
+      "ContactCopieCorresp",
+      "SmtpConfig"
     ],
     "entitySuffix": "",
     "gradleEnterpriseHost": "",
@@ -37,7 +38,7 @@
     "jhipsterVersion": "7.9.3",
     "jwtSecretKey": "OWUxYWY4ODBmODllODJlZjIyM2U0MmNhMTQ0YWMyNWM2YzNmZDQ2ZjgyMDFiNDU3MjYxZjI4MDkzODJkYTgyMmNlMzJmYzFiOWZlYjQyNzA4ZThkYTE0NWIyZTI5Nzk3Y2U0ZDllODYyZTY4ZGEzZTViMWIxMjFkMjlmZGE1OWU=",
     "languages": ["en"],
-    "lastLiquibaseTimestamp": 1772180790000,
+    "lastLiquibaseTimestamp": 1775811944000,
     "messageBroker": false,
     "microfrontend": false,
     "nativeLanguage": "en",
