@@ -86,6 +86,9 @@ public class Message implements Serializable {
     @Column(name = "updated_date")
     private ZonedDateTime updatedDate;
 
+    @Column(name = "message_type")
+    private String messageType;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
@@ -322,6 +325,19 @@ public class Message implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public String getMessageType() {
+        return this.messageType;
+    }
+
+    public Message messageType(String messageType) {
+        this.setMessageType(messageType);
+        return this;
+    }
+
+    public void setMessageType(String messageType) {
+        this.messageType = messageType;
+    }
+
     // jhipster-needle-entity-add-getters-setters - JHipster will add getters and setters here
 
     @Override
@@ -347,9 +363,9 @@ public class Message implements Serializable {
         return "Message{" +
             "id=" + getId() +
             ", sender='" + getSender() + "'" +
-            ", receiver='" + String.valueOf(getReceiver()) + "'" +
-            ", copyTo='" + String.valueOf(getCopyTo()) + "'" +
-            ", blindCopyTo='" + String.valueOf(getBlindCopyTo()) + "'" +
+            ", receiver='" + getReceiver() + "'" +
+            ", copyTo='" + getCopyTo() + "'" +
+            ", blindCopyTo='" + getBlindCopyTo() + "'" +
             ", path='" + getPath() + "'" +
             ", msgID='" + getMsgID() + "'" +
             ", parentID='" + getParentID() + "'" +
@@ -363,6 +379,7 @@ public class Message implements Serializable {
             ", creationDate='" + getCreationDate() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", messageType='" + getMessageType() + "'" +
             "}";
     }
 }

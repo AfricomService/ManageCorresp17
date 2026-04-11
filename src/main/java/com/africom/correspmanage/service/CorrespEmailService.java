@@ -76,7 +76,8 @@ public class CorrespEmailService {
 
         // 6) Persister dans la table message
         //    On cherche s'il existe déjà un message pour cette corresp
-        Message message = messageRepository.findByCorrespId(corresp.getId())
+        Message message = messageRepository
+            .findByCorrespIdAndMessageType(corresp.getId(), "EMAIL")
             .orElse(new Message());
 
         message.setSender(
@@ -96,7 +97,7 @@ public class CorrespEmailService {
         message.setCopyTo(parseEmailString(request.getCopyTo()));
 
         // Sauvegarder le HTML rendu dans un fichier (réutilise la méthode existante)
-        String filePath = correspService.saveBodyToFile(renderedHtml, corresp.getId());
+        String filePath = correspService.saveBodyToFile(renderedHtml, corresp.getId(), "email");
         message.setPath(filePath);
         message.setUniqueName(corresp.getId() + "_email.html");
 
@@ -105,6 +106,7 @@ public class CorrespEmailService {
         }
         message.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
         message.setUpdatedDate(ZonedDateTime.now());
+        message.setMessageType("EMAIL");
 
         Message saved = messageRepository.save(message);
         log.info("Message email persisté pour correspId={}, messageId={}", corresp.getId(), saved.getId());

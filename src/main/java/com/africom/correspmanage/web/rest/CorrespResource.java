@@ -522,9 +522,14 @@ public ResponseEntity<?> addTaskToCorresp(
 
     @GetMapping("/corresps/loadBodyFromFile")
     public ResponseEntity<String> loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
-        return messageRepository.findByCorrespId(correspId)
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT")
             .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"));
+            .orElseGet(() ->
+                // Fallback anciens enregistrements sans messageType
+                messageRepository.findByCorrespId(correspId)
+                    .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"))
+            );
     }
 
     @DeleteMapping("/correspsDelete/{correspId}")
@@ -763,5 +768,21 @@ public ResponseEntity<?> addTaskToCorresp(
                 "error",  e.getMessage()
             ));
         }
+    }
+
+    /**
+     * GET /api/corresps/{correspId}/body
+     * Retourne le corps HTML brut (message DRAFT) de la correspondance.
+     */
+    @GetMapping("/corresps/{correspId}/body")
+    public ResponseEntity<String> getCorrespBody(@PathVariable Long correspId) {
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT")
+            .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+            .orElseGet(() ->
+                // fallback : essayer sans type pour les anciens enregistrements
+                messageRepository.findByCorrespId(correspId)
+                    .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(""))
+            );
     }
 }

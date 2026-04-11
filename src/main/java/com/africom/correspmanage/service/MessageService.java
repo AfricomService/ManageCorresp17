@@ -106,10 +106,19 @@ public class MessageService {
      * @param correspId the id of the corresp.
      * @return the entity.
      */
+// APRÈS :
     @Transactional(readOnly = true)
     public Optional<MessageDTO> findByCorrespId(Long correspId) {
         log.debug("Request to get Message by correspId : {}", correspId);
-        return messageRepository.findByCorrespId(correspId).map(messageMapper::toDto);
+        // Cibler le message DRAFT en priorité (corps brut saisi par l'utilisateur)
+        // Fallback sur findByCorrespId uniquement si pas de DRAFT (anciens enregistrements sans messageType)
+        Optional<Message> draftMsg = messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT");
+        if (draftMsg.isPresent()) {
+            return draftMsg.map(messageMapper::toDto);
+        }
+        // Fallback : anciens enregistrements avant l'introduction de messageType
+        // Utiliser findFirstByCorrespId pour éviter NonUniqueResultException
+        return messageRepository.findFirstByCorrespIdOrderByIdAsc(correspId).map(messageMapper::toDto);
     }
 
     /**

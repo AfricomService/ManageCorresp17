@@ -630,15 +630,32 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         }
 
         // Body -> fichier / message (inchangé)
-        String path = saveBodyToFile(correspDTO.getBody(), saved.getId());
-        Message message = new Message();
-        message.sender(correspDTO.getSender());
-        message.setCorrespId(saved.getId());
-        message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
-        message.setCreationDate(ZonedDateTime.now());
-        message.setUniqueName(saved.getId() + ".html");
-        message.setPath(path);
-        messageRepository.save(message);
+// APRÈS (remplacer par) :
+        String currentUser = SecurityUtils.getCurrentUserLogin().get();
+
+// Message DRAFT : corps brut saisi par l'utilisateur
+        String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "draft");
+        Message draftMessage = new Message();
+        draftMessage.sender(correspDTO.getSender());
+        draftMessage.setCorrespId(saved.getId());
+        draftMessage.setCreatedBy(currentUser);
+        draftMessage.setCreationDate(ZonedDateTime.now());
+        draftMessage.setUniqueName(saved.getId() + "_draft.html");
+        draftMessage.setPath(draftPath);
+        draftMessage.setMessageType("DRAFT");
+        messageRepository.save(draftMessage);
+
+// Message EMAIL : corps enrichi FreeMarker (sera mis à jour par prepareAndPersistEmail)
+// On crée un placeholder vide que CorrespEmailService viendra remplir
+        Message emailMessage = new Message();
+        emailMessage.sender(correspDTO.getSender());
+        emailMessage.setCorrespId(saved.getId());
+        emailMessage.setCreatedBy(currentUser);
+        emailMessage.setCreationDate(ZonedDateTime.now());
+        emailMessage.setUniqueName(saved.getId() + "_email.html");
+        emailMessage.setMessageType("EMAIL");
+        emailMessage.setEtat("PENDING");
+        messageRepository.save(emailMessage);
 
         log.debug("save corresp {}", saved);
         return saved;
@@ -905,8 +922,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     @Transactional(readOnly = true)
     public Map<String, Object> getMessageByCorrespId(Long correspId) {
         log.debug("Request to get Message receiver and copyTo by correspId : {}", correspId);
-        Message message = messageRepository.findByCorrespId(correspId)
-            .orElseThrow(() -> new EntityNotFoundException("Message not found for correspId: " + correspId));
+        Message message = messageRepository
+            .findByCorrespIdAndMessageType(correspId, "DRAFT")
+            .orElseThrow(() -> new EntityNotFoundException("Message DRAFT not found for correspId: " + correspId));
         Map<String, Object> result = new HashMap<>();
         result.put("receiver", message.getReceiver());
         result.put("copyTo", message.getCopyTo());
@@ -947,7 +965,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         if (newBody != null) {
             String path = saveBodyToFile(newBody, existing.getId());
-            java.util.Optional<com.africom.correspmanage.domain.Message> optMsg = messageRepository.findByCorrespId(existing.getId());
+            java.util.Optional<com.africom.correspmanage.domain.Message> optMsg = messageRepository
+                .findByCorrespIdAndMessageType(existing.getId(), "DRAFT");
             if (optMsg.isPresent()) {
                 com.africom.correspmanage.domain.Message msg = optMsg.get();
                 msg.setPath(path);
@@ -962,6 +981,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 message.setCreationDate(ZonedDateTime.now());
                 message.setUniqueName(existing.getId() + ".html");
                 message.setPath(path);
+                message.setMessageType("DRAFT");
                 messageRepository.save(message);
             }
         }
@@ -1779,41 +1799,34 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     }
 
 
-    public String saveBodyToFile(String richTextContent, Long correspId) {
+    // Nouvelle signature principale
+    public String saveBodyToFile(String richTextContent, Long correspId, String suffix) {
         try {
             ZonedDateTime now = ZonedDateTime.now();
-
-            // Build directory path cleanly
             Path storagePath = Paths.get(
                 applicationProperties.getDir_body(),
                 String.valueOf(now.getYear()),
                 now.getMonth().toString(),
                 now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
             );
-
             Files.createDirectories(storagePath);
 
-            // Always use the file <correspId>.html
-            Path filePath = storagePath.resolve(correspId + ".html");
+            String fileName = correspId + (suffix != null && !suffix.isBlank() ? "_" + suffix : "") + ".html";
+            Path filePath = storagePath.resolve(fileName);
 
-            // If file exists → delete it
-            if (Files.exists(filePath)) {
-                Files.delete(filePath);
-            }
-
-            // Create a new empty file
+            if (Files.exists(filePath)) Files.delete(filePath);
             Files.createFile(filePath);
-
-            log.debug("filepath {}", filePath);
-            log.debug("richTextContent {}", richTextContent);
-
-            // Write the content
-            Files.writeString(filePath, richTextContent, StandardOpenOption.TRUNCATE_EXISTING);
+            Files.writeString(filePath, richTextContent != null ? richTextContent : "", StandardOpenOption.TRUNCATE_EXISTING);
 
             return filePath.toString();
         } catch (IOException e) {
             throw new RuntimeException("Error saving body to file", e);
         }
+    }
+
+    // Garder l'ancienne signature pour compatibilité (appels existants dans updateCorrespDraft, saveCorrespWithPjN8N, etc.)
+    public String saveBodyToFile(String richTextContent, Long correspId) {
+        return saveBodyToFile(richTextContent, correspId, "draft");
     }
 
     public String loadBodyFromFile(String filePath) {
