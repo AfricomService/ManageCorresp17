@@ -647,15 +647,31 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
 // Message EMAIL : corps enrichi FreeMarker (sera mis à jour par prepareAndPersistEmail)
 // On crée un placeholder vide que CorrespEmailService viendra remplir
-        Message emailMessage = new Message();
-        emailMessage.sender(correspDTO.getSender());
-        emailMessage.setCorrespId(saved.getId());
-        emailMessage.setCreatedBy(currentUser);
-        emailMessage.setCreationDate(ZonedDateTime.now());
-        emailMessage.setUniqueName(saved.getId() + "_email.eml");
-        emailMessage.setMessageType("EMAIL");
-        emailMessage.setEtat("PENDING");
-        messageRepository.save(emailMessage);
+// Message EMAIL : persisté uniquement si saveCopy = true sur le modèle de notification
+        boolean shouldSaveEmailMessage = false;
+        if (correspDTO.getModelNotifId() != null) {
+            try {
+                ModelNotifDTO modelNotif = configManageRestClient.getModelNotifById(correspDTO.getModelNotifId());
+                shouldSaveEmailMessage = modelNotif != null && Boolean.TRUE.equals(modelNotif.getSaveCopy());
+            } catch (Exception e) {
+                log.warn("Impossible de récupérer le ModelNotif {} pour vérifier saveCopy : {}", correspDTO.getModelNotifId(), e.getMessage());
+            }
+        }
+
+        if (shouldSaveEmailMessage) {
+            Message emailMessage = new Message();
+            emailMessage.sender(correspDTO.getSender());
+            emailMessage.setCorrespId(saved.getId());
+            emailMessage.setCreatedBy(currentUser);
+            emailMessage.setCreationDate(ZonedDateTime.now());
+            emailMessage.setUniqueName(saved.getId() + "_email.eml");
+            emailMessage.setMessageType("EMAIL");
+            emailMessage.setEtat("PENDING");
+            messageRepository.save(emailMessage);
+            log.debug("Message EMAIL persisté pour correspId={} (saveCopy=true)", saved.getId());
+        } else {
+            log.debug("Message EMAIL non persisté pour correspId={} (saveCopy=false ou modelNotif absent)", saved.getId());
+        }
 
         log.debug("save corresp {}", saved);
         return saved;
@@ -964,7 +980,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         log.debug("Updated DRAFT corresp {}", updated);
 
         if (newBody != null) {
-            String path = saveBodyToFile(newBody, existing.getId());
+            String path = saveBodyToFile(newBody, existing.getId(), "courrier");
             java.util.Optional<com.africom.correspmanage.domain.Message> optMsg = messageRepository
                 .findByCorrespIdAndMessageType(existing.getId(), "COURRIER");
             if (optMsg.isPresent()) {
@@ -979,7 +995,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 message.setCorrespId(existing.getId());
                 message.setCreatedBy(SecurityUtils.getCurrentUserLogin().get());
                 message.setCreationDate(ZonedDateTime.now());
-                message.setUniqueName(existing.getId() + ".html");
+                message.setUniqueName(existing.getId() + "_courrier.html");
                 message.setPath(path);
                 message.setMessageType("COURRIER");
                 messageRepository.save(message);

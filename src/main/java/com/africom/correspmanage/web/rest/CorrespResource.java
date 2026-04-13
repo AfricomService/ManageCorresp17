@@ -786,4 +786,39 @@ public ResponseEntity<?> addTaskToCorresp(
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(""))
             );
     }
+
+    /**
+     * POST /corresps/send-email-direct
+     * Envoie un email sans message persisté (saveCopy=false).
+     * Prépare et envoie en une seule opération sans sauvegarder en base.
+     */
+    @PostMapping("/corresps/send-email-direct")
+    public ResponseEntity<Map<String, Object>> sendEmailDirect(
+        @RequestBody SendCorrespEmailRequestDTO request
+    ) {
+        log.debug("REST request to send email direct (no persist) for correspId={}", request.getCorrespId());
+        try {
+            // Préparer le message (sans persister)
+            Message message = correspEmailService.prepareAndPersistEmail(request);
+
+            // Envoyer directement
+            String subject = request.getCorrespObjet() != null
+                ? "[Correspondance] " + request.getCorrespObjet()
+                : "Correspondance";
+            emailSendService.sendEmailDirect(message, subject);
+
+            return ResponseEntity.ok(Map.of(
+                "sent", true,
+                "correspId", request.getCorrespId(),
+                "status", "SENT"
+            ));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Erreur envoi email direct", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Erreur : " + e.getMessage()));
+        }
+    }
 }

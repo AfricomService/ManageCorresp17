@@ -102,6 +102,8 @@ public class CorrespDTO implements Serializable {
     // Nouvelle propriété pour les contacts en copie (liste envoyée par le front)
     private List<ContactCopieCorrespDTO> contactCopies = new ArrayList<>();
 
+    private java.util.UUID modelNotifId;
+
     public Long getId() {
         return id;
     }
@@ -389,6 +391,9 @@ public class CorrespDTO implements Serializable {
     public void setContactCopies(List<ContactCopieCorrespDTO> contactCopies) {
         this.contactCopies = contactCopies;
     }
+
+    public java.util.UUID getModelNotifId() { return modelNotifId; }
+    public void setModelNotifId(java.util.UUID modelNotifId) { this.modelNotifId = modelNotifId; }
 
     @Override
     public boolean equals(Object o) {

@@ -108,10 +108,19 @@ public class CorrespEmailService {
         message.setUpdatedDate(ZonedDateTime.now());
         message.setMessageType("EMAIL");
 
-        Message saved = messageRepository.save(message);
-        log.info("Message email persisté pour correspId={}, messageId={}", corresp.getId(), saved.getId());
+// Vérifier saveCopy : si false, ne pas persister en base
+        boolean shouldPersist = Boolean.TRUE.equals(modelNotif.getSaveCopy());
 
-        return saved;
+        if (shouldPersist) {
+            Message saved = messageRepository.save(message);
+            log.info("Message email persisté pour correspId={}, messageId={}", corresp.getId(), saved.getId());
+            return saved;
+        } else {
+            // saveCopy=false : on retourne le message non persisté (id=null)
+            // L'envoi SMTP se fera directement depuis EmailSendService sans passer par la base
+            log.info("Message email NON persisté (saveCopy=false) pour correspId={}", corresp.getId());
+            return message;
+        }
     }
 
     /**

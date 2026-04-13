@@ -36,15 +36,19 @@ public class EmailSendService {
     private final MessageRepository     messageRepository;
     private final SmtpConfigRepository smtpConfigRepository;
     private final CorrespRepository     correspRepository;
+    private final CorrespService        correspService;
+
 
     public EmailSendService(
         MessageRepository     messageRepository,
         CorrespRepository     correspRepository,
-        SmtpConfigRepository  smtpConfigRepository
+        SmtpConfigRepository  smtpConfigRepository,
+        CorrespService        correspService
     ) {
         this.messageRepository    = messageRepository;
         this.correspRepository    = correspRepository;
         this.smtpConfigRepository = smtpConfigRepository;
+        this.correspService       = correspService;
     }
 
     // =========================================================================
@@ -409,5 +413,75 @@ public class EmailSendService {
             return name;
         }
         return name + "." + ext;
+    }
+
+    /**
+     * Envoie un email directement depuis un Message non persisté (saveCopy=false).
+     * Utilisé quand saveCopy=false pour ne pas stocker le message en base.
+     */
+    public void sendEmailDirect(Message message, String subject) {
+        try {
+            SmtpConfig smtpConfig = resolveSmtpConfig(null);
+            Session session = buildMailSession(smtpConfig);
+
+            List<String> toEmails = parseEmailList(message.getReceiver());
+            List<String> ccEmails = parseEmailList(message.getCopyTo());
+
+            if (toEmails.isEmpty()) {
+                log.warn("Aucun destinataire trouvé pour l'envoi direct");
+                throw new RuntimeException("Aucun destinataire pour l'envoi direct");
+            }
+
+            String htmlContent = "";
+            if (message.getPath() != null && !message.getPath().isBlank()) {
+                try {
+                    htmlContent = java.nio.file.Files.readString(java.nio.file.Paths.get(message.getPath()));
+                } catch (Exception e) {
+                    log.warn("Impossible de lire le fichier HTML pour envoi direct: {}", message.getPath());
+                }
+            }
+
+            String senderEmail = message.getSender();
+            if (senderEmail == null || senderEmail.isBlank()) {
+                throw new RuntimeException("Sender vide pour l'envoi direct");
+            }
+
+            MimeMessage mimeMessage = new MimeMessage(session);
+            String fromName = smtpConfig.getFromName() != null ? smtpConfig.getFromName() : "CorrespCare";
+            mimeMessage.setFrom(new InternetAddress(senderEmail, fromName, "UTF-8"));
+            mimeMessage.setSubject(subject != null ? subject : "Correspondance", "UTF-8");
+            mimeMessage.setRecipients(javax.mail.Message.RecipientType.TO, toInternetAddresses(toEmails));
+
+            if (!ccEmails.isEmpty()) {
+                mimeMessage.setRecipients(javax.mail.Message.RecipientType.CC, toInternetAddresses(ccEmails));
+            }
+
+            MimeBodyPart htmlPart = new MimeBodyPart();
+            htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
+
+            MimeMultipart multipart = new MimeMultipart("mixed");
+            multipart.addBodyPart(htmlPart);
+
+            attachPjsFromCorresp(message.getCorrespId(), multipart);
+
+            mimeMessage.setContent(multipart);
+            mimeMessage.saveChanges();
+
+            Transport transport = session.getTransport("smtp");
+            transport.connect(
+                smtpConfig.getSmtpHost(),
+                smtpConfig.getSmtpPort(),
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getUsername() : null,
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getPassword() : null
+            );
+            transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
+            transport.close();
+
+            log.info("✅ Email direct envoyé (non persisté) | from={} | to={}", senderEmail, toEmails);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur envoi email direct : {}", e.getMessage(), e);
+            throw new RuntimeException("Erreur envoi email direct : " + e.getMessage(), e);
+        }
     }
 }
