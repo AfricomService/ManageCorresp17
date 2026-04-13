@@ -97,9 +97,9 @@ public class CorrespEmailService {
         message.setCopyTo(parseEmailString(request.getCopyTo()));
 
         // Sauvegarder le HTML rendu dans un fichier (réutilise la méthode existante)
-        String filePath = correspService.saveBodyToFile(renderedHtml, corresp.getId(), "email");
+        String filePath = correspService.saveBodyToEmlFile(renderedHtml, corresp.getId(), "email");
         message.setPath(filePath);
-        message.setUniqueName(corresp.getId() + "_email.html");
+        message.setUniqueName(corresp.getId() + "_email.eml");
 
         if (message.getCreationDate() == null) {
             message.setCreationDate(ZonedDateTime.now());

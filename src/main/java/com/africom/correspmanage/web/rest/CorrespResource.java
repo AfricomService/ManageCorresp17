@@ -522,7 +522,7 @@ public ResponseEntity<?> addTaskToCorresp(
 
     @GetMapping("/corresps/loadBodyFromFile")
     public ResponseEntity<String> loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
-        return messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT")
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "COURRIER")
             .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
             .orElseGet(() ->
                 // Fallback anciens enregistrements sans messageType
@@ -743,6 +743,7 @@ public ResponseEntity<?> addTaskToCorresp(
             "messageId", sent.getId(),
             "status",    sent.getEtat(),
             "sender",    sent.getSender(),
+            "msgID",     sent.getMsgID() != null ? sent.getMsgID() : "",
             "sent",      "SENT".equals(sent.getEtat())
         ));
     }
@@ -776,7 +777,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/{correspId}/body")
     public ResponseEntity<String> getCorrespBody(@PathVariable Long correspId) {
-        return messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT")
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "COURRIER")
             .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
             .orElseGet(() ->
                 // fallback : essayer sans type pour les anciens enregistrements

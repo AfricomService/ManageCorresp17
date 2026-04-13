@@ -158,6 +158,13 @@ public class EmailSendService {
             transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
             transport.close();
 
+            // Récupérer le Message-ID généré par JavaMail
+            String smtpMessageId = mimeMessage.getMessageID(); // MimeMessage.getMessageID()
+
+// Persister le msgID dans la table message
+            message.setMsgID(smtpMessageId);
+            messageRepository.save(message);
+
             log.info("✅ Email envoyé | messageId={} | from={} | to={}",
                 messageId, senderEmail, toEmails);
 

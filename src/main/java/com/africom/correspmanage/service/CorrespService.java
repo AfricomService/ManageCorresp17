@@ -633,16 +633,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 // APRÈS (remplacer par) :
         String currentUser = SecurityUtils.getCurrentUserLogin().get();
 
-// Message DRAFT : corps brut saisi par l'utilisateur
-        String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "draft");
+// Message COURRIER : corps brut saisi par l'utilisateur
+        String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "courrier");
         Message draftMessage = new Message();
         draftMessage.sender(correspDTO.getSender());
         draftMessage.setCorrespId(saved.getId());
         draftMessage.setCreatedBy(currentUser);
         draftMessage.setCreationDate(ZonedDateTime.now());
-        draftMessage.setUniqueName(saved.getId() + "_draft.html");
+        draftMessage.setUniqueName(saved.getId() + "_courrier.html");
         draftMessage.setPath(draftPath);
-        draftMessage.setMessageType("DRAFT");
+        draftMessage.setMessageType("COURRIER");
         messageRepository.save(draftMessage);
 
 // Message EMAIL : corps enrichi FreeMarker (sera mis à jour par prepareAndPersistEmail)
@@ -652,7 +652,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         emailMessage.setCorrespId(saved.getId());
         emailMessage.setCreatedBy(currentUser);
         emailMessage.setCreationDate(ZonedDateTime.now());
-        emailMessage.setUniqueName(saved.getId() + "_email.html");
+        emailMessage.setUniqueName(saved.getId() + "_email.eml");
         emailMessage.setMessageType("EMAIL");
         emailMessage.setEtat("PENDING");
         messageRepository.save(emailMessage);
@@ -923,8 +923,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     public Map<String, Object> getMessageByCorrespId(Long correspId) {
         log.debug("Request to get Message receiver and copyTo by correspId : {}", correspId);
         Message message = messageRepository
-            .findByCorrespIdAndMessageType(correspId, "DRAFT")
-            .orElseThrow(() -> new EntityNotFoundException("Message DRAFT not found for correspId: " + correspId));
+            .findByCorrespIdAndMessageType(correspId, "COURRIER")
+            .orElseThrow(() -> new EntityNotFoundException("Message COURRIER not found for correspId: " + correspId));
         Map<String, Object> result = new HashMap<>();
         result.put("receiver", message.getReceiver());
         result.put("copyTo", message.getCopyTo());
@@ -966,7 +966,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         if (newBody != null) {
             String path = saveBodyToFile(newBody, existing.getId());
             java.util.Optional<com.africom.correspmanage.domain.Message> optMsg = messageRepository
-                .findByCorrespIdAndMessageType(existing.getId(), "DRAFT");
+                .findByCorrespIdAndMessageType(existing.getId(), "COURRIER");
             if (optMsg.isPresent()) {
                 com.africom.correspmanage.domain.Message msg = optMsg.get();
                 msg.setPath(path);
@@ -981,7 +981,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 message.setCreationDate(ZonedDateTime.now());
                 message.setUniqueName(existing.getId() + ".html");
                 message.setPath(path);
-                message.setMessageType("DRAFT");
+                message.setMessageType("COURRIER");
                 messageRepository.save(message);
             }
         }
@@ -1821,6 +1821,38 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             return filePath.toString();
         } catch (IOException e) {
             throw new RuntimeException("Error saving body to file", e);
+        }
+    }
+
+    public String saveBodyToEmlFile(String htmlContent, Long correspId, String suffix) {
+        try {
+            ZonedDateTime now = ZonedDateTime.now();
+            Path storagePath = Paths.get(
+                applicationProperties.getDir_body(),
+                String.valueOf(now.getYear()),
+                now.getMonth().toString(),
+                now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            );
+            Files.createDirectories(storagePath);
+
+            String fileName = correspId + (suffix != null && !suffix.isBlank() ? "_" + suffix : "") + ".eml";
+            Path filePath = storagePath.resolve(fileName);
+
+            if (Files.exists(filePath)) Files.delete(filePath);
+
+            // Construction du contenu .eml minimal (MIME format)
+            String emlContent = "MIME-Version: 1.0\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n"
+                + "Content-Transfer-Encoding: 8bit\r\n"
+                + "\r\n"
+                + (htmlContent != null ? htmlContent : "");
+
+            Files.createFile(filePath);
+            Files.writeString(filePath, emlContent, StandardOpenOption.TRUNCATE_EXISTING);
+
+            return filePath.toString();
+        } catch (IOException e) {
+            throw new RuntimeException("Error saving body to eml file", e);
         }
     }
 

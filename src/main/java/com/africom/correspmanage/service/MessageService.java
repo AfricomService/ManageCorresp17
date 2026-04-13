@@ -112,9 +112,9 @@ public class MessageService {
         log.debug("Request to get Message by correspId : {}", correspId);
         // Cibler le message DRAFT en priorité (corps brut saisi par l'utilisateur)
         // Fallback sur findByCorrespId uniquement si pas de DRAFT (anciens enregistrements sans messageType)
-        Optional<Message> draftMsg = messageRepository.findByCorrespIdAndMessageType(correspId, "DRAFT");
-        if (draftMsg.isPresent()) {
-            return draftMsg.map(messageMapper::toDto);
+        Optional<Message> courrierMsg = messageRepository.findByCorrespIdAndMessageType(correspId, "COURRIER");
+        if (courrierMsg.isPresent()) {
+            return courrierMsg.map(messageMapper::toDto);
         }
         // Fallback : anciens enregistrements avant l'introduction de messageType
         // Utiliser findFirstByCorrespId pour éviter NonUniqueResultException
