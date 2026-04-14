@@ -1022,7 +1022,14 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         });
 
         corresp.setTasks(tasksSaved);
-        corresp.setStatus(CorrespStatus.IN_PROGRESS);
+
+// Si OUTGOING → passer directement à CLOSED, sinon IN_PROGRESS
+        if (CorrespType.OUTGOING.equals(corresp.getCorresptype())) {
+            corresp.setStatus(CorrespStatus.CLOSED);
+        } else {
+            corresp.setStatus(CorrespStatus.IN_PROGRESS);
+        }
+
         corresp.setUpdatedDate(ZonedDateTime.now());
         corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
 
