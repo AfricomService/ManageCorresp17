@@ -12,6 +12,7 @@ public class ModelNotifDTO {
     private String subjectFormula;    // peut aussi être un template FreeMarker
     private String senderEmailFormule;
     private String recepientEmailFormule;
+    private Boolean saveCopy;
 
     // Getters / Setters
     public UUID getId() { return id; }
@@ -37,4 +38,12 @@ public class ModelNotifDTO {
 
     public String getRecepientEmailFormule() { return recepientEmailFormule; }
     public void setRecepientEmailFormule(String recepientEmailFormule) { this.recepientEmailFormule = recepientEmailFormule; }
+
+    public Boolean getSaveCopy() {
+        return saveCopy;
+    }
+
+    public void setSaveCopy(Boolean saveCopy) {
+        this.saveCopy = saveCopy;
+    }
 }

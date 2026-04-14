@@ -71,6 +71,10 @@
     {
       "fieldName": "updatedDate",
       "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "messageType",
+      "fieldType": "String"
     }
   ],
   "jpaMetamodelFiltering": false,
