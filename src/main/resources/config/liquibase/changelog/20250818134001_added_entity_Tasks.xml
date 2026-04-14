@@ -3,7 +3,7 @@
     xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
     xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd
                         http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
 
     <!--
@@ -17,7 +17,7 @@
             <column name="object" type="varchar(255)">
                 <constraints nullable="false" />
             </column>
-            <column name="content" type="${blobType}">
+            <column name="content" type="longblob">
                 <constraints nullable="true" />
             </column>
             <column name="content_content_type" type="varchar(255)">
@@ -56,6 +56,18 @@
             <column name="commentaire" type="varchar(255)">
                 <constraints nullable="true" />
             </column>
+            <column name="date_traitement" type="${datetimeType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="user_traitement" type="bigint">
+                <constraints nullable="true" />
+            </column>
+            <column name="commentaire_traitement" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="service_createur_task" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
             <column name="parent_doc_id" type="bigint">
                 <constraints nullable="true" />
             </column>
@@ -69,6 +81,7 @@
         <dropDefaultValue tableName="tasks" columnName="due_date" columnDataType="${datetimeType}"/>
         <dropDefaultValue tableName="tasks" columnName="close_date" columnDataType="${datetimeType}"/>
         <dropDefaultValue tableName="tasks" columnName="updated_date" columnDataType="${datetimeType}"/>
+        <dropDefaultValue tableName="tasks" columnName="date_traitement" columnDataType="${datetimeType}"/>
     </changeSet>
 
     <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
@@ -102,6 +115,10 @@
             <column name="updated_date" type="date"/>
             <column name="task_type" type="string"/>
             <column name="commentaire" type="string"/>
+            <column name="date_traitement" type="date"/>
+            <column name="user_traitement" type="numeric"/>
+            <column name="commentaire_traitement" type="string"/>
+            <column name="service_createur_task" type="string"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

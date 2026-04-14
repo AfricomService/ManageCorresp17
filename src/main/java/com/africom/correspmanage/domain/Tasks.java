@@ -70,6 +70,18 @@ public class Tasks implements Serializable {
     @Column(name = "commentaire")
     private String commentaire;
 
+    @Column(name = "date_traitement")
+    private ZonedDateTime dateTraitement;
+
+    @Column(name = "user_traitement")
+    private Long userTraitement;
+
+    @Column(name = "commentaire_traitement")
+    private String commentaireTraitement;
+
+    @Column(name = "service_createur_task")
+    private String serviceCreateurTask;
+
     @ManyToOne
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
     private Corresp parentDoc;
@@ -279,6 +291,58 @@ public class Tasks implements Serializable {
         this.commentaire = commentaire;
     }
 
+    public ZonedDateTime getDateTraitement() {
+        return this.dateTraitement;
+    }
+
+    public Tasks dateTraitement(ZonedDateTime dateTraitement) {
+        this.setDateTraitement(dateTraitement);
+        return this;
+    }
+
+    public void setDateTraitement(ZonedDateTime dateTraitement) {
+        this.dateTraitement = dateTraitement;
+    }
+
+    public Long getUserTraitement() {
+        return this.userTraitement;
+    }
+
+    public Tasks userTraitement(Long userTraitement) {
+        this.setUserTraitement(userTraitement);
+        return this;
+    }
+
+    public void setUserTraitement(Long userTraitement) {
+        this.userTraitement = userTraitement;
+    }
+
+    public String getCommentaireTraitement() {
+        return this.commentaireTraitement;
+    }
+
+    public Tasks commentaireTraitement(String commentaireTraitement) {
+        this.setCommentaireTraitement(commentaireTraitement);
+        return this;
+    }
+
+    public void setCommentaireTraitement(String commentaireTraitement) {
+        this.commentaireTraitement = commentaireTraitement;
+    }
+
+    public String getServiceCreateurTask() {
+        return this.serviceCreateurTask;
+    }
+
+    public Tasks serviceCreateurTask(String serviceCreateurTask) {
+        this.setServiceCreateurTask(serviceCreateurTask);
+        return this;
+    }
+
+    public void setServiceCreateurTask(String serviceCreateurTask) {
+        this.serviceCreateurTask = serviceCreateurTask;
+    }
+
     public Corresp getParentDoc() {
         return this.parentDoc;
     }
@@ -374,6 +438,10 @@ public class Tasks implements Serializable {
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", taskType='" + getTaskType() + "'" +
             ", commentaire='" + getCommentaire() + "'" +
+            ", dateTraitement='" + getDateTraitement() + "'" +
+            ", userTraitement=" + getUserTraitement() +
+            ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
+            ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
             "}";
     }
 }
