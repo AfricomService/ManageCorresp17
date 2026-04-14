@@ -61,6 +61,22 @@
     {
       "fieldName": "commentaire",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "dateTraitement",
+      "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "userTraitement",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "commentaireTraitement",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "serviceCreateurTask",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

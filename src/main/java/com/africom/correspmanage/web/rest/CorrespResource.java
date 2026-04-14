@@ -522,9 +522,14 @@ public ResponseEntity<?> addTaskToCorresp(
 
     @GetMapping("/corresps/loadBodyFromFile")
     public ResponseEntity<String> loadBodyFromFile(@RequestParam(name = "correspId") Long correspId) {
-        return messageRepository.findByCorrespId(correspId)
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "COURRIER")
             .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"));
+            .orElseGet(() ->
+                // Fallback anciens enregistrements sans messageType
+                messageRepository.findByCorrespId(correspId)
+                    .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Message not found"))
+            );
     }
 
     @DeleteMapping("/correspsDelete/{correspId}")
@@ -738,16 +743,82 @@ public ResponseEntity<?> addTaskToCorresp(
             "messageId", sent.getId(),
             "status",    sent.getEtat(),
             "sender",    sent.getSender(),
+            "msgID",     sent.getMsgID() != null ? sent.getMsgID() : "",
             "sent",      "SENT".equals(sent.getEtat())
         ));
     }
 
     // Endpoint de test (temporaire)
+// Endpoint de test — utilise la config SMTP en base
     @PostMapping("/corresps/test-email")
     public ResponseEntity<Map<String, Object>> sendTestEmail(
         @RequestParam(defaultValue = "trabelsimedamine999@gmail.com") String to
     ) {
-        emailSendService.sendTestEmail(to);
-        return ResponseEntity.ok(Map.of("sent", true, "to", to));
+        try {
+            emailSendService.sendTestEmail(to);
+            return ResponseEntity.ok(Map.of(
+                "sent",   true,
+                "to",     to,
+                "status", "SUCCESS"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "sent",   false,
+                "to",     to,
+                "status", "ERROR",
+                "error",  e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * GET /api/corresps/{correspId}/body
+     * Retourne le corps HTML brut (message DRAFT) de la correspondance.
+     */
+    @GetMapping("/corresps/{correspId}/body")
+    public ResponseEntity<String> getCorrespBody(@PathVariable Long correspId) {
+        return messageRepository.findByCorrespIdAndMessageType(correspId, "COURRIER")
+            .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+            .orElseGet(() ->
+                // fallback : essayer sans type pour les anciens enregistrements
+                messageRepository.findByCorrespId(correspId)
+                    .map(msg -> ResponseEntity.ok(correspService.loadBodyFromFile(msg.getPath())))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(""))
+            );
+    }
+
+    /**
+     * POST /corresps/send-email-direct
+     * Envoie un email sans message persisté (saveCopy=false).
+     * Prépare et envoie en une seule opération sans sauvegarder en base.
+     */
+    @PostMapping("/corresps/send-email-direct")
+    public ResponseEntity<Map<String, Object>> sendEmailDirect(
+        @RequestBody SendCorrespEmailRequestDTO request
+    ) {
+        log.debug("REST request to send email direct (no persist) for correspId={}", request.getCorrespId());
+        try {
+            // Préparer le message (sans persister)
+            Message message = correspEmailService.prepareAndPersistEmail(request);
+
+            // Envoyer directement
+            String subject = request.getCorrespObjet() != null
+                ? "[Correspondance] " + request.getCorrespObjet()
+                : "Correspondance";
+            emailSendService.sendEmailDirect(message, subject);
+
+            return ResponseEntity.ok(Map.of(
+                "sent", true,
+                "correspId", request.getCorrespId(),
+                "status", "SENT"
+            ));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Erreur envoi email direct", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Erreur : " + e.getMessage()));
+        }
     }
 }

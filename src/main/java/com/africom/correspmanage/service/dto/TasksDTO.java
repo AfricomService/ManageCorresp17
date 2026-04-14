@@ -48,6 +48,14 @@ public class TasksDTO implements Serializable {
 
     private String commentaire;
 
+    private ZonedDateTime dateTraitement;
+
+    private Long userTraitement;
+
+    private String commentaireTraitement;
+
+    private String serviceCreateurTask;
+
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
@@ -186,6 +194,38 @@ public class TasksDTO implements Serializable {
         this.commentaire = commentaire;
     }
 
+    public ZonedDateTime getDateTraitement() {
+        return dateTraitement;
+    }
+
+    public void setDateTraitement(ZonedDateTime dateTraitement) {
+        this.dateTraitement = dateTraitement;
+    }
+
+    public Long getUserTraitement() {
+        return userTraitement;
+    }
+
+    public void setUserTraitement(Long userTraitement) {
+        this.userTraitement = userTraitement;
+    }
+
+    public String getCommentaireTraitement() {
+        return commentaireTraitement;
+    }
+
+    public void setCommentaireTraitement(String commentaireTraitement) {
+        this.commentaireTraitement = commentaireTraitement;
+    }
+
+    public String getServiceCreateurTask() {
+        return serviceCreateurTask;
+    }
+
+    public void setServiceCreateurTask(String serviceCreateurTask) {
+        this.serviceCreateurTask = serviceCreateurTask;
+    }
+
     public CorrespDTO getParentDoc() {
         return parentDoc;
     }
@@ -249,6 +289,10 @@ public class TasksDTO implements Serializable {
             ", updatedDate='" + getUpdatedDate() + "'" +
             ", taskType='" + getTaskType() + "'" +
             ", commentaire='" + getCommentaire() + "'" +
+            ", dateTraitement='" + getDateTraitement() + "'" +
+            ", userTraitement=" + getUserTraitement() +
+            ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
+            ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
             ", parentDoc=" + getParentDoc() +
             ", parentTask=" + getParentTask() +
             ", responsablesCount=" + (responsables != null ? responsables.size() : 0) +

@@ -76,7 +76,8 @@ public class CorrespEmailService {
 
         // 6) Persister dans la table message
         //    On cherche s'il existe déjà un message pour cette corresp
-        Message message = messageRepository.findByCorrespId(corresp.getId())
+        Message message = messageRepository
+            .findByCorrespIdAndMessageType(corresp.getId(), "EMAIL")
             .orElse(new Message());
 
         message.setSender(
@@ -96,20 +97,30 @@ public class CorrespEmailService {
         message.setCopyTo(parseEmailString(request.getCopyTo()));
 
         // Sauvegarder le HTML rendu dans un fichier (réutilise la méthode existante)
-        String filePath = correspService.saveBodyToFile(renderedHtml, corresp.getId());
+        String filePath = correspService.saveBodyToEmlFile(renderedHtml, corresp.getId(), "email");
         message.setPath(filePath);
-        message.setUniqueName(corresp.getId() + "_email.html");
+        message.setUniqueName(corresp.getId() + "_email.eml");
 
         if (message.getCreationDate() == null) {
             message.setCreationDate(ZonedDateTime.now());
         }
         message.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
         message.setUpdatedDate(ZonedDateTime.now());
+        message.setMessageType("EMAIL");
 
-        Message saved = messageRepository.save(message);
-        log.info("Message email persisté pour correspId={}, messageId={}", corresp.getId(), saved.getId());
+// Vérifier saveCopy : si false, ne pas persister en base
+        boolean shouldPersist = Boolean.TRUE.equals(modelNotif.getSaveCopy());
 
-        return saved;
+        if (shouldPersist) {
+            Message saved = messageRepository.save(message);
+            log.info("Message email persisté pour correspId={}, messageId={}", corresp.getId(), saved.getId());
+            return saved;
+        } else {
+            // saveCopy=false : on retourne le message non persisté (id=null)
+            // L'envoi SMTP se fera directement depuis EmailSendService sans passer par la base
+            log.info("Message email NON persisté (saveCopy=false) pour correspId={}", corresp.getId());
+            return message;
+        }
     }
 
     /**

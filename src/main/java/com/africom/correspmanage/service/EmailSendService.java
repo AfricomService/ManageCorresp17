@@ -4,8 +4,10 @@ import com.africom.correspmanage.config.ApplicationProperties;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.Message;
 import com.africom.correspmanage.domain.Pj;
+import com.africom.correspmanage.domain.SmtpConfig;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.MessageRepository;
+import com.africom.correspmanage.repository.SmtpConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,17 +34,21 @@ public class EmailSendService {
     private final Logger log = LoggerFactory.getLogger(EmailSendService.class);
 
     private final MessageRepository     messageRepository;
-    private final ApplicationProperties applicationProperties;
+    private final SmtpConfigRepository smtpConfigRepository;
     private final CorrespRepository     correspRepository;
+    private final CorrespService        correspService;
+
 
     public EmailSendService(
         MessageRepository     messageRepository,
-        ApplicationProperties applicationProperties,
-        CorrespRepository correspRepository
+        CorrespRepository     correspRepository,
+        SmtpConfigRepository  smtpConfigRepository,
+        CorrespService        correspService
     ) {
-        this.messageRepository     = messageRepository;
-        this.applicationProperties = applicationProperties;
-        this.correspRepository     = correspRepository;
+        this.messageRepository    = messageRepository;
+        this.correspRepository    = correspRepository;
+        this.smtpConfigRepository = smtpConfigRepository;
+        this.correspService       = correspService;
     }
 
     // =========================================================================
@@ -97,14 +103,16 @@ public class EmailSendService {
         log.info(">>> Envoi email | messageId={} | from={} | to={} | cc={}",
             messageId, senderEmail, toEmails, ccEmails);
 
-        // ── 5) Construire et envoyer via JavaMail (smtp.topnet.tn:25) ─────
+// ── 5) Construire et envoyer via JavaMail ─────────────────────────
         try {
-            Session session = buildMailSession();
+            SmtpConfig smtpConfig = resolveSmtpConfig(null); // prend la 1ère active
+            Session session = buildMailSession(smtpConfig);
 
             MimeMessage mimeMessage = new MimeMessage(session);
 
             // From — dynamique depuis message.getSender()
-            String fromName = applicationProperties.getMail().getFromName();
+            String fromName = smtpConfig.getFromName() != null
+                ? smtpConfig.getFromName() : "CorrespCare";
             mimeMessage.setFrom(
                 new InternetAddress(senderEmail, fromName, "UTF-8")
             );
@@ -143,20 +151,23 @@ public class EmailSendService {
             mimeMessage.setContent(multipart);
             mimeMessage.saveChanges();
 
-            // Envoi via SMTP topnet
-            ApplicationProperties.Mail mailConf =
-                applicationProperties.getMail();
-
-// APRÈS — connexion SANS credentials, comme le test hardcodé
+// Envoi via la config SMTP en base
             Transport transport = session.getTransport("smtp");
             transport.connect(
-                mailConf.getSmtpHost(),
-                mailConf.getSmtpPort(),
-                null,    // ← null au lieu de username
-                null     // ← null au lieu de password
+                smtpConfig.getSmtpHost(),
+                smtpConfig.getSmtpPort(),
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getUsername() : null,
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getPassword() : null
             );
             transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
             transport.close();
+
+            // Récupérer le Message-ID généré par JavaMail
+            String smtpMessageId = mimeMessage.getMessageID(); // MimeMessage.getMessageID()
+
+// Persister le msgID dans la table message
+            message.setMsgID(smtpMessageId);
+            messageRepository.save(message);
 
             log.info("✅ Email envoyé | messageId={} | from={} | to={}",
                 messageId, senderEmail, toEmails);
@@ -181,20 +192,20 @@ public class EmailSendService {
      * @param to  adresse de destination du test
      */
     public void sendTestEmail(String to) {
-        ApplicationProperties.Mail mailConf = applicationProperties.getMail();
 
-        log.info("=== TEST SMTP | host={} | port={} | user={} | to={} ===",
-            mailConf.getSmtpHost(),
-            mailConf.getSmtpPort(),
-            mailConf.getSmtpUsername(),
-            to);
+        // Récupérer la config SMTP depuis la base (première active)
+        SmtpConfig smtpConfig = resolveSmtpConfig(null);
+
+        log.info("=== TEST SMTP | host={} | port={} | to={} ===",
+            smtpConfig.getSmtpHost(), smtpConfig.getSmtpPort(), to);
 
         try {
-            Session session = buildMailSession();
+            Session session = buildMailSession(smtpConfig);
 
             MimeMessage mimeMessage = new MimeMessage(session);
             mimeMessage.setFrom(new InternetAddress(
-                mailConf.getSmtpUsername(),
+                smtpConfig.getFromAddress() != null
+                    ? smtpConfig.getFromAddress() : "noreply@africomservices.com",
                 "CorrespCare Test",
                 "UTF-8"
             ));
@@ -205,7 +216,7 @@ public class EmailSendService {
             mimeMessage.setSubject("✅ Test CorrespCare — " + ZonedDateTime.now(), "UTF-8");
             mimeMessage.setContent(
                 "<h2>Test OK</h2><p>SMTP: "
-                    + mailConf.getSmtpHost() + ":" + mailConf.getSmtpPort()
+                    + smtpConfig.getSmtpHost() + ":" + smtpConfig.getSmtpPort()
                     + "</p>",
                 "text/html; charset=UTF-8"
             );
@@ -213,10 +224,10 @@ public class EmailSendService {
 
             Transport transport = session.getTransport("smtp");
             transport.connect(
-                mailConf.getSmtpHost(),
-                mailConf.getSmtpPort(),
-                null,
-                null
+                smtpConfig.getSmtpHost(),
+                smtpConfig.getSmtpPort(),
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getUsername() : null,
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getPassword() : null
             );
             transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
             transport.close();
@@ -237,25 +248,48 @@ public class EmailSendService {
      * Construit la session JavaMail à partir des propriétés ApplicationProperties.
      * Correspond exactement à ce qui fonctionnait dans sendTestEmailHardcoded().
      */
-    private Session buildMailSession() {
-        ApplicationProperties.Mail conf = applicationProperties.getMail();
-
+    private Session buildMailSession(SmtpConfig conf) {
         Properties props = new Properties();
         props.put("mail.smtp.host",              conf.getSmtpHost());
         props.put("mail.smtp.port",              String.valueOf(conf.getSmtpPort()));
-        props.put("mail.smtp.auth",              "false");          // ← SANS AUTH comme dans le test
-        props.put("mail.smtp.starttls.enable",   "false");
-        props.put("mail.smtp.ssl.enable",        "false");
-        props.put("mail.smtp.connectiontimeout", "30000");
-        props.put("mail.smtp.timeout",           "30000");
-        props.put("mail.smtp.writetimeout",      "30000");
-        props.put("mail.smtp.localhost",         "africomservices.com");
+        props.put("mail.smtp.auth",              String.valueOf(conf.getUseAuth()));
+        props.put("mail.smtp.starttls.enable",   String.valueOf(conf.getUseTls()));
+        props.put("mail.smtp.ssl.enable",        String.valueOf(conf.getUseSsl()));
+        props.put("mail.smtp.connectiontimeout", String.valueOf(conf.getConnectionTimeout()));
+        props.put("mail.smtp.timeout",           String.valueOf(conf.getTimeout()));
+        props.put("mail.smtp.writetimeout",      String.valueOf(conf.getTimeout()));
         props.put("mail.debug",                  "true");
 
-        // Session SANS Authenticator — exactement comme sendTestEmailWithStaticConfig()
-        Session session = Session.getInstance(props);
-        session.setDebug(true);
-        return session;
+        if (conf.getLacalhostName() != null && !conf.getLacalhostName().isBlank()) {
+            props.put("mail.smtp.localhost", conf.getLacalhostName());
+        }
+
+        if (Boolean.TRUE.equals(conf.getUseAuth())) {
+            // Avec authentification
+            return Session.getInstance(props, new javax.mail.Authenticator() {
+                @Override
+                protected javax.mail.PasswordAuthentication getPasswordAuthentication() {
+                    return new javax.mail.PasswordAuthentication(
+                        conf.getUsername(), conf.getPassword()
+                    );
+                }
+            });
+        } else {
+            // Sans authentification (cas topnet)
+            return Session.getInstance(props);
+        }
+    }
+
+    // ── Récupérer la config SMTP (par nom ou la première active) ──────────
+    private SmtpConfig resolveSmtpConfig(String configName) {
+        if (configName != null && !configName.isBlank()) {
+            return smtpConfigRepository.findByNameAndActiveTrue(configName)
+                .orElseThrow(() -> new RuntimeException(
+                    "Config SMTP introuvable : " + configName));
+        }
+        return smtpConfigRepository.findFirstByActiveTrue()
+            .orElseThrow(() -> new RuntimeException(
+                "Aucune configuration SMTP active en base"));
     }
 
     /**
@@ -379,5 +413,75 @@ public class EmailSendService {
             return name;
         }
         return name + "." + ext;
+    }
+
+    /**
+     * Envoie un email directement depuis un Message non persisté (saveCopy=false).
+     * Utilisé quand saveCopy=false pour ne pas stocker le message en base.
+     */
+    public void sendEmailDirect(Message message, String subject) {
+        try {
+            SmtpConfig smtpConfig = resolveSmtpConfig(null);
+            Session session = buildMailSession(smtpConfig);
+
+            List<String> toEmails = parseEmailList(message.getReceiver());
+            List<String> ccEmails = parseEmailList(message.getCopyTo());
+
+            if (toEmails.isEmpty()) {
+                log.warn("Aucun destinataire trouvé pour l'envoi direct");
+                throw new RuntimeException("Aucun destinataire pour l'envoi direct");
+            }
+
+            String htmlContent = "";
+            if (message.getPath() != null && !message.getPath().isBlank()) {
+                try {
+                    htmlContent = java.nio.file.Files.readString(java.nio.file.Paths.get(message.getPath()));
+                } catch (Exception e) {
+                    log.warn("Impossible de lire le fichier HTML pour envoi direct: {}", message.getPath());
+                }
+            }
+
+            String senderEmail = message.getSender();
+            if (senderEmail == null || senderEmail.isBlank()) {
+                throw new RuntimeException("Sender vide pour l'envoi direct");
+            }
+
+            MimeMessage mimeMessage = new MimeMessage(session);
+            String fromName = smtpConfig.getFromName() != null ? smtpConfig.getFromName() : "CorrespCare";
+            mimeMessage.setFrom(new InternetAddress(senderEmail, fromName, "UTF-8"));
+            mimeMessage.setSubject(subject != null ? subject : "Correspondance", "UTF-8");
+            mimeMessage.setRecipients(javax.mail.Message.RecipientType.TO, toInternetAddresses(toEmails));
+
+            if (!ccEmails.isEmpty()) {
+                mimeMessage.setRecipients(javax.mail.Message.RecipientType.CC, toInternetAddresses(ccEmails));
+            }
+
+            MimeBodyPart htmlPart = new MimeBodyPart();
+            htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
+
+            MimeMultipart multipart = new MimeMultipart("mixed");
+            multipart.addBodyPart(htmlPart);
+
+            attachPjsFromCorresp(message.getCorrespId(), multipart);
+
+            mimeMessage.setContent(multipart);
+            mimeMessage.saveChanges();
+
+            Transport transport = session.getTransport("smtp");
+            transport.connect(
+                smtpConfig.getSmtpHost(),
+                smtpConfig.getSmtpPort(),
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getUsername() : null,
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getPassword() : null
+            );
+            transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
+            transport.close();
+
+            log.info("✅ Email direct envoyé (non persisté) | from={} | to={}", senderEmail, toEmails);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur envoi email direct : {}", e.getMessage(), e);
+            throw new RuntimeException("Erreur envoi email direct : " + e.getMessage(), e);
+        }
     }
 }
