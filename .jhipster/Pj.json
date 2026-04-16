@@ -51,6 +51,10 @@
     {
       "fieldName": "updatedDate",
       "fieldType": "ZonedDateTime"
+    },
+    {
+      "fieldName": "pjDeleted",
+      "fieldType": "Boolean"
     }
   ],
   "fluentMethods": true,
