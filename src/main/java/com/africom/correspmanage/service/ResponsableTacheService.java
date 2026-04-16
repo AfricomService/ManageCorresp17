@@ -156,5 +156,14 @@ public class ResponsableTacheService {
         return responsableTacheRepository.findByTacheIdIn(tacheIds);
     }
 
+    @Transactional(readOnly = true)
+    public List<ResponsableTacheDTO> getResponsablesByTacheId(Long tacheId) {
+        log.debug("Request to get ResponsableTaches by tacheId : {}", tacheId);
+        return responsableTacheRepository.findByTacheId(tacheId)
+            .stream()
+            .map(responsableTacheMapper::toDto)
+            .collect(Collectors.toList());
+    }
+
 
 }

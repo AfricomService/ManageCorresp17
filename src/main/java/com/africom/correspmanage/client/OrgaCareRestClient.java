@@ -37,6 +37,7 @@ public interface OrgaCareRestClient {
     @PostMapping("/api/personnes/names-by-matricules")
     Map<String, String> getPersonneNamesByMatricules(@RequestBody List<String> matricules);
 
-
+    @GetMapping("/api/personnes/by-matricule/{matricule}")
+    Map<String, Object> getPersonneByMatricule(@PathVariable("matricule") String matricule);
 
 }

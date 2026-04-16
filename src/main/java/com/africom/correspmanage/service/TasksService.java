@@ -281,6 +281,7 @@ public class TasksService {
             dto.setUpdatedDate(task.getUpdatedDate());
             dto.setTaskType(task.getTaskType());
             dto.setCommentaire(task.getCommentaire());
+            dto.setCommentaireTraitement(task.getCommentaireTraitement());
             return dto;
         }).collect(Collectors.toList());
 
@@ -673,6 +674,7 @@ public class TasksService {
         dto.setStatus(task.getStatus());
         dto.setTaskType(task.getTaskType());
         dto.setCommentaire(task.getCommentaire());
+        dto.setCommentaireTraitement(task.getCommentaireTraitement());
         // responsible brut conservé temporairement pour fallback enrichissement
         // (sera résolu dans enrichWithResponsablesLight)
         return dto;

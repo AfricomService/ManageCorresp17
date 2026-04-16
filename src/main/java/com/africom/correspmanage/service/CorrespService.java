@@ -74,6 +74,7 @@ public class CorrespService {
     private final ResponsableTacheService responsableTacheService;
     private final CorrespGatewayRestClient correspGatewayRestClient;
     private final ContactCopieCorrespService contactCopieCorrespService;
+    private final TaskNotifService taskNotifService;
 
 
     public CorrespService(
@@ -89,7 +90,8 @@ public class CorrespService {
         MessageRepository messageRepository,
         ResponsableTacheService responsableTacheService,
         CorrespGatewayRestClient correspGatewayRestClient,
-        ContactCopieCorrespService contactCopieCorrespService
+        ContactCopieCorrespService contactCopieCorrespService,
+        TaskNotifService taskNotifService
 
     ) {
         this.correspRepository = correspRepository;
@@ -104,6 +106,7 @@ public class CorrespService {
         this.responsableTacheService = responsableTacheService;
         this.correspGatewayRestClient = correspGatewayRestClient;
         this.contactCopieCorrespService = contactCopieCorrespService;
+        this.taskNotifService = taskNotifService;
 
     }
 
@@ -531,12 +534,11 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
                     Tasks savedTask = tasksRepository.save(t);
 
-                    // persist le responsable pour la tâche
+// persist le responsable pour la tâche
                     r.setTacheId(savedTask.getId());
                     try {
                         responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
                     } catch (Exception e) {
-                        // rollback si erreur (méthode @Transactional)
                         throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
                     }
 
@@ -1160,6 +1162,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                         }
                     }
                 }
+                // ── NOTIFICATION EMAIL quand tâche passe IN_PROGRESS (via Soumettre) ──
+                try {
+                    List<ResponsableTacheDTO> resps = responsableTacheService.getResponsablesByTacheId(task.getId());
+                    if (resps != null && !resps.isEmpty()) {
+                        taskNotifService.notifyTaskResponsables(task, saved, resps);
+                    }
+                } catch (Exception e) {
+                    log.warn("Erreur notification tâche {} lors soumission : {}", task.getId(), e.getMessage());
+                }
+                // ─────────────────────────────────────────────────────────────────────
             }
 
             // ---------------------------------------------------------------
@@ -1479,13 +1491,11 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
             Tasks savedTask = tasksRepository.save(tasks);
 
-            // persist le responsable pour la tâche (service existant)
+// persist le responsable pour la tâche (service existant)
             r.setTacheId(savedTask.getId());
             try {
                 responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
             } catch (Exception e) {
-                // si tu veux rollback complet, laisse l'exception remonter (méthode annotée @Transactional).
-                // ici on rethrow pour faire rollback.
                 throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
             }
 
@@ -1698,6 +1708,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     }
                 }
             }
+            // ── NOTIFICATION EMAIL quand tâche passe IN_PROGRESS ──────────────
+            try {
+                List<ResponsableTacheDTO> resps = responsableTacheService.getResponsablesByTacheId(tasksSaved.getId());
+                if (resps != null && !resps.isEmpty()) {
+                    taskNotifService.notifyTaskResponsables(tasksSaved, existingCorresp, resps);
+                }
+            } catch (Exception e) {
+                log.warn("Erreur notification tâche {} lors passage IN_PROGRESS : {}", tasksSaved.getId(), e.getMessage());
+            }
+// ─────────────────────────────────────────────────────────────────────
         } // FIN IN_PROGRESS block
 
         // ----------------------------------------------
