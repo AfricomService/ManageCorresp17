@@ -8,7 +8,6 @@ import java.util.Objects;
 /**
  * A DTO for the {@link com.africom.correspmanage.domain.Pj} entity.
  */
-@SuppressWarnings("common-java:DuplicatedBlocks")
 public class PjDTO implements Serializable {
 
     private Long id;
@@ -34,6 +33,8 @@ public class PjDTO implements Serializable {
     private String updatedBy;
 
     private ZonedDateTime updatedDate;
+
+    private Boolean pjDeleted;
 
     public Long getId() {
         return id;
@@ -131,6 +132,14 @@ public class PjDTO implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public Boolean getPjDeleted() {
+        return pjDeleted;
+    }
+
+    public void setPjDeleted(Boolean pjDeleted) {
+        this.pjDeleted = pjDeleted;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -168,6 +177,7 @@ public class PjDTO implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", pjDeleted='" + getPjDeleted() + "'" +
             "}";
     }
 }

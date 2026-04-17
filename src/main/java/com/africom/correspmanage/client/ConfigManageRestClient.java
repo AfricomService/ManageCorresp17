@@ -16,4 +16,9 @@ public interface ConfigManageRestClient {
 
     @GetMapping("/api/model-notifs/{id}")
     ModelNotifDTO  getModelNotifById(@PathVariable(name = "id") UUID id);
+
+    @GetMapping("/api/model-notifs/by-code/{code}")
+    ModelNotifDTO getModelNotifByCode(@PathVariable("code") String code);
+
+
 }

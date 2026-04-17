@@ -28,6 +28,8 @@ public class PagedTaskDTO implements Serializable {
 
     private String commentaire;
 
+    private String commentaireTraitement;
+
     /** Nom affiché du/des responsable(s) — chaîne concaténée pour le fallback frontend */
     private String responsableName;
 
@@ -69,6 +71,14 @@ public class PagedTaskDTO implements Serializable {
     public List<ResponsableTacheDTO> getResponsables() { return responsables; }
     public void setResponsables(List<ResponsableTacheDTO> responsables) {
         this.responsables = responsables != null ? responsables : new ArrayList<>();
+    }
+
+    public String getCommentaireTraitement() {
+        return commentaireTraitement;
+    }
+
+    public void setCommentaireTraitement(String commentaireTraitement) {
+        this.commentaireTraitement = commentaireTraitement;
     }
 
 //    public String getCorrespSubject() { return correspSubject; }

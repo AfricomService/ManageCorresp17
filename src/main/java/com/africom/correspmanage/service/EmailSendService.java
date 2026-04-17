@@ -36,19 +36,16 @@ public class EmailSendService {
     private final MessageRepository     messageRepository;
     private final SmtpConfigRepository smtpConfigRepository;
     private final CorrespRepository     correspRepository;
-    private final CorrespService        correspService;
 
 
     public EmailSendService(
         MessageRepository     messageRepository,
         CorrespRepository     correspRepository,
-        SmtpConfigRepository  smtpConfigRepository,
-        CorrespService        correspService
+        SmtpConfigRepository  smtpConfigRepository
     ) {
         this.messageRepository    = messageRepository;
         this.correspRepository    = correspRepository;
         this.smtpConfigRepository = smtpConfigRepository;
-        this.correspService       = correspService;
     }
 
     // =========================================================================
@@ -482,6 +479,59 @@ public class EmailSendService {
         } catch (Exception e) {
             log.error("❌ Erreur envoi email direct : {}", e.getMessage(), e);
             throw new RuntimeException("Erreur envoi email direct : " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Envoie un email directement avec le HTML fourni en paramètre (sans passer par un fichier).
+     * Utilisé pour les notifications de tâches.
+     */
+    public void sendEmailDirectWithHtml(Message message, String htmlContent, String subject) {
+        try {
+            SmtpConfig smtpConfig = resolveSmtpConfig(null);
+            Session session = buildMailSession(smtpConfig);
+
+            List<String> toEmails = parseEmailList(message.getReceiver());
+            if (toEmails.isEmpty()) {
+                log.warn("Aucun destinataire pour l'envoi direct HTML");
+                return;
+            }
+
+            String senderEmail = message.getSender();
+            if (senderEmail == null || senderEmail.isBlank()) {
+                senderEmail = smtpConfig.getFromAddress();
+            }
+
+            MimeMessage mimeMessage = new MimeMessage(session);
+            String fromName = smtpConfig.getFromName() != null ? smtpConfig.getFromName() : "CorrespCare";
+            mimeMessage.setFrom(new InternetAddress(senderEmail, fromName, "UTF-8"));
+            mimeMessage.setSubject(subject != null ? subject : "Notification", "UTF-8");
+            mimeMessage.setRecipients(javax.mail.Message.RecipientType.TO, toInternetAddresses(toEmails));
+
+            MimeBodyPart htmlPart = new MimeBodyPart();
+            htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
+
+            MimeMultipart multipart = new MimeMultipart("mixed");
+            multipart.addBodyPart(htmlPart);
+
+            mimeMessage.setContent(multipart);
+            mimeMessage.saveChanges();
+
+            Transport transport = session.getTransport("smtp");
+            transport.connect(
+                smtpConfig.getSmtpHost(),
+                smtpConfig.getSmtpPort(),
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getUsername() : null,
+                Boolean.TRUE.equals(smtpConfig.getUseAuth()) ? smtpConfig.getPassword() : null
+            );
+            transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
+            transport.close();
+
+            log.info("✅ Email notification envoyé à {}", toEmails);
+
+        } catch (Exception e) {
+            log.error("❌ Erreur envoi email notification : {}", e.getMessage(), e);
+            // Ne pas propager l'exception pour ne pas bloquer la création de tâche
         }
     }
 }

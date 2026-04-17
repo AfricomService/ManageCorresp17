@@ -74,6 +74,7 @@ public class CorrespService {
     private final ResponsableTacheService responsableTacheService;
     private final CorrespGatewayRestClient correspGatewayRestClient;
     private final ContactCopieCorrespService contactCopieCorrespService;
+    private final TaskNotifService taskNotifService;
 
 
     public CorrespService(
@@ -89,7 +90,8 @@ public class CorrespService {
         MessageRepository messageRepository,
         ResponsableTacheService responsableTacheService,
         CorrespGatewayRestClient correspGatewayRestClient,
-        ContactCopieCorrespService contactCopieCorrespService
+        ContactCopieCorrespService contactCopieCorrespService,
+        TaskNotifService taskNotifService
 
     ) {
         this.correspRepository = correspRepository;
@@ -104,6 +106,7 @@ public class CorrespService {
         this.responsableTacheService = responsableTacheService;
         this.correspGatewayRestClient = correspGatewayRestClient;
         this.contactCopieCorrespService = contactCopieCorrespService;
+        this.taskNotifService = taskNotifService;
 
     }
 
@@ -531,12 +534,11 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
                     Tasks savedTask = tasksRepository.save(t);
 
-                    // persist le responsable pour la tâche
+// persist le responsable pour la tâche
                     r.setTacheId(savedTask.getId());
                     try {
                         responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
                     } catch (Exception e) {
-                        // rollback si erreur (méthode @Transactional)
                         throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
                     }
 
@@ -636,13 +638,25 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 // Message COURRIER : corps brut saisi par l'utilisateur
         String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "courrier");
         Message draftMessage = new Message();
-        draftMessage.sender(correspDTO.getSender());
+        // Utiliser contactEmail (email société externe) comme sender si disponible
+        String effectiveSender = (correspDTO.getMsgSender() != null && !correspDTO.getMsgSender().isBlank())
+            ? correspDTO.getMsgSender()
+            : correspDTO.getSender();
+        draftMessage.sender(effectiveSender);
         draftMessage.setCorrespId(saved.getId());
         draftMessage.setCreatedBy(currentUser);
         draftMessage.setCreationDate(ZonedDateTime.now());
         draftMessage.setUniqueName(saved.getId() + "_courrier.html");
         draftMessage.setPath(draftPath);
         draftMessage.setMessageType("COURRIER");
+        // Persister receiver
+        if (correspDTO.getMsgReceiver() != null && !correspDTO.getMsgReceiver().isBlank()) {
+            draftMessage.setReceiver(parseEmailListToMap(correspDTO.getMsgReceiver()));
+        }
+// Persister copyTo
+        if (correspDTO.getMsgCopyTo() != null && !correspDTO.getMsgCopyTo().isBlank()) {
+            draftMessage.setCopyTo(parseEmailListToMap(correspDTO.getMsgCopyTo()));
+        }
         messageRepository.save(draftMessage);
 
 // Message EMAIL : corps enrichi FreeMarker (sera mis à jour par prepareAndPersistEmail)
@@ -660,7 +674,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         if (shouldSaveEmailMessage) {
             Message emailMessage = new Message();
-            emailMessage.sender(correspDTO.getSender());
+            emailMessage.sender(effectiveSender);
             emailMessage.setCorrespId(saved.getId());
             emailMessage.setCreatedBy(currentUser);
             emailMessage.setCreationDate(ZonedDateTime.now());
@@ -988,6 +1002,12 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 msg.setPath(path);
                 msg.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
                 msg.setUpdatedDate(ZonedDateTime.now());
+                if (correspDTO.getMsgReceiver() != null && !correspDTO.getMsgReceiver().isBlank()) {
+                    msg.setReceiver(parseEmailListToMap(correspDTO.getMsgReceiver()));
+                }
+                if (correspDTO.getMsgCopyTo() != null && !correspDTO.getMsgCopyTo().isBlank()) {
+                    msg.setCopyTo(parseEmailListToMap(correspDTO.getMsgCopyTo()));
+                }
                 messageRepository.save(msg);
             } else {
                 com.africom.correspmanage.domain.Message message = new com.africom.correspmanage.domain.Message();
@@ -1160,6 +1180,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                         }
                     }
                 }
+                // ── NOTIFICATION EMAIL quand tâche passe IN_PROGRESS (via Soumettre) ──
+                try {
+                    List<ResponsableTacheDTO> resps = responsableTacheService.getResponsablesByTacheId(task.getId());
+                    if (resps != null && !resps.isEmpty()) {
+                        taskNotifService.notifyTaskResponsables(task, saved, resps);
+                    }
+                } catch (Exception e) {
+                    log.warn("Erreur notification tâche {} lors soumission : {}", task.getId(), e.getMessage());
+                }
+                // ─────────────────────────────────────────────────────────────────────
             }
 
             // ---------------------------------------------------------------
@@ -1479,13 +1509,11 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
             Tasks savedTask = tasksRepository.save(tasks);
 
-            // persist le responsable pour la tâche (service existant)
+// persist le responsable pour la tâche (service existant)
             r.setTacheId(savedTask.getId());
             try {
                 responsableTacheService.saveAllForTask(savedTask.getId(), Collections.singletonList(r));
             } catch (Exception e) {
-                // si tu veux rollback complet, laisse l'exception remonter (méthode annotée @Transactional).
-                // ici on rethrow pour faire rollback.
                 throw new RuntimeException("Erreur lors de la sauvegarde du responsable pour la tâche " + savedTask.getId(), e);
             }
 
@@ -1698,6 +1726,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     }
                 }
             }
+            // ── NOTIFICATION EMAIL quand tâche passe IN_PROGRESS ──────────────
+            try {
+                List<ResponsableTacheDTO> resps = responsableTacheService.getResponsablesByTacheId(tasksSaved.getId());
+                if (resps != null && !resps.isEmpty()) {
+                    taskNotifService.notifyTaskResponsables(tasksSaved, existingCorresp, resps);
+                }
+            } catch (Exception e) {
+                log.warn("Erreur notification tâche {} lors passage IN_PROGRESS : {}", tasksSaved.getId(), e.getMessage());
+            }
+// ─────────────────────────────────────────────────────────────────────
         } // FIN IN_PROGRESS block
 
         // ----------------------------------------------
@@ -1908,12 +1946,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         messageRepository.deleteByCorrespId(correspId);
 
         for (Pj pj : attachments) {
-            long usageCount = pjRepository.countCorrespsUsingPj(pj.getId());
-
-            if (usageCount <= 1) {
-                deleteFileFromDisk(pj.getPath());
-                pjRepository.delete(pj);
-            }
+            pj.setPjDeleted(true);
+            pjRepository.save(pj);
         }
 
         for (Tasks task : tasks) {

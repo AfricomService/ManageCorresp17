@@ -91,6 +91,9 @@ public class CorrespDTO implements Serializable {
 
     private String labelContactCC;
 
+//    private String msgReceiver;
+//    private String msgCopyTo;
+
     private Set<DossierDTO> dossiers = new HashSet<>();
 
     private Set<BordereauxDTO> bordereaux = new HashSet<>();
@@ -103,6 +106,11 @@ public class CorrespDTO implements Serializable {
     private List<ContactCopieCorrespDTO> contactCopies = new ArrayList<>();
 
     private java.util.UUID modelNotifId;
+
+    private String msgSender;
+
+    private String msgReceiver;
+    private String msgCopyTo;
 
     public Long getId() {
         return id;
@@ -394,6 +402,30 @@ public class CorrespDTO implements Serializable {
 
     public java.util.UUID getModelNotifId() { return modelNotifId; }
     public void setModelNotifId(java.util.UUID modelNotifId) { this.modelNotifId = modelNotifId; }
+
+    public String getMsgSender() { return msgSender; }
+    public void setMsgSender(String msgSender) { this.msgSender = msgSender; }
+
+    public String getMsgReceiver() { return msgReceiver; }
+    public void setMsgReceiver(String msgReceiver) { this.msgReceiver = msgReceiver; }
+    public String getMsgCopyTo() { return msgCopyTo; }
+    public void setMsgCopyTo(String msgCopyTo) { this.msgCopyTo = msgCopyTo; }
+
+//    public String getMsgReceiver() {
+//        return msgReceiver;
+//    }
+//
+//    public void setMsgReceiver(String msgReceiver) {
+//        this.msgReceiver = msgReceiver;
+//    }
+//
+//    public String getMsgCopyTo() {
+//        return msgCopyTo;
+//    }
+//
+//    public void setMsgCopyTo(String msgCopyTo) {
+//        this.msgCopyTo = msgCopyTo;
+//    }
 
     @Override
     public boolean equals(Object o) {
