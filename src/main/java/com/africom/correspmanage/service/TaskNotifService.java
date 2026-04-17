@@ -175,7 +175,7 @@ public class TaskNotifService {
             ctx.put("referenceCorresp", corresp.getReference() != null ? corresp.getReference() : "");
             ctx.put("objetCorresp",     corresp.getSubject() != null ? corresp.getSubject() : "");
             // Lien direct vers la tâche dans le frontend
-            ctx.put("lienTache", frontendUrl + "/#/corresp/" + corresp.getId() + "/view?taskId=" + task.getId());
+            ctx.put("lienTache", frontendUrl + "/corresp/" + corresp.getId() + "/view?taskId=" + task.getId());
         } else {
             ctx.put("referenceCorresp", "");
             ctx.put("objetCorresp",     "");
