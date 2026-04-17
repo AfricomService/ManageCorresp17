@@ -638,6 +638,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 // Message COURRIER : corps brut saisi par l'utilisateur
         String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "courrier");
         Message draftMessage = new Message();
+        // Utiliser contactEmail (email société externe) comme sender si disponible
         draftMessage.sender(correspDTO.getSender());
         draftMessage.setCorrespId(saved.getId());
         draftMessage.setCreatedBy(currentUser);
@@ -1928,12 +1929,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         messageRepository.deleteByCorrespId(correspId);
 
         for (Pj pj : attachments) {
-            long usageCount = pjRepository.countCorrespsUsingPj(pj.getId());
-
-            if (usageCount <= 1) {
-                deleteFileFromDisk(pj.getPath());
-                pjRepository.delete(pj);
-            }
+            pj.setPjDeleted(true);
+            pjRepository.save(pj);
         }
 
         for (Tasks task : tasks) {

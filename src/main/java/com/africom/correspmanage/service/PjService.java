@@ -138,6 +138,14 @@ public class PjService {
         pjRepository.deleteById(id);
     }
 
+    public void softDelete(String uniqueName) {
+        log.debug("Request to soft delete Pj by uniqueName : {}", uniqueName);
+        pjRepository.findByUniqueName(uniqueName).ifPresent(pj -> {
+            pj.setPjDeleted(true);
+            pjRepository.save(pj);
+        });
+    }
+
     public String uploadPj(MultipartFile file, String uniqueName) throws IOException {
         Path filePath;
         try {

@@ -15,10 +15,18 @@ import org.springframework.stereotype.Repository;
 public interface PjRepository extends JpaRepository<Pj, Long> {
     Optional<Pj> findByUniqueName(String uniqueName);
 
+//    @Query("""
+//    SELECT p FROM Pj p
+//    JOIN p.corresps c
+//    WHERE c.id = :correspId
+//""")
+//    List<Pj> findAllByCorrespId(@Param("correspId") Long correspId);
+
     @Query("""
     SELECT p FROM Pj p
     JOIN p.corresps c
     WHERE c.id = :correspId
+    AND (p.pjDeleted IS NULL OR p.pjDeleted = false)
 """)
     List<Pj> findAllByCorrespId(@Param("correspId") Long correspId);
 
