@@ -160,3 +160,4 @@ application:
   slash: /
   dir_pj: /home/corresp/pjs
   dir_body: /home/corresp/body
+  frontend-url: https://appafricom/cc/
