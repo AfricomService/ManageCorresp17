@@ -155,6 +155,7 @@ application:
   slash: \
   dir_pj: D:\pjs
   dir_body: D:\body
+  frontend-url: http://localhost:9000
   mail:
     from-name: CorrespCare
     smtp-host: smtp.topnet.tn

@@ -15,6 +15,8 @@ public class ApplicationProperties {
     private String dir_pj;
     private String dir_body;
 
+    private String frontendUrl = "http://localhost:9000";
+
     private final Mail mail = new Mail();
 
     public Mail getMail() { return mail; }
@@ -76,4 +78,7 @@ public class ApplicationProperties {
     public void setDir_body(String dir_body) {
         this.dir_body = dir_body;
     }
+
+    public String getFrontendUrl() { return frontendUrl; }
+    public void setFrontendUrl(String frontendUrl) { this.frontendUrl = frontendUrl; }
 }

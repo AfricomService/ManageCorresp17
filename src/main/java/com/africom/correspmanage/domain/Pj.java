@@ -58,6 +58,9 @@ public class Pj implements Serializable {
     @Column(name = "updated_date")
     private ZonedDateTime updatedDate;
 
+    @Column(name = "pj_deleted")
+    private Boolean pjDeleted;
+
     @ManyToMany(mappedBy = "attachments")
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
     private Set<Corresp> corresps = new HashSet<>();
@@ -220,6 +223,19 @@ public class Pj implements Serializable {
         this.updatedDate = updatedDate;
     }
 
+    public Boolean getPjDeleted() {
+        return this.pjDeleted;
+    }
+
+    public Pj pjDeleted(Boolean pjDeleted) {
+        this.setPjDeleted(pjDeleted);
+        return this;
+    }
+
+    public void setPjDeleted(Boolean pjDeleted) {
+        this.pjDeleted = pjDeleted;
+    }
+
     public Set<Corresp> getCorresps() {
         return this.corresps;
     }
@@ -286,6 +302,7 @@ public class Pj implements Serializable {
             ", createdBy='" + getCreatedBy() + "'" +
             ", updatedBy='" + getUpdatedBy() + "'" +
             ", updatedDate='" + getUpdatedDate() + "'" +
+            ", pjDeleted='" + getPjDeleted() + "'" +
             "}";
     }
 }

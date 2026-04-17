@@ -238,41 +238,8 @@ public class PjResource {
 
     @DeleteMapping("/pjs")
     public ResponseEntity<Void> deletePj(@RequestParam String uniqueName, @RequestParam String fileType) {
-        log.debug("REST request to delete Pj : {}", uniqueName);
-
-        //        PjDTO pjDTO = pjService.findOne(id).get();
-
-        String finalStringPath =
-            Paths.get(applicationProperties.getDir_pj()) +
-            File.separator +
-            ZonedDateTime.now().getYear() +
-            File.separator +
-            ZonedDateTime.now().getMonth() +
-            File.separator +
-            ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) +
-            File.separator +
-            uniqueName +
-            "." +
-            fileType;
-
-        File file = new File(finalStringPath);
-
-        if (file.exists()) {
-            if (file.delete()) {
-                log.debug("File deleted successfully: {}", finalStringPath);
-            } else {
-                log.warn("Failed to delete file: {}", finalStringPath);
-            }
-        } else {
-            log.warn("File not found: {}", finalStringPath);
-        }
-
-        Optional<PjDTO> pjDTO = pjService.findOneByUniqueName(uniqueName);
-
-        if (pjDTO.isPresent()) {
-            pjService.delete(pjDTO.get().getId());
-        }
-
+        log.debug("REST request to soft delete Pj : {}", uniqueName);
+        pjService.softDelete(uniqueName);
         return ResponseEntity
             .noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, uniqueName))
@@ -282,37 +249,8 @@ public class PjResource {
     @DeleteMapping("/pjsWithCorresp")
     @Transactional
     public ResponseEntity<Void> deletePjWithCorresp(@RequestParam String uniqueName, @RequestParam String fileType) {
-        log.debug("REST request to delete Pj : {}", uniqueName);
-
-        String finalStringPath =
-            Paths.get(applicationProperties.getDir_pj()) +
-            File.separator +
-            ZonedDateTime.now().getYear() +
-            File.separator +
-            ZonedDateTime.now().getMonth() +
-            File.separator +
-            ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) +
-            File.separator +
-            uniqueName +
-            "." +
-            fileType;
-
-        File file = new File(finalStringPath);
-        if (file.exists()) file.delete();
-
-        Optional<Pj> pjOpt = pjRepository.findByUniqueName(uniqueName);
-        if (pjOpt.isPresent()) {
-            Pj pj = pjOpt.get();
-
-            Set<Corresp> correps = pj.getCorresps();
-            for (Corresp c : correps) {
-                c.getAttachments().remove(pj);
-            }
-            correspRepository.saveAll(correps);
-
-            pjRepository.delete(pj);
-        }
-
+        log.debug("REST request to soft delete Pj with corresp : {}", uniqueName);
+        pjService.softDelete(uniqueName);
         return ResponseEntity.noContent().build();
     }
 }
