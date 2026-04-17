@@ -142,6 +142,13 @@ public class PjService {
         log.debug("Request to soft delete Pj by uniqueName : {}", uniqueName);
         pjRepository.findByUniqueName(uniqueName).ifPresent(pj -> {
             pj.setPjDeleted(true);
+            // Délier la PJ de toutes ses corresps associées
+            if (pj.getCorresps() != null) {
+                for (com.africom.correspmanage.domain.Corresp corresp : new java.util.HashSet<>(pj.getCorresps())) {
+                    corresp.getAttachments().remove(pj);
+                }
+                pj.getCorresps().clear();
+            }
             pjRepository.save(pj);
         });
     }

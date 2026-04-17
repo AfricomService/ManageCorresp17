@@ -107,6 +107,11 @@ public class CorrespDTO implements Serializable {
 
     private java.util.UUID modelNotifId;
 
+    private String msgSender;
+
+    private String msgReceiver;
+    private String msgCopyTo;
+
     public Long getId() {
         return id;
     }
@@ -397,6 +402,14 @@ public class CorrespDTO implements Serializable {
 
     public java.util.UUID getModelNotifId() { return modelNotifId; }
     public void setModelNotifId(java.util.UUID modelNotifId) { this.modelNotifId = modelNotifId; }
+
+    public String getMsgSender() { return msgSender; }
+    public void setMsgSender(String msgSender) { this.msgSender = msgSender; }
+
+    public String getMsgReceiver() { return msgReceiver; }
+    public void setMsgReceiver(String msgReceiver) { this.msgReceiver = msgReceiver; }
+    public String getMsgCopyTo() { return msgCopyTo; }
+    public void setMsgCopyTo(String msgCopyTo) { this.msgCopyTo = msgCopyTo; }
 
 //    public String getMsgReceiver() {
 //        return msgReceiver;

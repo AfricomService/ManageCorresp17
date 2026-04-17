@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import com.africom.correspmanage.config.ApplicationProperties;
 
 @Service
 public class TaskNotifService {
@@ -25,6 +26,7 @@ public class TaskNotifService {
     private final TemplateRenderService templateRenderService;
     private final EmailSendService emailSendService;
     private final OrgaCareRestClient orgaCareRestClient;
+    private final String frontendUrl;
 
     private static final String MODEL_CODE = "NOTIF_TACHE";
 
@@ -32,12 +34,14 @@ public class TaskNotifService {
         ConfigManageRestClient configManageRestClient,
         TemplateRenderService templateRenderService,
         EmailSendService emailSendService,
-        OrgaCareRestClient orgaCareRestClient
+        OrgaCareRestClient orgaCareRestClient,
+        ApplicationProperties applicationProperties
     ) {
         this.configManageRestClient = configManageRestClient;
         this.templateRenderService = templateRenderService;
         this.emailSendService = emailSendService;
         this.orgaCareRestClient = orgaCareRestClient;
+        this.frontendUrl = applicationProperties.getFrontendUrl();
     }
 
     public void notifyTaskResponsables(Tasks task, Corresp corresp, List<ResponsableTacheDTO> responsables) {
@@ -157,7 +161,9 @@ public class TaskNotifService {
     private Map<String, Object> buildContext(Tasks task, Corresp corresp, String nomDestinataire, String emailDestinataire) {
         Map<String, Object> ctx = new HashMap<>();
         ctx.put("typeTask",          task.getTaskType() != null ? task.getTaskType() : "");
-        ctx.put("objetTache",        task.getObject() != null ? task.getObject() : "");
+        // objetTache = nom lisible du responsable + type de tâche (pas le code brut)
+        String typeTask = task.getTaskType() != null ? task.getTaskType().toUpperCase() : "N/A";
+        ctx.put("objetTache",        nomDestinataire + " effectuera la tâche de " + typeTask);
         ctx.put("nomDestinataire",   nomDestinataire);
         ctx.put("emailDestinataire", emailDestinataire);
         ctx.put("commentaire",       task.getCommentaire() != null ? task.getCommentaire() : "");
@@ -168,9 +174,12 @@ public class TaskNotifService {
         if (corresp != null) {
             ctx.put("referenceCorresp", corresp.getReference() != null ? corresp.getReference() : "");
             ctx.put("objetCorresp",     corresp.getSubject() != null ? corresp.getSubject() : "");
+            // Lien direct vers la tâche dans le frontend
+            ctx.put("lienTache", frontendUrl + "/#/corresp/" + corresp.getId() + "/view?taskId=" + task.getId());
         } else {
             ctx.put("referenceCorresp", "");
             ctx.put("objetCorresp",     "");
+            ctx.put("lienTache", frontendUrl);
         }
 
         return ctx;

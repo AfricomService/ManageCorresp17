@@ -639,13 +639,24 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String draftPath = saveBodyToFile(correspDTO.getBody(), saved.getId(), "courrier");
         Message draftMessage = new Message();
         // Utiliser contactEmail (email société externe) comme sender si disponible
-        draftMessage.sender(correspDTO.getSender());
+        String effectiveSender = (correspDTO.getMsgSender() != null && !correspDTO.getMsgSender().isBlank())
+            ? correspDTO.getMsgSender()
+            : correspDTO.getSender();
+        draftMessage.sender(effectiveSender);
         draftMessage.setCorrespId(saved.getId());
         draftMessage.setCreatedBy(currentUser);
         draftMessage.setCreationDate(ZonedDateTime.now());
         draftMessage.setUniqueName(saved.getId() + "_courrier.html");
         draftMessage.setPath(draftPath);
         draftMessage.setMessageType("COURRIER");
+        // Persister receiver
+        if (correspDTO.getMsgReceiver() != null && !correspDTO.getMsgReceiver().isBlank()) {
+            draftMessage.setReceiver(parseEmailListToMap(correspDTO.getMsgReceiver()));
+        }
+// Persister copyTo
+        if (correspDTO.getMsgCopyTo() != null && !correspDTO.getMsgCopyTo().isBlank()) {
+            draftMessage.setCopyTo(parseEmailListToMap(correspDTO.getMsgCopyTo()));
+        }
         messageRepository.save(draftMessage);
 
 // Message EMAIL : corps enrichi FreeMarker (sera mis à jour par prepareAndPersistEmail)
@@ -663,7 +674,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         if (shouldSaveEmailMessage) {
             Message emailMessage = new Message();
-            emailMessage.sender(correspDTO.getSender());
+            emailMessage.sender(effectiveSender);
             emailMessage.setCorrespId(saved.getId());
             emailMessage.setCreatedBy(currentUser);
             emailMessage.setCreationDate(ZonedDateTime.now());
@@ -991,6 +1002,12 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 msg.setPath(path);
                 msg.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
                 msg.setUpdatedDate(ZonedDateTime.now());
+                if (correspDTO.getMsgReceiver() != null && !correspDTO.getMsgReceiver().isBlank()) {
+                    msg.setReceiver(parseEmailListToMap(correspDTO.getMsgReceiver()));
+                }
+                if (correspDTO.getMsgCopyTo() != null && !correspDTO.getMsgCopyTo().isBlank()) {
+                    msg.setCopyTo(parseEmailListToMap(correspDTO.getMsgCopyTo()));
+                }
                 messageRepository.save(msg);
             } else {
                 com.africom.correspmanage.domain.Message message = new com.africom.correspmanage.domain.Message();
