@@ -593,6 +593,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
         correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
         correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
+        // Persister la société sélectionnée
+        correspToSave.setIdSociete(correspDTO.getIdSociete());
+        correspToSave.setNomSociete(correspDTO.getNomSociete());
 
         // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
         // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
@@ -2481,5 +2484,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         return result;
     }
 
-
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getSocietesByCurrentUserLogin(String login) {
+        if (login == null || login.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            return orgaCareRestClient.getSocietesByMatricule(login.trim().toLowerCase());
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les sociétés pour le matricule {} : {}", login, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
 }

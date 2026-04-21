@@ -821,4 +821,18 @@ public ResponseEntity<?> addTaskToCorresp(
                 .body(Map.of("error", "Erreur : " + e.getMessage()));
         }
     }
+
+    /**
+     * GET /api/corresps/my-societes
+     * Retourne les sociétés (id + raisonSociale) du user connecté via son login/matricule.
+     */
+    @GetMapping("/corresps/my-societes")
+    public ResponseEntity<List<Map<String, Object>>> getMySocietes() {
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (login == null) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        List<Map<String, Object>> societes = correspService.getSocietesByCurrentUserLogin(login);
+        return ResponseEntity.ok(societes);
+    }
 }
