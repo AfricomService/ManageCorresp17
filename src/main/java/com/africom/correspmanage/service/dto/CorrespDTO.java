@@ -91,8 +91,9 @@ public class CorrespDTO implements Serializable {
 
     private String labelContactCC;
 
-//    private String msgReceiver;
-//    private String msgCopyTo;
+    private Long idSociete;
+
+    private String nomSociete;
 
     private Set<DossierDTO> dossiers = new HashSet<>();
 
@@ -360,6 +361,22 @@ public class CorrespDTO implements Serializable {
         this.labelContactCC = labelContactCC;
     }
 
+    public Long getIdSociete() {
+        return idSociete;
+    }
+
+    public void setIdSociete(Long idSociete) {
+        this.idSociete = idSociete;
+    }
+
+    public String getNomSociete() {
+        return nomSociete;
+    }
+
+    public void setNomSociete(String nomSociete) {
+        this.nomSociete = nomSociete;
+    }
+
     public Set<DossierDTO> getDossiers() {
         return dossiers;
     }
@@ -411,21 +428,6 @@ public class CorrespDTO implements Serializable {
     public String getMsgCopyTo() { return msgCopyTo; }
     public void setMsgCopyTo(String msgCopyTo) { this.msgCopyTo = msgCopyTo; }
 
-//    public String getMsgReceiver() {
-//        return msgReceiver;
-//    }
-//
-//    public void setMsgReceiver(String msgReceiver) {
-//        this.msgReceiver = msgReceiver;
-//    }
-//
-//    public String getMsgCopyTo() {
-//        return msgCopyTo;
-//    }
-//
-//    public void setMsgCopyTo(String msgCopyTo) {
-//        this.msgCopyTo = msgCopyTo;
-//    }
 
     @Override
     public boolean equals(Object o) {
@@ -483,6 +485,8 @@ public class CorrespDTO implements Serializable {
             ", typeDocumentId=" + getTypeDocumentId() +
             ", labelDestinataire='" + getLabelDestinataire() + "'" +
             ", labelContactCC='" + getLabelContactCC() + "'" +
+            ", idSociete=" + getIdSociete() +
+            ", nomSociete='" + getNomSociete() + "'" +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +

@@ -40,4 +40,7 @@ public interface OrgaCareRestClient {
     @GetMapping("/api/personnes/by-matricule/{matricule}")
     Map<String, Object> getPersonneByMatricule(@PathVariable("matricule") String matricule);
 
+    @GetMapping("/api/societes/by-matricule/{matricule}")
+    List<Map<String, Object>> getSocietesByMatricule(@PathVariable("matricule") String matricule);
+
 }

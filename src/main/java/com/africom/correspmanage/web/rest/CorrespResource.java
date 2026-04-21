@@ -821,4 +821,108 @@ public ResponseEntity<?> addTaskToCorresp(
                 .body(Map.of("error", "Erreur : " + e.getMessage()));
         }
     }
+
+    /**
+     * GET /api/corresps/my-societes
+     * Retourne les sociétés (id + raisonSociale) du user connecté via son login/matricule.
+     */
+    @GetMapping("/corresps/my-societes")
+    public ResponseEntity<List<Map<String, Object>>> getMySocietes() {
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (login == null) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+        List<Map<String, Object>> societes = correspService.getSocietesByCurrentUserLogin(login);
+        return ResponseEntity.ok(societes);
+    }
+
+    /**
+     * GET /api/corresps/search?q=...&userId=...&page=1&size=15
+     * Recherche rapide par reference, subject ou sender.
+     */
+    @GetMapping("/corresps/search")
+    public ResponseEntity<Map<String, Object>> searchCorresps(
+        @RequestParam(name = "q",       required = false, defaultValue = "") String q,
+        @RequestParam(name = "userId")  Long userId,
+        @RequestParam(name = "page",    defaultValue = "1")  int page,
+        @RequestParam(name = "size",    defaultValue = "15") int size
+    ) {
+        log.debug("REST search corresps q='{}' userId={} page={} size={}", q, userId, page, size);
+
+        Page<CorrespDTO> result = correspService.searchByKeyword(q, userId, page, size);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content",     result.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize",    size);
+        response.put("totalItems",  result.getTotalElements());
+        response.put("totalPages",  result.getTotalPages());
+        response.put("hasNext",     result.hasNext());
+        response.put("hasPrevious", result.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/corresps/list
+     * Liste paginée avec les champs d'affichage optimisés (inclut sender/receiver du message).
+     * Utilisé par Admin et BOC (accès complet : ACL + DRAFT + DISPATCH).
+     */
+    @GetMapping("/corresps/list")
+    public ResponseEntity<Map<String, Object>> getCorrespList(
+        @RequestParam(name = "userId")                          Long userId,
+        @RequestParam(name = "page",         defaultValue = "1")  int page,
+        @RequestParam(name = "size",         defaultValue = "15") int size,
+        @RequestParam(name = "q",            required = false, defaultValue = "") String q,
+        @RequestParam(name = "reference",    required = false)  String reference,
+        @RequestParam(name = "status",       required = false)  String status,
+        @RequestParam(name = "dispatchType", required = false)  String dispatchType,
+        @RequestParam(name = "startDate",    required = false)  String startDate,
+        @RequestParam(name = "endDate",      required = false)  String endDate
+    ) {
+        log.debug("REST /corresps/list userId={} q='{}' page={} size={}", userId, q, page, size);
+
+        Page<CorrespListItemDTO> result = correspService.getCorrespListPaged(
+            userId, q, reference, status, dispatchType, startDate, endDate, page, size
+        );
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content",     result.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize",    size);
+        response.put("totalItems",  result.getTotalElements());
+        response.put("totalPages",  result.getTotalPages());
+        response.put("hasNext",     result.hasNext());
+        response.put("hasPrevious", result.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/corresps/list-by-acl
+     * Liste paginée pour un utilisateur simple (ACL + DRAFT uniquement).
+     */
+    @GetMapping("/corresps/list-by-acl")
+    public ResponseEntity<Map<String, Object>> getCorrespListByAcl(
+        @RequestParam(name = "userId")                          Long userId,
+        @RequestParam(name = "page",  defaultValue = "1")        int page,
+        @RequestParam(name = "size",  defaultValue = "15")       int size,
+        @RequestParam(name = "q",     required = false, defaultValue = "") String q
+    ) {
+        log.debug("REST /corresps/list-by-acl userId={} q='{}' page={} size={}", userId, q, page, size);
+
+        Page<CorrespListItemDTO> result =
+            correspService.getCorrespListPagedByUserAcl(userId, q, page, size);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content",     result.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize",    size);
+        response.put("totalItems",  result.getTotalElements());
+        response.put("totalPages",  result.getTotalPages());
+        response.put("hasNext",     result.hasNext());
+        response.put("hasPrevious", result.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
 }

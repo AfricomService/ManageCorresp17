@@ -132,6 +132,12 @@ public class Corresp implements Serializable {
     @Column(name = "label_contact_cc")
     private String labelContactCC;
 
+    @Column(name = "id_societe")
+    private Long idSociete;
+
+    @Column(name = "nom_societe")
+    private String nomSociete;
+
     @ManyToMany
     @JoinTable(
         name = "rel_corresp__dossiers",
@@ -573,6 +579,32 @@ public class Corresp implements Serializable {
         this.labelContactCC = labelContactCC;
     }
 
+    public Long getIdSociete() {
+        return this.idSociete;
+    }
+
+    public Corresp idSociete(Long idSociete) {
+        this.setIdSociete(idSociete);
+        return this;
+    }
+
+    public void setIdSociete(Long idSociete) {
+        this.idSociete = idSociete;
+    }
+
+    public String getNomSociete() {
+        return this.nomSociete;
+    }
+
+    public Corresp nomSociete(String nomSociete) {
+        this.setNomSociete(nomSociete);
+        return this;
+    }
+
+    public void setNomSociete(String nomSociete) {
+        this.nomSociete = nomSociete;
+    }
+
     public Set<Dossier> getDossiers() {
         return this.dossiers;
     }
@@ -727,6 +759,8 @@ public class Corresp implements Serializable {
             ", typeDocumentId=" + getTypeDocumentId() +
             ", labelDestinataire='" + getLabelDestinataire() + "'" +
             ", labelContactCC='" + getLabelContactCC() + "'" +
+            ", idSociete=" + getIdSociete() +
+            ", nomSociete='" + getNomSociete() + "'" +
             "}";
     }
 }

@@ -315,4 +315,41 @@ SELECT COUNT(*) FROM (
     @Query("select c from Corresp c left join fetch c.attachments where c.id = :id")
     Optional<Corresp> findOneWithEagerRelationshipss(@Param("id") Long id);
 
+    @Query("""
+    SELECT c FROM Corresp c
+    WHERE (:search IS NULL OR :search = ''
+        OR LOWER(c.reference) LIKE LOWER(CONCAT('%', :search, '%'))
+        OR LOWER(c.subject)   LIKE LOWER(CONCAT('%', :search, '%'))
+        OR LOWER(c.sender)    LIKE LOWER(CONCAT('%', :search, '%'))
+    )
+    ORDER BY c.dateCreated DESC
+    """)
+    Page<Corresp> searchByKeyword(@Param("search") String search, Pageable pageable);
+
+    /**
+     * Récupère les champs d'affichage de la liste (avec sender/receiver du message COURRIER)
+     * pour une liste d'IDs donnés.
+     * LEFT JOIN sur message pour ne pas exclure les corresps sans message.
+     */
+    @Query(value = """
+    SELECT
+        c.id,
+        c.reference,
+        c.corresptype,
+        c.courrier_date,
+        c.subject,
+        c.status,
+        c.priority,
+        m.sender   AS msg_sender,
+        CAST(m.receiver AS TEXT) AS msg_receiver
+    FROM corresp c
+    LEFT JOIN message m
+        ON m.corresp_id = c.id
+        AND m.message_type = 'COURRIER'
+    WHERE c.id IN (:ids)
+    ORDER BY c.date_created DESC
+    """,
+        nativeQuery = true)
+    List<Object[]> findListItemsByIds(@Param("ids") List<Long> ids);
+
 }

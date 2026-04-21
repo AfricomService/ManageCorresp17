@@ -138,6 +138,14 @@
     {
       "fieldName": "labelContactCC",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "idSociete",
+      "fieldType": "Long"
+    },
+    {
+      "fieldName": "nomSociete",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

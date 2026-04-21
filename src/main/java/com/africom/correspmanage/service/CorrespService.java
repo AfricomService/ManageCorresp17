@@ -593,6 +593,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
         correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
         correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
+        // Persister la société sélectionnée
+        correspToSave.setIdSociete(correspDTO.getIdSociete());
+        correspToSave.setNomSociete(correspDTO.getNomSociete());
 
         // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
         // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
@@ -2481,5 +2484,374 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         return result;
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getSocietesByCurrentUserLogin(String login) {
+        if (login == null || login.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            return orgaCareRestClient.getSocietesByMatricule(login.trim().toLowerCase());
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les sociétés pour le matricule {} : {}", login, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
 
+    /**
+     * Recherche paginée par mot-clé sur reference, subject, sender.
+     * Filtrée par ACL + DRAFT de l'utilisateur courant + DISPATCH.
+     */
+    @Transactional(readOnly = true)
+    public Page<CorrespDTO> searchByKeyword(
+        String search,
+        Long userId,
+        int pageIndex,
+        int pageSize
+    ) {
+        // 1) Récupérer les SIDs (même logique que findAllCorrespByFilter)
+        List<String> deptCodes = new ArrayList<>();
+        String userLogin = "";
+
+        if (userId != null) {
+            try {
+                List<Map<String, Object>> affectations =
+                    orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+                if (affectations != null) {
+                    deptCodes = affectations.stream()
+                        .map(a -> a.get("departementCode"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .distinct()
+                        .collect(Collectors.toList());
+                }
+            } catch (Exception e) {
+                log.warn("searchByKeyword: impossible de récupérer les deptCodes: {}", e.getMessage());
+            }
+
+            try {
+                Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+                if (userMap != null && userMap.get("login") != null) {
+                    userLogin = userMap.get("login").toString().trim().toLowerCase();
+                }
+            } catch (Exception e) {
+                log.warn("searchByKeyword: impossible de récupérer le login: {}", e.getMessage());
+            }
+        }
+
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (!userLogin.isEmpty() && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+        if (allSids.isEmpty()) allSids.add("__NO_SID__");
+
+        int readMask = BasePermission.READ.getMask();
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+
+        // 2) Récupérer les IDs éligibles (ACL + DRAFT + DISPATCH)
+        Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatch(
+            allSids, readMask, userLogin, pageable
+        );
+
+        if (idsPage.isEmpty()) return Page.empty(pageable);
+
+        List<Long> ids = idsPage.getContent().stream()
+            .map(Number::longValue)
+            .collect(Collectors.toList());
+
+        List<Corresp> corresps = correspRepository.findAllByIds(ids);
+
+        // 3) Filtrer en mémoire par mot-clé
+        String keyword = (search != null) ? search.trim().toLowerCase() : "";
+
+        List<Corresp> filtered = corresps.stream().filter(c -> {
+            if (keyword.isEmpty()) return true;
+            return (c.getReference() != null && c.getReference().toLowerCase().contains(keyword))
+                || (c.getSubject()   != null && c.getSubject().toLowerCase().contains(keyword))
+                || (c.getSender()    != null && c.getSender().toLowerCase().contains(keyword));
+        }).collect(Collectors.toList());
+
+        List<CorrespDTO> dtos = filtered.stream()
+            .map(correspMapper::toDto)
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, idsPage.getTotalElements());
+    }
+
+    /**
+     * Mappe un Object[] issu de findListItemsByIds vers un CorrespListItemDTO.
+     * Ordre des colonnes : id, reference, corresptype, courrier_date,
+     *                      subject, status, priority, msg_sender, msg_receiver
+     */
+    private CorrespListItemDTO mapRowToListItem(Object[] row) {
+        CorrespListItemDTO dto = new CorrespListItemDTO();
+
+        dto.setId(row[0] != null ? ((Number) row[0]).longValue() : null);
+        dto.setReference((String) row[1]);
+
+        if (row[2] != null) {
+            try {
+                dto.setCorresptype(CorrespType.valueOf(row[2].toString()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        if (row[3] != null) {
+            // Timestamp → ZonedDateTime UTC
+            if (row[3] instanceof java.sql.Timestamp) {
+                dto.setCourrierDate(
+                    ((java.sql.Timestamp) row[3]).toInstant().atZone(java.time.ZoneId.of("UTC"))
+                );
+            }
+        }
+
+        dto.setSubject((String) row[4]);
+
+        if (row[5] != null) {
+            try {
+                dto.setStatus(CorrespStatus.valueOf(row[5].toString()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        dto.setPriority(row[6] != null && (Boolean) row[6]);
+        dto.setMsgSender((String) row[7]);
+
+        // row[8] = receiver JSONB sous forme de String "[{\"email\":\"x@y.com\"},{...}]"
+        // On extrait les emails pour un affichage simple
+        if (row[8] != null) {
+            dto.setMsgReceiver(extractEmailsFromJsonb(row[8].toString()));
+        }
+
+        return dto;
+    }
+
+    /**
+     * Extrait les emails d'une chaîne JSON de type
+     * [{"email":"a@b.com"},{"email":"c@d.com"}]
+     * et retourne "a@b.com, c@d.com"
+     */
+    private String extractEmailsFromJsonb(String jsonb) {
+        if (jsonb == null || jsonb.isBlank()) return "";
+        // Extraction simple par regex sans dépendance Jackson supplémentaire
+        java.util.regex.Pattern pattern =
+            java.util.regex.Pattern.compile("\"email\"\\s*:\\s*\"([^\"]+)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(jsonb);
+        List<String> emails = new ArrayList<>();
+        while (matcher.find()) {
+            emails.add(matcher.group(1));
+        }
+        return String.join(", ", emails);
+    }
+
+    /**
+     * Retourne la liste paginée des correspondances pour l'affichage
+     * (Admin/BOC : ACL + DRAFT + DISPATCH).
+     * Inclut sender et receiver depuis le Message COURRIER.
+     */
+    @Transactional(readOnly = true)
+    public Page<CorrespListItemDTO> getCorrespListPaged(
+        Long userId,
+        String q,           // recherche rapide (null = pas de filtre)
+        String reference,
+        String status,
+        String dispatchType,
+        String startDate,
+        String endDate,
+        int pageIndex,
+        int pageSize
+    ) {
+        // 1) Résoudre les SIDs
+        List<String> deptCodes = new ArrayList<>();
+        String userLogin = "";
+
+        if (userId != null) {
+            try {
+                List<Map<String, Object>> affectations =
+                    orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+                if (affectations != null) {
+                    deptCodes = affectations.stream()
+                        .map(a -> a.get("departementCode"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .distinct()
+                        .collect(Collectors.toList());
+                }
+            } catch (Exception e) {
+                log.warn("getCorrespListPaged: deptCodes error: {}", e.getMessage());
+            }
+
+            try {
+                Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+                if (userMap != null && userMap.get("login") != null) {
+                    userLogin = userMap.get("login").toString().trim().toLowerCase();
+                }
+            } catch (Exception e) {
+                log.warn("getCorrespListPaged: login error: {}", e.getMessage());
+            }
+        }
+
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (!userLogin.isEmpty() && !allSids.contains(userLogin)) {
+            allSids.add(userLogin);
+        }
+        if (allSids.isEmpty()) allSids.add("__NO_SID__");
+
+        int readMask = BasePermission.READ.getMask();
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+
+        // 2) Récupérer les IDs paginés
+        Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatch(
+            allSids, readMask, userLogin, pageable
+        );
+
+        if (idsPage.isEmpty()) return Page.empty(pageable);
+
+        List<Long> ids = idsPage.getContent().stream()
+            .map(Number::longValue)
+            .collect(Collectors.toList());
+
+        // 3) Récupérer les données d'affichage (avec message COURRIER)
+        List<Object[]> rows = correspRepository.findListItemsByIds(ids);
+
+        // 4) Mapper en DTO
+        Map<Long, CorrespListItemDTO> dtoMap = rows.stream()
+            .map(this::mapRowToListItem)
+            .filter(d -> d.getId() != null)
+            .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
+
+        // 5) Maintenir l'ordre + filtres en mémoire
+        final String keyword   = (q != null) ? q.trim().toLowerCase() : "";
+        final String statusF   = (status != null && !status.isBlank()) ? status.toUpperCase() : null;
+        final String dtypeF    = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
+        final String refF      = (reference != null && !reference.isBlank()) ? reference.toLowerCase() : null;
+
+        // Dates
+        ZonedDateTime fromDate = null, toDate = null;
+        if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+            try {
+                LocalDate ds = LocalDate.parse(startDate.substring(0, 10));
+                LocalDate de = LocalDate.parse(endDate.substring(0, 10));
+                fromDate = ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(),
+                    0, 0, 0, 0, ZoneId.of("UTC"));
+                toDate = ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(),
+                    23, 59, 59, 999999999, ZoneId.of("UTC"));
+            } catch (Exception ignored) {}
+        }
+        final ZonedDateTime finalFrom = fromDate;
+        final ZonedDateTime finalTo   = toDate;
+
+        List<CorrespListItemDTO> ordered = ids.stream()
+            .map(dtoMap::get)
+            .filter(Objects::nonNull)
+            .filter(dto -> {
+                // filtre keyword (reference, subject, sender)
+                if (!keyword.isEmpty()) {
+                    boolean match =
+                        (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
+                            || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
+                            || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
+                    if (!match) return false;
+                }
+                // filtre reference
+                if (refF != null) {
+                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(refF))
+                        return false;
+                }
+                // filtre status
+                if (statusF != null) {
+                    try {
+                        if (!CorrespStatus.valueOf(statusF).equals(dto.getStatus())) return false;
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                // filtre dates (on a besoin de courrierDate)
+                if (finalFrom != null && dto.getCourrierDate() != null) {
+                    if (dto.getCourrierDate().isBefore(finalFrom) || dto.getCourrierDate().isAfter(finalTo))
+                        return false;
+                }
+                return true;
+            })
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
+    }
+
+    /**
+     * Retourne la liste paginée pour un utilisateur simple (ACL + DRAFT uniquement).
+     */
+    @Transactional(readOnly = true)
+    public Page<CorrespListItemDTO> getCorrespListPagedByUserAcl(
+        Long userId,
+        String q,
+        int pageIndex,
+        int pageSize
+    ) {
+        // Réutiliser la même logique mais avec findAllIdsByAclForSidsOrDraft
+        List<String> deptCodes = new ArrayList<>();
+        String userLogin = "";
+
+        if (userId != null) {
+            try {
+                List<Map<String, Object>> affectations =
+                    orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+                if (affectations != null) {
+                    deptCodes = affectations.stream()
+                        .map(a -> a.get("departementCode"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .distinct()
+                        .collect(Collectors.toList());
+                }
+            } catch (Exception e) {
+                log.warn("getCorrespListPagedByUserAcl: deptCodes error: {}", e.getMessage());
+            }
+            try {
+                Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
+                if (userMap != null && userMap.get("login") != null) {
+                    userLogin = userMap.get("login").toString().trim().toLowerCase();
+                }
+            } catch (Exception e) {
+                log.warn("getCorrespListPagedByUserAcl: login error: {}", e.getMessage());
+            }
+        }
+
+        List<String> allSids = new ArrayList<>(deptCodes);
+        if (!userLogin.isEmpty() && !allSids.contains(userLogin)) allSids.add(userLogin);
+        if (allSids.isEmpty()) allSids.add("__NO_SID__");
+
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+        int readMask = BasePermission.READ.getMask();
+        String loginForQuery = userLogin.isEmpty() ? "" : userLogin;
+
+        Page<Number> idsPage = correspRepository.findAllIdsByAclForSidsOrDraft(
+            allSids, readMask, loginForQuery, pageable
+        );
+
+        if (idsPage.isEmpty()) return Page.empty(pageable);
+
+        List<Long> ids = idsPage.getContent().stream()
+            .map(Number::longValue)
+            .collect(Collectors.toList());
+
+        List<Object[]> rows = correspRepository.findListItemsByIds(ids);
+
+        Map<Long, CorrespListItemDTO> dtoMap = rows.stream()
+            .map(this::mapRowToListItem)
+            .filter(d -> d.getId() != null)
+            .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
+
+        final String keyword = (q != null) ? q.trim().toLowerCase() : "";
+
+        List<CorrespListItemDTO> ordered = ids.stream()
+            .map(dtoMap::get)
+            .filter(Objects::nonNull)
+            .filter(dto -> {
+                if (!keyword.isEmpty()) {
+                    return (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
+                        || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
+                        || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
+                }
+                return true;
+            })
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
+    }
 }
