@@ -2614,10 +2614,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         dto.setPriority(row[6] != null && (Boolean) row[6]);
         dto.setMsgSender((String) row[7]);
 
-        // row[8] = receiver JSONB sous forme de String "[{\"email\":\"x@y.com\"},{...}]"
-        // On extrait les emails pour un affichage simple
         if (row[8] != null) {
             dto.setMsgReceiver(extractEmailsFromJsonb(row[8].toString()));
+        }
+
+// row[9] = dispatch_type ✅ NOUVEAU
+        if (row[9] != null) {
+            try {
+                dto.setDispatchType(DispatchType.valueOf(row[9].toString()));
+            } catch (IllegalArgumentException ignored) {}
         }
 
         return dto;
@@ -2646,13 +2651,14 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * (Admin/BOC : ACL + DRAFT + DISPATCH).
      * Inclut sender et receiver depuis le Message COURRIER.
      */
-    @Transactional(readOnly = true)
     public Page<CorrespListItemDTO> getCorrespListPaged(
         Long userId,
-        String q,           // recherche rapide (null = pas de filtre)
+        String q,
+        String corresptype,
         String reference,
         String status,
         String dispatchType,
+        Boolean priority,
         String startDate,
         String endDate,
         int pageIndex,
@@ -2718,7 +2724,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
 
         // 5) Maintenir l'ordre + filtres en mémoire
+// 5) Maintenir l'ordre + filtres en mémoire
         final String keyword   = (q != null) ? q.trim().toLowerCase() : "";
+        final String ctypeF    = (corresptype != null && !corresptype.isBlank()) ? corresptype.toUpperCase() : null;
         final String statusF   = (status != null && !status.isBlank()) ? status.toUpperCase() : null;
         final String dtypeF    = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
         final String refF      = (reference != null && !reference.isBlank()) ? reference.toLowerCase() : null;
@@ -2742,7 +2750,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .map(dtoMap::get)
             .filter(Objects::nonNull)
             .filter(dto -> {
-                // filtre keyword (reference, subject, sender)
+                // filtre keyword
                 if (!keyword.isEmpty()) {
                     boolean match =
                         (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
@@ -2750,36 +2758,58 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                             || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
                     if (!match) return false;
                 }
+                // filtre corresptype
+                if (corresptype != null && !corresptype.isBlank()) {
+                    if (dto.getCorresptype() == null || !dto.getCorresptype().name().equalsIgnoreCase(corresptype)) return false;
+                }
                 // filtre reference
-                if (refF != null) {
-                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(refF))
-                        return false;
+                if (reference != null && !reference.isBlank()) {
+                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(reference.toLowerCase())) return false;
                 }
                 // filtre status
-                if (statusF != null) {
+                if (status != null && !status.isBlank()) {
                     try {
-                        if (!CorrespStatus.valueOf(statusF).equals(dto.getStatus())) return false;
+                        if (!CorrespStatus.valueOf(status.toUpperCase()).equals(dto.getStatus())) return false;
                     } catch (IllegalArgumentException ignored) {}
                 }
-                // filtre dates (on a besoin de courrierDate)
-                if (finalFrom != null && dto.getCourrierDate() != null) {
-                    if (dto.getCourrierDate().isBefore(finalFrom) || dto.getCourrierDate().isAfter(finalTo))
-                        return false;
+                // filtre dispatchType
+                if (dispatchType != null && !dispatchType.isBlank()) {
+                    if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
+                }
+                // filtre priority ✅ AJOUTÉ
+                if (priority != null) {
+                    if (dto.getPriority() == null || !dto.getPriority().equals(priority)) return false;
+                }
+                // filtre dates
+                if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+                    try {
+                        java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));
+                        java.time.LocalDate de = java.time.LocalDate.parse(endDate.substring(0, 10));
+                        java.time.ZonedDateTime from = java.time.ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(), 0, 0, 0, 0, ZoneId.of("UTC"));
+                        java.time.ZonedDateTime to   = java.time.ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(), 23, 59, 59, 999999999, ZoneId.of("UTC"));
+                        if (dto.getCourrierDate() != null && (dto.getCourrierDate().isBefore(from) || dto.getCourrierDate().isAfter(to))) return false;
+                    } catch (Exception ignored) {}
                 }
                 return true;
             })
             .collect(Collectors.toList());
 
-        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
+        return new PageImpl<>(ordered, pageable, ordered.size());
     }
 
     /**
      * Retourne la liste paginée pour un utilisateur simple (ACL + DRAFT uniquement).
      */
-    @Transactional(readOnly = true)
     public Page<CorrespListItemDTO> getCorrespListPagedByUserAcl(
         Long userId,
         String q,
+        String corresptype,
+        String reference,
+        String status,
+        String dispatchType,
+        Boolean priority,
+        String startDate,
+        String endDate,
         int pageIndex,
         int pageSize
     ) {
@@ -2843,10 +2873,41 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .map(dtoMap::get)
             .filter(Objects::nonNull)
             .filter(dto -> {
+                // filtre keyword
                 if (!keyword.isEmpty()) {
-                    return (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
-                        || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
-                        || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
+                    boolean match =
+                        (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
+                            || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
+                            || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
+                    if (!match) return false;
+                }
+                // filtre corresptype
+                if (corresptype != null && !corresptype.isBlank()) {
+                    if (dto.getCorresptype() == null || !dto.getCorresptype().name().equalsIgnoreCase(corresptype)) return false;
+                }
+                // filtre reference
+                if (reference != null && !reference.isBlank()) {
+                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(reference.toLowerCase())) return false;
+                }
+                // filtre status
+                if (status != null && !status.isBlank()) {
+                    try {
+                        if (!CorrespStatus.valueOf(status.toUpperCase()).equals(dto.getStatus())) return false;
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                // filtre dispatchType
+                if (dispatchType != null && !dispatchType.isBlank()) {
+                    if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
+                }
+                // filtre dates
+                if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+                    try {
+                        java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));
+                        java.time.LocalDate de = java.time.LocalDate.parse(endDate.substring(0, 10));
+                        java.time.ZonedDateTime from = java.time.ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(), 0, 0, 0, 0, ZoneId.of("UTC"));
+                        java.time.ZonedDateTime to   = java.time.ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(), 23, 59, 59, 999999999, ZoneId.of("UTC"));
+                        if (dto.getCourrierDate() != null && (dto.getCourrierDate().isBefore(from) || dto.getCourrierDate().isAfter(to))) return false;
+                    } catch (Exception ignored) {}
                 }
                 return true;
             })
