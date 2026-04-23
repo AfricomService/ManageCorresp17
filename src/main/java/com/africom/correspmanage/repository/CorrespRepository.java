@@ -341,7 +341,9 @@ SELECT COUNT(*) FROM (
         c.status,
         c.priority,
         m.sender   AS msg_sender,
-        CAST(m.receiver AS TEXT) AS msg_receiver
+        CAST(m.receiver AS TEXT) AS msg_receiver,
+        c.dispatch_type,
+        c.nom_societe
     FROM corresp c
     LEFT JOIN message m
         ON m.corresp_id = c.id

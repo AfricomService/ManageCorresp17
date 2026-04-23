@@ -2,6 +2,8 @@ package com.africom.correspmanage.service.dto;
 
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.domain.enumeration.CorrespType;
+import com.africom.correspmanage.domain.enumeration.DispatchType;
+
 import java.io.Serializable;
 import java.time.ZonedDateTime;
 
@@ -22,6 +24,9 @@ public class CorrespListItemDTO implements Serializable {
     // Depuis l'entité Message (messageType = COURRIER, correspId = corresp.id)
     private String msgSender;     // message.sender
     private String msgReceiver;   // message.receiver (liste JSON → on concatène les emails)
+    private DispatchType dispatchType;
+
+    private String nomSociete;
 
     public CorrespListItemDTO() {}
 
@@ -75,4 +80,10 @@ public class CorrespListItemDTO implements Serializable {
 
     public String getMsgReceiver() { return msgReceiver; }
     public void setMsgReceiver(String msgReceiver) { this.msgReceiver = msgReceiver; }
+
+    public DispatchType getDispatchType() { return dispatchType; }
+    public void setDispatchType(DispatchType dispatchType) { this.dispatchType = dispatchType; }
+
+    public String getNomSociete() { return nomSociete; }
+    public void setNomSociete(String nomSociete) { this.nomSociete = nomSociete; }
 }

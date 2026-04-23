@@ -138,6 +138,9 @@ public class Corresp implements Serializable {
     @Column(name = "nom_societe")
     private String nomSociete;
 
+    @Column(name = "code_unique_societe")
+    private String codeUniqueSociete;
+
     @ManyToMany
     @JoinTable(
         name = "rel_corresp__dossiers",
@@ -605,6 +608,19 @@ public class Corresp implements Serializable {
         this.nomSociete = nomSociete;
     }
 
+    public String getCodeUniqueSociete() {
+        return this.codeUniqueSociete;
+    }
+
+    public Corresp codeUniqueSociete(String codeUniqueSociete) {
+        this.setCodeUniqueSociete(codeUniqueSociete);
+        return this;
+    }
+
+    public void setCodeUniqueSociete(String codeUniqueSociete) {
+        this.codeUniqueSociete = codeUniqueSociete;
+    }
+
     public Set<Dossier> getDossiers() {
         return this.dossiers;
     }
@@ -761,6 +777,7 @@ public class Corresp implements Serializable {
             ", labelContactCC='" + getLabelContactCC() + "'" +
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
+            ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
             "}";
     }
 }

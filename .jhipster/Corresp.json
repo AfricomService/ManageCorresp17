@@ -146,6 +146,10 @@
     {
       "fieldName": "nomSociete",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "codeUniqueSociete",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,
