@@ -95,6 +95,8 @@ public class CorrespDTO implements Serializable {
 
     private String nomSociete;
 
+    private String codeUniqueSociete;
+
     private Set<DossierDTO> dossiers = new HashSet<>();
 
     private Set<BordereauxDTO> bordereaux = new HashSet<>();
@@ -377,6 +379,14 @@ public class CorrespDTO implements Serializable {
         this.nomSociete = nomSociete;
     }
 
+    public String getCodeUniqueSociete() {
+        return codeUniqueSociete;
+    }
+
+    public void setCodeUniqueSociete(String codeUniqueSociete) {
+        this.codeUniqueSociete = codeUniqueSociete;
+    }
+
     public Set<DossierDTO> getDossiers() {
         return dossiers;
     }
@@ -487,6 +497,7 @@ public class CorrespDTO implements Serializable {
             ", labelContactCC='" + getLabelContactCC() + "'" +
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
+            ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +

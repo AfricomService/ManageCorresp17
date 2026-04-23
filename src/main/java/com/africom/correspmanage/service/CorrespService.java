@@ -593,9 +593,10 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setTypeDocumentId(typeDocumentDTO.getId());
         correspToSave.setLabelDestinataire(correspDTO.getLabelDestinataire());
         correspToSave.setLabelContactCC(correspDTO.getLabelContactCC());
-        // Persister la société sélectionnée
+// Persister la société sélectionnée
         correspToSave.setIdSociete(correspDTO.getIdSociete());
         correspToSave.setNomSociete(correspDTO.getNomSociete());
+        correspToSave.setCodeUniqueSociete(correspDTO.getCodeUniqueSociete());
 
         // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
         // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
