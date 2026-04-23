@@ -2619,10 +2619,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         }
 
 // row[9] = dispatch_type ✅ NOUVEAU
+// row[9] = dispatch_type
         if (row[9] != null) {
             try {
                 dto.setDispatchType(DispatchType.valueOf(row[9].toString()));
             } catch (IllegalArgumentException ignored) {}
+        }
+
+// row[10] = nom_societe
+        if (row.length > 10 && row[10] != null) {
+            dto.setNomSociete(row[10].toString());
         }
 
         return dto;
@@ -2661,6 +2667,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         Boolean priority,
         String startDate,
         String endDate,
+        String nomSociete,
         int pageIndex,
         int pageSize
     ) {
@@ -2776,11 +2783,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 if (dispatchType != null && !dispatchType.isBlank()) {
                     if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
                 }
-                // filtre priority ✅ AJOUTÉ
+// filtre priority
                 if (priority != null) {
                     if (dto.getPriority() == null || !dto.getPriority().equals(priority)) return false;
                 }
-                // filtre dates
+// filtre nomSociete
+                if (nomSociete != null && !nomSociete.isBlank()) {
+                    if (dto.getNomSociete() == null || !dto.getNomSociete().toLowerCase().contains(nomSociete.toLowerCase())) return false;
+                }
+// filtre dates
                 if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
                     try {
                         java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));
@@ -2810,6 +2821,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         Boolean priority,
         String startDate,
         String endDate,
+        String nomSociete,
         int pageIndex,
         int pageSize
     ) {
@@ -2895,11 +2907,19 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                         if (!CorrespStatus.valueOf(status.toUpperCase()).equals(dto.getStatus())) return false;
                     } catch (IllegalArgumentException ignored) {}
                 }
-                // filtre dispatchType
+// filtre dispatchType
                 if (dispatchType != null && !dispatchType.isBlank()) {
                     if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
                 }
-                // filtre dates
+// filtre priority  ← AJOUT
+                if (priority != null) {
+                    if (dto.getPriority() == null || !dto.getPriority().equals(priority)) return false;
+                }
+// filtre nomSociete
+                if (nomSociete != null && !nomSociete.isBlank()) {
+                    if (dto.getNomSociete() == null || !dto.getNomSociete().toLowerCase().contains(nomSociete.toLowerCase())) return false;
+                }
+// filtre dates
                 if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
                     try {
                         java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));

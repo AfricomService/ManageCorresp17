@@ -880,12 +880,11 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "dispatchType", required = false)  String dispatchType,
         @RequestParam(name = "priority",     required = false)  Boolean priority,
         @RequestParam(name = "startDate",    required = false)  String startDate,
-        @RequestParam(name = "endDate",      required = false)  String endDate
+        @RequestParam(name = "endDate",      required = false)  String endDate,
+        @RequestParam(name = "nomSociete",   required = false)  String nomSociete
     ) {
-        log.debug("REST /corresps/list userId={} q='{}' page={} size={}", userId, q, page, size);
-
         Page<CorrespListItemDTO> result = correspService.getCorrespListPaged(
-            userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, page, size
+            userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, page, size
         );
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -916,12 +915,13 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "dispatchType", required = false)  String dispatchType,
         @RequestParam(name = "priority",     required = false)  Boolean priority,
         @RequestParam(name = "startDate",    required = false)  String startDate,
-        @RequestParam(name = "endDate",      required = false)  String endDate
+        @RequestParam(name = "endDate",      required = false)  String endDate,
+        @RequestParam(name = "nomSociete",   required = false)  String nomSociete
     ) {
         log.debug("REST /corresps/list-by-acl userId={} q='{}' page={} size={}", userId, q, page, size);
 
         Page<CorrespListItemDTO> result =
-            correspService.getCorrespListPagedByUserAcl(userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, page, size);
+            correspService.getCorrespListPagedByUserAcl(userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, page, size);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("content",     result.getContent());

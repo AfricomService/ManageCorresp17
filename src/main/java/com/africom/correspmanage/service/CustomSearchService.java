@@ -159,7 +159,10 @@ public class CustomSearchService {
                         });
                 }
 
-                return new CustomSearchViewDTO(customSearch.getName(), filters);
+                return
+                    new CustomSearchViewDTO(
+                    customSearch.getId(),
+                    customSearch.getName(), filters);
             })
             .toList();
     }

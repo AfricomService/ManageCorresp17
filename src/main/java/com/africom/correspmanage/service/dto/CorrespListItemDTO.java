@@ -26,6 +26,8 @@ public class CorrespListItemDTO implements Serializable {
     private String msgReceiver;   // message.receiver (liste JSON → on concatène les emails)
     private DispatchType dispatchType;
 
+    private String nomSociete;
+
     public CorrespListItemDTO() {}
 
     public CorrespListItemDTO(
@@ -81,4 +83,7 @@ public class CorrespListItemDTO implements Serializable {
 
     public DispatchType getDispatchType() { return dispatchType; }
     public void setDispatchType(DispatchType dispatchType) { this.dispatchType = dispatchType; }
+
+    public String getNomSociete() { return nomSociete; }
+    public void setNomSociete(String nomSociete) { this.nomSociete = nomSociete; }
 }
