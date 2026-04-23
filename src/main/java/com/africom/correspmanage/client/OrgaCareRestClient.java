@@ -43,4 +43,7 @@ public interface OrgaCareRestClient {
     @GetMapping("/api/societes/by-matricule/{matricule}")
     List<Map<String, Object>> getSocietesByMatricule(@PathVariable("matricule") String matricule);
 
+    @GetMapping("/api/societes/list")
+    List<Map<String, Object>> getAllSocietesIdAndRaisonSociale();
+
 }
