@@ -347,7 +347,9 @@ public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
         @RequestPart(value = "dispatchType", required = false) String dispatchType,
         @RequestPart(value = "taskObject", required = false) String taskObject,
         @RequestPart(value = "taskType", required = false) String taskType,
-        @RequestPart(value = "taskResponsableCodeDept", required = false) String taskResponsableCodeDept
+        @RequestPart(value = "taskResponsableCodeDept", required = false) String taskResponsableCodeDept,
+        @RequestPart(value = "codeUniqueSociete", required = false) String codeUniqueSociete  // ← NOUVEAU
+
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -380,7 +382,8 @@ public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
             Corresp saved = correspService.saveCorrespWithPjN8N(
                 pjList, subject, from, bodyHtml,
                 receiverObj, copyToObj, status, corresptype,
-                dispatchType, taskObject, taskType, taskResponsableCodeDept
+                dispatchType, taskObject, taskType, taskResponsableCodeDept,
+                codeUniqueSociete
             );
             log.debug("Corresp N8N créée avec id={}", saved.getId());
             return ResponseEntity.ok().build();
