@@ -714,7 +714,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String dispatchTypeStr,
         String taskObject,
         String taskType,
-        String taskCodeDept
+        String taskCodeDept,
+        String codeUniqueSociete
     ) {
         // --- Création de la Corresp ---
         Corresp correspToSave = new Corresp();
@@ -725,6 +726,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setDateCreated(ZonedDateTime.now());
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
+        correspToSave.setCodeUniqueSociete(codeUniqueSociete);
 
         try {
             correspToSave.setStatus(
@@ -2614,10 +2616,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         dto.setPriority(row[6] != null && (Boolean) row[6]);
         dto.setMsgSender((String) row[7]);
-
-        if (row[8] != null) {
-            dto.setMsgReceiver(extractEmailsFromJsonb(row[8].toString()));
-        }
+        dto.setMsgReceiver((String) row[8]);
 
 // row[9] = dispatch_type ✅ NOUVEAU
 // row[9] = dispatch_type

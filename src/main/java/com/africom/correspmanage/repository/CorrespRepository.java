@@ -332,7 +332,7 @@ SELECT COUNT(*) FROM (
      * LEFT JOIN sur message pour ne pas exclure les corresps sans message.
      */
     @Query(value = """
-    SELECT
+        SELECT
         c.id,
         c.reference,
         c.corresptype,
@@ -340,14 +340,11 @@ SELECT COUNT(*) FROM (
         c.subject,
         c.status,
         c.priority,
-        m.sender   AS msg_sender,
-        CAST(m.receiver AS TEXT) AS msg_receiver,
+        c.sender          AS msg_sender,
+        c.label_destinataire AS msg_receiver,
         c.dispatch_type,
         c.nom_societe
     FROM corresp c
-    LEFT JOIN message m
-        ON m.corresp_id = c.id
-        AND m.message_type = 'COURRIER'
     WHERE c.id IN (:ids)
     ORDER BY c.date_created DESC
     """,
