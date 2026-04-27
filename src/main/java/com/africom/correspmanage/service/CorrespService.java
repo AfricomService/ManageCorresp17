@@ -18,6 +18,8 @@ import com.africom.correspmanage.service.dto.*;
 import com.africom.correspmanage.service.mapper.CorrespMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +37,9 @@ import javax.mail.internet.InternetAddress;
 import javax.persistence.EntityNotFoundException;
 import javax.persistence.criteria.Join;
 import javax.persistence.criteria.Predicate;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.configurationprocessor.json.JSONException;
@@ -2934,5 +2939,200 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .collect(Collectors.toList());
 
         return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
+    }
+
+    /**
+     * Génère un fichier Excel (.xlsx) à partir de la liste des correspondances.
+     * Respecte les filtres et les droits ACL selon le rôle de l'utilisateur.
+     *
+     * @param userId      id de l'utilisateur connecté
+     * @param isAdmin     true si Admin ou BOC (accès complet), false sinon
+     * @param q           mot-clé de recherche rapide
+     * @param corresptype filtre type de courrier
+     * @param reference   filtre référence
+     * @param status      filtre statut
+     * @param dispatchType filtre type d'envoi
+     * @param priority    filtre priorité
+     * @param startDate   filtre date début
+     * @param endDate     filtre date fin
+     * @param nomSociete  filtre société
+     * @return tableau de bytes du fichier Excel généré
+     */
+    public byte[] exportCorrespsToExcel(
+        Long userId,
+        boolean isAdmin,
+        String q,
+        String corresptype,
+        String reference,
+        String status,
+        String dispatchType,
+        Boolean priority,
+        String startDate,
+        String endDate,
+        String nomSociete
+    ) throws IOException {
+
+        // 1) Récupérer toutes les données filtrées (grande page pour tout exporter)
+        int exportPageSize = 10_000;
+
+        Page<CorrespListItemDTO> result;
+        if (isAdmin) {
+            result = getCorrespListPaged(
+                userId, q, corresptype, reference, status, dispatchType,
+                priority, startDate, endDate, nomSociete, 1, exportPageSize
+            );
+        } else {
+            result = getCorrespListPagedByUserAcl(
+                userId, q, corresptype, reference, status, dispatchType,
+                priority, startDate, endDate, nomSociete, 1, exportPageSize
+            );
+        }
+
+        List<CorrespListItemDTO> items = result.getContent();
+
+        // 2) Mapping labels (réutilisables)
+        Map<String, String> typeLabels = new HashMap<>();
+        typeLabels.put("INCOMING", "Arrivée");
+        typeLabels.put("OUTGOING", "Départ");
+        typeLabels.put("INTERNAL", "Interne");
+
+        Map<String, String> statusLabels = new HashMap<>();
+        statusLabels.put("DRAFT",       "Brouillon");
+        statusLabels.put("IN_PROGRESS", "En cours");
+        statusLabels.put("DISPATCH",    "Dispatché");
+        statusLabels.put("CLOSED",      "Clôturé");
+        statusLabels.put("CANCELLED",   "Annulé");
+
+        Map<String, String> dispatchLabels = new HashMap<>();
+        dispatchLabels.put("LETTER",            "Lettre");
+        dispatchLabels.put("REGISTERED_LETTER", "Lettre Recommandée");
+        dispatchLabels.put("EMAIL",             "Email");
+        dispatchLabels.put("FAX",               "Fax");
+
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        // 3) Construire le workbook Excel
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            Sheet sheet = workbook.createSheet("Correspondances");
+
+            // ── Style en-tête ─────────────────────────────────────────────────
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setFontHeightInPoints((short) 11);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+
+            // ── Style données ──────────────────────────────────────────────────
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+            dataStyle.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+
+            // ── Ligne d'en-têtes ───────────────────────────────────────────────
+            String[] headers = {
+                "N° Référence", "Type", "Date", "Objet",
+                "Expéditeur", "Destinataire(s)", "Statut",
+                "Type d'envoi", "Priorité", "Société"
+            };
+
+            Row headerRow = sheet.createRow(0);
+            headerRow.setHeightInPoints(22);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // ── Lignes de données ──────────────────────────────────────────────
+            int rowNum = 1;
+            for (CorrespListItemDTO item : items) {
+                Row row = sheet.createRow(rowNum++);
+                row.setHeightInPoints(18);
+
+                // Référence
+                Cell c0 = row.createCell(0);
+                c0.setCellValue(item.getReference() != null ? item.getReference() : "");
+                c0.setCellStyle(dataStyle);
+
+                // Type
+                Cell c1 = row.createCell(1);
+                c1.setCellValue(item.getCorresptype() != null
+                    ? typeLabels.getOrDefault(item.getCorresptype().name(), item.getCorresptype().name())
+                    : "");
+                c1.setCellStyle(dataStyle);
+
+                // Date courrier
+                Cell c2 = row.createCell(2);
+                c2.setCellValue(item.getCourrierDate() != null
+                    ? item.getCourrierDate().format(dateFormatter)
+                    : "");
+                c2.setCellStyle(dataStyle);
+
+                // Objet
+                Cell c3 = row.createCell(3);
+                c3.setCellValue(item.getSubject() != null ? item.getSubject() : "");
+                c3.setCellStyle(dataStyle);
+
+                // Expéditeur
+                Cell c4 = row.createCell(4);
+                c4.setCellValue(item.getMsgSender() != null ? item.getMsgSender() : "");
+                c4.setCellStyle(dataStyle);
+
+                // Destinataire
+                Cell c5 = row.createCell(5);
+                c5.setCellValue(item.getMsgReceiver() != null ? item.getMsgReceiver() : "");
+                c5.setCellStyle(dataStyle);
+
+                // Statut
+                Cell c6 = row.createCell(6);
+                c6.setCellValue(item.getStatus() != null
+                    ? statusLabels.getOrDefault(item.getStatus().name(), item.getStatus().name())
+                    : "");
+                c6.setCellStyle(dataStyle);
+
+                // Type d'envoi
+                Cell c7 = row.createCell(7);
+                c7.setCellValue(item.getDispatchType() != null
+                    ? dispatchLabels.getOrDefault(item.getDispatchType().name(), item.getDispatchType().name())
+                    : "");
+                c7.setCellStyle(dataStyle);
+
+                // Priorité
+                Cell c8 = row.createCell(8);
+                c8.setCellValue(Boolean.TRUE.equals(item.getPriority()) ? "Prioritaire" : "Normale");
+                c8.setCellStyle(dataStyle);
+
+                // Société
+                Cell c9 = row.createCell(9);
+                c9.setCellValue(item.getNomSociete() != null ? item.getNomSociete() : "");
+                c9.setCellStyle(dataStyle);
+            }
+
+            // ── Ajustement automatique de la largeur des colonnes ──────────────
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+                int width = sheet.getColumnWidth(i);
+                // Largeur minimale 3000 (≈11 chars), maximale 15000 (≈56 chars)
+                if (width < 3000)  sheet.setColumnWidth(i, 3000);
+                if (width > 15000) sheet.setColumnWidth(i, 15000);
+            }
+
+            workbook.write(out);
+            return out.toByteArray();
+        }
     }
 }
