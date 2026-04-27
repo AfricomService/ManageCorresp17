@@ -41,6 +41,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.PaginationUtil;
 import tech.jhipster.web.util.ResponseUtil;
+import java.io.IOException;
+import java.time.format.DateTimeFormatter;
 
 /**
  * REST controller for managing {@link com.africom.correspmanage.domain.Corresp}.
@@ -936,5 +938,49 @@ public ResponseEntity<?> addTaskToCorresp(
         response.put("hasPrevious", result.hasPrevious());
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/corresps/export
+     * Exporte la liste filtrée des correspondances en fichier Excel (.xlsx).
+     * Accepte les mêmes paramètres que /api/corresps/list et /api/corresps/list-by-acl.
+     */
+    @GetMapping("/corresps/export")
+    public ResponseEntity<byte[]> exportCorresps(
+        @RequestParam(name = "userId")                           Long userId,
+        @RequestParam(name = "isAdmin",      defaultValue = "false") boolean isAdmin,
+        @RequestParam(name = "q",            required = false, defaultValue = "") String q,
+        @RequestParam(name = "corresptype",  required = false)   String corresptype,
+        @RequestParam(name = "reference",    required = false)   String reference,
+        @RequestParam(name = "status",       required = false)   String status,
+        @RequestParam(name = "dispatchType", required = false)   String dispatchType,
+        @RequestParam(name = "priority",     required = false)   Boolean priority,
+        @RequestParam(name = "startDate",    required = false)   String startDate,
+        @RequestParam(name = "endDate",      required = false)   String endDate,
+        @RequestParam(name = "nomSociete",   required = false)   String nomSociete
+    ) {
+        log.debug("REST export Excel userId={} isAdmin={}", userId, isAdmin);
+        try {
+            byte[] excelBytes = correspService.exportCorrespsToExcel(
+                userId, isAdmin, q, corresptype, reference, status,
+                dispatchType, priority, startDate, endDate, nomSociete
+            );
+
+            String filename = "correspondances_"
+                + java.time.LocalDate.now()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                + ".xlsx";
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                    "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_TYPE,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(excelBytes);
+
+        } catch (IOException e) {
+            log.error("Erreur génération Excel", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
