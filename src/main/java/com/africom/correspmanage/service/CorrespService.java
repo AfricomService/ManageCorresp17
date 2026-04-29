@@ -1609,6 +1609,14 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         if (newStatus == CorrespStatus.CLOSED) {
             taskToUpdate.setCloseDate(ZonedDateTime.now());
+            // ✅ NOUVEAU : persister dateTraitement et userTraitement
+            taskToUpdate.setDateTraitement(ZonedDateTime.now());
+            taskToUpdate.setUserTraitement(getCurrentUserId());
+        }
+
+        if (newStatus == CorrespStatus.CANCELLED) {
+            taskToUpdate.setDateTraitement(ZonedDateTime.now());
+            taskToUpdate.setUserTraitement(getCurrentUserId());
         }
 
         if (newStatus == CorrespStatus.IN_PROGRESS) {
@@ -1890,6 +1898,22 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspRepository.save(existingCorresp);
 
         return existingCorresp;
+    }
+
+    /**
+     * Récupère l'ID de l'utilisateur actuellement connecté.
+     * Retourne null si impossible à résoudre.
+     */
+    private Long getCurrentUserId() {
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (login == null) return null;
+        try {
+            UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(login);
+            return userDto != null ? userDto.getId() : null;
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer l'userId pour login '{}': {}", login, e.getMessage());
+            return null;
+        }
     }
 
 
