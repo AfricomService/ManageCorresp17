@@ -40,10 +40,18 @@ public interface OrgaCareRestClient {
     @GetMapping("/api/personnes/by-matricule/{matricule}")
     Map<String, Object> getPersonneByMatricule(@PathVariable("matricule") String matricule);
 
+    @GetMapping("/api/affectations/emails-by-departement-and-type")
+    List<String> getEmailsByDepartementAndType(
+        @RequestParam("departementId") Long departementId,
+        @RequestParam("type") String type);
+
     @GetMapping("/api/societes/by-matricule/{matricule}")
     List<Map<String, Object>> getSocietesByMatricule(@PathVariable("matricule") String matricule);
 
     @GetMapping("/api/societes/list")
     List<Map<String, Object>> getAllSocietesIdAndRaisonSociale();
+
+    @GetMapping("/api/departements/nom-by-matricule/{matricule}")
+    String getDepartementNomByMatricule(@PathVariable("matricule") String matricule);
 
 }

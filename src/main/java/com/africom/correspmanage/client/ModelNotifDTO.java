@@ -1,5 +1,7 @@
 package com.africom.correspmanage.client;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class ModelNotifDTO {
@@ -13,6 +15,7 @@ public class ModelNotifDTO {
     private String senderEmailFormule;
     private String recepientEmailFormule;
     private Boolean saveCopy;
+    private List<Map<String, String>> ccEmailFormule;
 
     // Getters / Setters
     public UUID getId() { return id; }
@@ -45,5 +48,13 @@ public class ModelNotifDTO {
 
     public void setSaveCopy(Boolean saveCopy) {
         this.saveCopy = saveCopy;
+    }
+
+    public List<Map<String, String>> getCcEmailFormule() {
+        return ccEmailFormule;
+    }
+
+    public void setCcEmailFormule(List<Map<String, String>> ccEmailFormule) {
+        this.ccEmailFormule = ccEmailFormule;
     }
 }

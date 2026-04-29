@@ -433,6 +433,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         log.debug("pjs {}", pjs);
         log.debug("type {}", typeDocumentDTO);
 
+        // Résoudre le nom du département du créateur (login == matricule dans OrgaCare)
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElse("system");
+        String serviceCreateurTaskValue = null;
+        try {
+            serviceCreateurTaskValue = orgaCareRestClient.getDepartementNomByMatricule(currentUserLogin);
+            log.debug("serviceCreateurTask résolu : '{}' pour login '{}'", serviceCreateurTaskValue, currentUserLogin);
+        } catch (Exception e) {
+            log.warn("Impossible de résoudre le département du créateur pour login '{}' : {}", currentUserLogin, e.getMessage());
+        }
+
         // Collection pour stocker les Tasks persistées
         Set<Tasks> tasksSaved = new HashSet<>();
 
@@ -480,6 +490,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     t.creationDate(ZonedDateTime.now());
                     t.setStartDate(ZonedDateTime.now());
                     t.setCommentaire(tasksDTO.getCommentaire());
+                    t.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
                     StringBuilder objectBuilder = new StringBuilder();
                     objectBuilder.append("Tâche de ").append(t.getTaskType() != null ? t.getTaskType().toUpperCase() : "N/A");
                     if (t.getDueDate() != null) {
@@ -523,6 +534,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     t.creationDate(ZonedDateTime.now());
                     t.setStartDate(ZonedDateTime.now());
                     t.setCommentaire(tasksDTO.getCommentaire());
+                    t.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
 
                     String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank())
                         ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
@@ -1455,6 +1467,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
         Corresp existingCorresp = correspRepository.findById(correspId)
             .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
+        // Résoudre le département du créateur
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElse("system");
+        String serviceCreateurTaskValue = null;
+        try {
+            serviceCreateurTaskValue = orgaCareRestClient.getDepartementNomByMatricule(currentUserLogin);
+            log.debug("serviceCreateurTask résolu : '{}' pour login '{}'", serviceCreateurTaskValue, currentUserLogin);
+        } catch (Exception e) {
+            log.warn("Impossible de résoudre le département du créateur pour login '{}' : {}", currentUserLogin, e.getMessage());
+        }
 
         List<ResponsableTacheDTO> inputResponsables = tasksDTO.getResponsables();
 
@@ -1503,6 +1524,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             tasks.creationDate(ZonedDateTime.now());
             tasks.setStartDate(ZonedDateTime.now());
             tasks.setCommentaire(tasksDTO.getCommentaire());
+            tasks.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
 
             StringBuilder objectBuilder = new StringBuilder();
             String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank()) ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
@@ -1587,6 +1609,14 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
         if (newStatus == CorrespStatus.CLOSED) {
             taskToUpdate.setCloseDate(ZonedDateTime.now());
+            // ✅ NOUVEAU : persister dateTraitement et userTraitement
+            taskToUpdate.setDateTraitement(ZonedDateTime.now());
+            taskToUpdate.setUserTraitement(getCurrentUserId());
+        }
+
+        if (newStatus == CorrespStatus.CANCELLED) {
+            taskToUpdate.setDateTraitement(ZonedDateTime.now());
+            taskToUpdate.setUserTraitement(getCurrentUserId());
         }
 
         if (newStatus == CorrespStatus.IN_PROGRESS) {
@@ -1868,6 +1898,22 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspRepository.save(existingCorresp);
 
         return existingCorresp;
+    }
+
+    /**
+     * Récupère l'ID de l'utilisateur actuellement connecté.
+     * Retourne null si impossible à résoudre.
+     */
+    private Long getCurrentUserId() {
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (login == null) return null;
+        try {
+            UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(login);
+            return userDto != null ? userDto.getId() : null;
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer l'userId pour login '{}': {}", login, e.getMessage());
+            return null;
+        }
     }
 
 
@@ -2676,7 +2722,6 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         int pageIndex,
         int pageSize
     ) {
-        // 1) Résoudre les SIDs
         List<String> deptCodes = new ArrayList<>();
         String userLogin = "";
 
@@ -2695,7 +2740,6 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             } catch (Exception e) {
                 log.warn("getCorrespListPaged: deptCodes error: {}", e.getMessage());
             }
-
             try {
                 Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
                 if (userMap != null && userMap.get("login") != null) {
@@ -2707,17 +2751,29 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         }
 
         List<String> allSids = new ArrayList<>(deptCodes);
-        if (!userLogin.isEmpty() && !allSids.contains(userLogin)) {
-            allSids.add(userLogin);
-        }
+        if (!userLogin.isEmpty() && !allSids.contains(userLogin)) allSids.add(userLogin);
         if (allSids.isEmpty()) allSids.add("__NO_SID__");
 
         int readMask = BasePermission.READ.getMask();
         Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
 
-        // 2) Récupérer les IDs paginés
-        Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatch(
-            allSids, readMask, userLogin, pageable
+        // Préparer les paramètres SQL
+        String keywordParam    = (q != null && !q.isBlank()) ? "%" + q.trim().toLowerCase() + "%" : "";
+        String referenceParam  = (reference != null && !reference.isBlank()) ? "%" + reference.trim().toLowerCase() + "%" : null;
+        String nomSocieteParam = (nomSociete != null && !nomSociete.isBlank()) ? "%" + nomSociete.trim().toLowerCase() + "%" : null;
+        String corresptypeParam = (corresptype != null && !corresptype.isBlank()) ? corresptype.toUpperCase() : null;
+        String statusParam      = (status != null && !status.isBlank()) ? status.toUpperCase() : null;
+        String dispatchTypeParam = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
+        String startDateParam   = (startDate != null && !startDate.isBlank()) ? startDate.substring(0, 10) + " 00:00:00" : null;
+        String endDateParam     = (endDate   != null && !endDate.isBlank())   ? endDate.substring(0, 10)   + " 23:59:59" : null;
+
+        Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatchFiltered(
+            allSids, readMask, userLogin,
+            corresptypeParam, statusParam, dispatchTypeParam, priority,
+            referenceParam, nomSocieteParam,
+            startDateParam, endDateParam,
+            keywordParam,
+            pageable
         );
 
         if (idsPage.isEmpty()) return Page.empty(pageable);
@@ -2726,91 +2782,19 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .map(Number::longValue)
             .collect(Collectors.toList());
 
-        // 3) Récupérer les données d'affichage (avec message COURRIER)
         List<Object[]> rows = correspRepository.findListItemsByIds(ids);
 
-        // 4) Mapper en DTO
         Map<Long, CorrespListItemDTO> dtoMap = rows.stream()
             .map(this::mapRowToListItem)
             .filter(d -> d.getId() != null)
             .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
 
-        // 5) Maintenir l'ordre + filtres en mémoire
-// 5) Maintenir l'ordre + filtres en mémoire
-        final String keyword   = (q != null) ? q.trim().toLowerCase() : "";
-        final String ctypeF    = (corresptype != null && !corresptype.isBlank()) ? corresptype.toUpperCase() : null;
-        final String statusF   = (status != null && !status.isBlank()) ? status.toUpperCase() : null;
-        final String dtypeF    = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
-        final String refF      = (reference != null && !reference.isBlank()) ? reference.toLowerCase() : null;
-
-        // Dates
-        ZonedDateTime fromDate = null, toDate = null;
-        if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
-            try {
-                LocalDate ds = LocalDate.parse(startDate.substring(0, 10));
-                LocalDate de = LocalDate.parse(endDate.substring(0, 10));
-                fromDate = ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(),
-                    0, 0, 0, 0, ZoneId.of("UTC"));
-                toDate = ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(),
-                    23, 59, 59, 999999999, ZoneId.of("UTC"));
-            } catch (Exception ignored) {}
-        }
-        final ZonedDateTime finalFrom = fromDate;
-        final ZonedDateTime finalTo   = toDate;
-
         List<CorrespListItemDTO> ordered = ids.stream()
             .map(dtoMap::get)
             .filter(Objects::nonNull)
-            .filter(dto -> {
-                // filtre keyword
-                if (!keyword.isEmpty()) {
-                    boolean match =
-                        (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
-                            || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
-                            || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
-                    if (!match) return false;
-                }
-                // filtre corresptype
-                if (corresptype != null && !corresptype.isBlank()) {
-                    if (dto.getCorresptype() == null || !dto.getCorresptype().name().equalsIgnoreCase(corresptype)) return false;
-                }
-                // filtre reference
-                if (reference != null && !reference.isBlank()) {
-                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(reference.toLowerCase())) return false;
-                }
-                // filtre status
-                if (status != null && !status.isBlank()) {
-                    try {
-                        if (!CorrespStatus.valueOf(status.toUpperCase()).equals(dto.getStatus())) return false;
-                    } catch (IllegalArgumentException ignored) {}
-                }
-                // filtre dispatchType
-                if (dispatchType != null && !dispatchType.isBlank()) {
-                    if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
-                }
-// filtre priority
-                if (priority != null) {
-                    if (dto.getPriority() == null || !dto.getPriority().equals(priority)) return false;
-                }
-// filtre nomSociete
-                if (nomSociete != null && !nomSociete.isBlank()) {
-                    if (dto.getNomSociete() == null || !dto.getNomSociete().toLowerCase().contains(nomSociete.toLowerCase())) return false;
-                }
-// filtre dates
-                if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
-                    try {
-                        java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));
-                        java.time.LocalDate de = java.time.LocalDate.parse(endDate.substring(0, 10));
-                        java.time.ZonedDateTime from = java.time.ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(), 0, 0, 0, 0, ZoneId.of("UTC"));
-                        java.time.ZonedDateTime to   = java.time.ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(), 23, 59, 59, 999999999, ZoneId.of("UTC"));
-                        if (dto.getCourrierDate() != null && (dto.getCourrierDate().isBefore(from) || dto.getCourrierDate().isAfter(to))) return false;
-                    } catch (Exception ignored) {}
-                }
-                return true;
-            })
             .collect(Collectors.toList());
 
-        return new PageImpl<>(ordered, pageable, ordered.size());
+        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
     }
 
     /**
@@ -2830,7 +2814,6 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         int pageIndex,
         int pageSize
     ) {
-        // Réutiliser la même logique mais avec findAllIdsByAclForSidsOrDraft
         List<String> deptCodes = new ArrayList<>();
         String userLogin = "";
 
@@ -2867,8 +2850,23 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         int readMask = BasePermission.READ.getMask();
         String loginForQuery = userLogin.isEmpty() ? "" : userLogin;
 
-        Page<Number> idsPage = correspRepository.findAllIdsByAclForSidsOrDraft(
-            allSids, readMask, loginForQuery, pageable
+        // Préparer les paramètres SQL
+        String keywordParam    = (q != null && !q.isBlank()) ? "%" + q.trim().toLowerCase() + "%" : "";
+        String referenceParam  = (reference != null && !reference.isBlank()) ? "%" + reference.trim().toLowerCase() + "%" : null;
+        String nomSocieteParam = (nomSociete != null && !nomSociete.isBlank()) ? "%" + nomSociete.trim().toLowerCase() + "%" : null;
+        String corresptypeParam = (corresptype != null && !corresptype.isBlank()) ? corresptype.toUpperCase() : null;
+        String statusParam      = (status != null && !status.isBlank()) ? status.toUpperCase() : null;
+        String dispatchTypeParam = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
+        String startDateParam   = (startDate != null && !startDate.isBlank()) ? startDate.substring(0, 10) + " 00:00:00" : null;
+        String endDateParam     = (endDate   != null && !endDate.isBlank())   ? endDate.substring(0, 10)   + " 23:59:59" : null;
+
+        Page<Number> idsPage = correspRepository.findAllIdsByAclForSidsOrDraftFiltered(
+            allSids, readMask, loginForQuery,
+            corresptypeParam, statusParam, dispatchTypeParam, priority,
+            referenceParam, nomSocieteParam,
+            startDateParam, endDateParam,
+            keywordParam,
+            pageable
         );
 
         if (idsPage.isEmpty()) return Page.empty(pageable);
@@ -2884,58 +2882,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .filter(d -> d.getId() != null)
             .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
 
-        final String keyword = (q != null) ? q.trim().toLowerCase() : "";
-
         List<CorrespListItemDTO> ordered = ids.stream()
             .map(dtoMap::get)
             .filter(Objects::nonNull)
-            .filter(dto -> {
-                // filtre keyword
-                if (!keyword.isEmpty()) {
-                    boolean match =
-                        (dto.getReference() != null && dto.getReference().toLowerCase().contains(keyword))
-                            || (dto.getSubject()   != null && dto.getSubject().toLowerCase().contains(keyword))
-                            || (dto.getMsgSender() != null && dto.getMsgSender().toLowerCase().contains(keyword));
-                    if (!match) return false;
-                }
-                // filtre corresptype
-                if (corresptype != null && !corresptype.isBlank()) {
-                    if (dto.getCorresptype() == null || !dto.getCorresptype().name().equalsIgnoreCase(corresptype)) return false;
-                }
-                // filtre reference
-                if (reference != null && !reference.isBlank()) {
-                    if (dto.getReference() == null || !dto.getReference().toLowerCase().contains(reference.toLowerCase())) return false;
-                }
-                // filtre status
-                if (status != null && !status.isBlank()) {
-                    try {
-                        if (!CorrespStatus.valueOf(status.toUpperCase()).equals(dto.getStatus())) return false;
-                    } catch (IllegalArgumentException ignored) {}
-                }
-// filtre dispatchType
-                if (dispatchType != null && !dispatchType.isBlank()) {
-                    if (dto.getDispatchType() == null || !dto.getDispatchType().name().equalsIgnoreCase(dispatchType)) return false;
-                }
-// filtre priority  ← AJOUT
-                if (priority != null) {
-                    if (dto.getPriority() == null || !dto.getPriority().equals(priority)) return false;
-                }
-// filtre nomSociete
-                if (nomSociete != null && !nomSociete.isBlank()) {
-                    if (dto.getNomSociete() == null || !dto.getNomSociete().toLowerCase().contains(nomSociete.toLowerCase())) return false;
-                }
-// filtre dates
-                if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
-                    try {
-                        java.time.LocalDate ds = java.time.LocalDate.parse(startDate.substring(0, 10));
-                        java.time.LocalDate de = java.time.LocalDate.parse(endDate.substring(0, 10));
-                        java.time.ZonedDateTime from = java.time.ZonedDateTime.of(ds.getYear(), ds.getMonthValue(), ds.getDayOfMonth(), 0, 0, 0, 0, ZoneId.of("UTC"));
-                        java.time.ZonedDateTime to   = java.time.ZonedDateTime.of(de.getYear(), de.getMonthValue(), de.getDayOfMonth(), 23, 59, 59, 999999999, ZoneId.of("UTC"));
-                        if (dto.getCourrierDate() != null && (dto.getCourrierDate().isBefore(from) || dto.getCourrierDate().isAfter(to))) return false;
-                    } catch (Exception ignored) {}
-                }
-                return true;
-            })
             .collect(Collectors.toList());
 
         return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());

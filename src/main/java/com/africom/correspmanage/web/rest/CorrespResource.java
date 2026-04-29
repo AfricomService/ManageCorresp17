@@ -714,7 +714,8 @@ public ResponseEntity<?> addTaskToCorresp(
                 .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")));
 
             // 3) Rendre le template
-            TemplateRenderService templateRenderService = new TemplateRenderService();
+            // Utiliser le bean injecté (déjà disponible dans le controller)
+// templateRenderService est déjà un champ injecté — supprimer le "new"
             String renderedHtml  = templateRenderService.render(modelNotif.getContent(), ctx);
             String renderedSubject = modelNotif.getSubjectFormula() != null
                 ? templateRenderService.render(modelNotif.getSubjectFormula(), ctx)
