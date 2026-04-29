@@ -433,6 +433,16 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         log.debug("pjs {}", pjs);
         log.debug("type {}", typeDocumentDTO);
 
+        // Résoudre le nom du département du créateur (login == matricule dans OrgaCare)
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElse("system");
+        String serviceCreateurTaskValue = null;
+        try {
+            serviceCreateurTaskValue = orgaCareRestClient.getDepartementNomByMatricule(currentUserLogin);
+            log.debug("serviceCreateurTask résolu : '{}' pour login '{}'", serviceCreateurTaskValue, currentUserLogin);
+        } catch (Exception e) {
+            log.warn("Impossible de résoudre le département du créateur pour login '{}' : {}", currentUserLogin, e.getMessage());
+        }
+
         // Collection pour stocker les Tasks persistées
         Set<Tasks> tasksSaved = new HashSet<>();
 
@@ -480,6 +490,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     t.creationDate(ZonedDateTime.now());
                     t.setStartDate(ZonedDateTime.now());
                     t.setCommentaire(tasksDTO.getCommentaire());
+                    t.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
                     StringBuilder objectBuilder = new StringBuilder();
                     objectBuilder.append("Tâche de ").append(t.getTaskType() != null ? t.getTaskType().toUpperCase() : "N/A");
                     if (t.getDueDate() != null) {
@@ -523,6 +534,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                     t.creationDate(ZonedDateTime.now());
                     t.setStartDate(ZonedDateTime.now());
                     t.setCommentaire(tasksDTO.getCommentaire());
+                    t.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
 
                     String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank())
                         ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
@@ -1455,6 +1467,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     public Corresp addTaskToExistingCorresp(TasksDTO tasksDTO, Long correspId) {
         Corresp existingCorresp = correspRepository.findById(correspId)
             .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
+        // Résoudre le département du créateur
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElse("system");
+        String serviceCreateurTaskValue = null;
+        try {
+            serviceCreateurTaskValue = orgaCareRestClient.getDepartementNomByMatricule(currentUserLogin);
+            log.debug("serviceCreateurTask résolu : '{}' pour login '{}'", serviceCreateurTaskValue, currentUserLogin);
+        } catch (Exception e) {
+            log.warn("Impossible de résoudre le département du créateur pour login '{}' : {}", currentUserLogin, e.getMessage());
+        }
 
         List<ResponsableTacheDTO> inputResponsables = tasksDTO.getResponsables();
 
@@ -1503,6 +1524,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             tasks.creationDate(ZonedDateTime.now());
             tasks.setStartDate(ZonedDateTime.now());
             tasks.setCommentaire(tasksDTO.getCommentaire());
+            tasks.setServiceCreateurTask(serviceCreateurTaskValue); // ← AJOUT
 
             StringBuilder objectBuilder = new StringBuilder();
             String responsibleDisplay = (r.getMatriculePers() != null && !r.getMatriculePers().isBlank()) ? r.getMatriculePers() : (r.getCodeDept() != null ? r.getCodeDept() : "");
