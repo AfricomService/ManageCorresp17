@@ -492,6 +492,7 @@ public class EmailSendService {
             Session session = buildMailSession(smtpConfig);
 
             List<String> toEmails = parseEmailList(message.getReceiver());
+            List<String> ccEmails = parseEmailList(message.getCopyTo());
             if (toEmails.isEmpty()) {
                 log.warn("Aucun destinataire pour l'envoi direct HTML");
                 return;
@@ -507,6 +508,14 @@ public class EmailSendService {
             mimeMessage.setFrom(new InternetAddress(senderEmail, fromName, "UTF-8"));
             mimeMessage.setSubject(subject != null ? subject : "Notification", "UTF-8");
             mimeMessage.setRecipients(javax.mail.Message.RecipientType.TO, toInternetAddresses(toEmails));
+
+            // CC (les chefs du département)
+            if (!ccEmails.isEmpty()) {
+                mimeMessage.setRecipients(
+                    javax.mail.Message.RecipientType.CC,
+                    toInternetAddresses(ccEmails)
+                );
+            }
 
             MimeBodyPart htmlPart = new MimeBodyPart();
             htmlPart.setContent(htmlContent, "text/html; charset=UTF-8");
