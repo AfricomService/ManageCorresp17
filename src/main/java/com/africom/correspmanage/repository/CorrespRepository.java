@@ -351,4 +351,156 @@ SELECT COUNT(*) FROM (
         nativeQuery = true)
     List<Object[]> findListItemsByIds(@Param("ids") List<Long> ids);
 
+    // ── NOUVELLE MÉTHODE : Admin/BOC avec filtres en SQL ──────────────────────
+    @Query(
+        value = """
+    SELECT combined.id FROM (
+        SELECT DISTINCT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+        JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+        JOIN acl_class ac ON ac.id = aoi.object_id_class
+        JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+        JOIN acl_sid sid ON sid.id = ae.sid
+        WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+          AND sid.sid IN (:sids)
+          AND (ae.mask & :mask) <> 0
+        UNION
+        SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+        WHERE LOWER(c.created_by) = LOWER(:login)
+          AND c.status = 'DRAFT'
+        UNION
+        SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+        WHERE c.status = 'DISPATCH'
+    ) combined
+    JOIN corresp c ON c.id = combined.id
+    WHERE (:corresptype IS NULL OR c.corresptype = :corresptype)
+      AND (:status IS NULL OR c.status = :status)
+      AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+      AND (:priority IS NULL OR c.priority = :priority)
+      AND (:reference IS NULL OR LOWER(c.reference) LIKE :reference)
+      AND (:nomSociete IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+      AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+      AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
+      AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+    ORDER BY combined.dc DESC, combined.cid DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM (
+        SELECT DISTINCT c.id FROM corresp c
+        JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+        JOIN acl_class ac ON ac.id = aoi.object_id_class
+        JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+        JOIN acl_sid sid ON sid.id = ae.sid
+        WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+          AND sid.sid IN (:sids)
+          AND (ae.mask & :mask) <> 0
+        UNION
+        SELECT c.id FROM corresp c
+        WHERE LOWER(c.created_by) = LOWER(:login)
+          AND c.status = 'DRAFT'
+        UNION
+        SELECT c.id FROM corresp c
+        WHERE c.status = 'DISPATCH'
+    ) combined
+    JOIN corresp c ON c.id = combined.id
+    WHERE (:corresptype IS NULL OR c.corresptype = :corresptype)
+      AND (:status IS NULL OR c.status = :status)
+      AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+      AND (:priority IS NULL OR c.priority = :priority)
+      AND (:reference IS NULL OR LOWER(c.reference) LIKE :reference)
+      AND (:nomSociete IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+      AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+      AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
+      AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+    """,
+        nativeQuery = true
+    )
+    Page<Number> findAllIdsByAclOrDraftOrDispatchFiltered(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("login") String login,
+        @Param("corresptype") String corresptype,
+        @Param("status") String status,
+        @Param("dispatchType") String dispatchType,
+        @Param("priority") Boolean priority,
+        @Param("reference") String reference,
+        @Param("nomSociete") String nomSociete,
+        @Param("startDate") String startDate,
+        @Param("endDate") String endDate,
+        @Param("keyword") String keyword,
+        Pageable pageable
+    );
+
+    // ── NOUVELLE MÉTHODE : User simple avec filtres en SQL ────────────────────
+    @Query(
+        value = """
+    SELECT combined.id FROM (
+        SELECT DISTINCT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+        JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+        JOIN acl_class ac ON ac.id = aoi.object_id_class
+        JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+        JOIN acl_sid sid ON sid.id = ae.sid
+        WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+          AND sid.sid IN (:sids)
+          AND (ae.mask & :mask) <> 0
+        UNION
+        SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
+        WHERE LOWER(c.created_by) = LOWER(:login)
+          AND c.status = 'DRAFT'
+    ) combined
+    JOIN corresp c ON c.id = combined.id
+    WHERE (:corresptype IS NULL OR c.corresptype = :corresptype)
+      AND (:status IS NULL OR c.status = :status)
+      AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+      AND (:priority IS NULL OR c.priority = :priority)
+      AND (:reference IS NULL OR LOWER(c.reference) LIKE :reference)
+      AND (:nomSociete IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+      AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+      AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
+      AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+    ORDER BY combined.dc DESC, combined.cid DESC
+    """,
+        countQuery = """
+    SELECT COUNT(*) FROM (
+        SELECT DISTINCT c.id FROM corresp c
+        JOIN acl_object_identity aoi ON CAST(aoi.object_id_identity AS BIGINT) = c.id
+        JOIN acl_class ac ON ac.id = aoi.object_id_class
+        JOIN acl_entry ae ON ae.acl_object_identity = aoi.id
+        JOIN acl_sid sid ON sid.id = ae.sid
+        WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
+          AND sid.sid IN (:sids)
+          AND (ae.mask & :mask) <> 0
+        UNION
+        SELECT c.id FROM corresp c
+        WHERE LOWER(c.created_by) = LOWER(:login)
+          AND c.status = 'DRAFT'
+    ) combined
+    JOIN corresp c ON c.id = combined.id
+    WHERE (:corresptype IS NULL OR c.corresptype = :corresptype)
+      AND (:status IS NULL OR c.status = :status)
+      AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+      AND (:priority IS NULL OR c.priority = :priority)
+      AND (:reference IS NULL OR LOWER(c.reference) LIKE :reference)
+      AND (:nomSociete IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+      AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+      AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
+      AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+    """,
+        nativeQuery = true
+    )
+    Page<Number> findAllIdsByAclForSidsOrDraftFiltered(
+        @Param("sids") List<String> sids,
+        @Param("mask") int mask,
+        @Param("login") String login,
+        @Param("corresptype") String corresptype,
+        @Param("status") String status,
+        @Param("dispatchType") String dispatchType,
+        @Param("priority") Boolean priority,
+        @Param("reference") String reference,
+        @Param("nomSociete") String nomSociete,
+        @Param("startDate") String startDate,
+        @Param("endDate") String endDate,
+        @Param("keyword") String keyword,
+        Pageable pageable
+    );
+
 }
