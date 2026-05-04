@@ -142,27 +142,39 @@ public class CustomSearchService {
                 String req = customSearch.getRequest();
                 Map<String, String> filters = new HashMap<>();
 
-                if (req != null && req.contains("?")) {
-                    String query = req.substring(req.indexOf("?") + 1);
-                    query = query.replace("%26", "&");
-
-                    Arrays
-                        .stream(query.split("&"))
-                        .map(param -> param.split("=", 2))
-                        .forEach(pair -> {
-                            String key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
-                            String value = pair.length > 1 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "";
-                            // skip paging params if you want
-                            if (!key.equals("pageIndex") && !key.equals("pageSize")) {
-                                filters.put(key, value);
-                            }
-                        });
+                if (req != null && !req.isBlank()) {
+                    // Nouveau format : JSON {"priority":true,"status":"DRAFT"}
+                    if (req.trim().startsWith("{")) {
+                        try {
+                            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                                new com.fasterxml.jackson.databind.ObjectMapper();
+                            Map<String, Object> parsed = mapper.readValue(req,
+                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                            parsed.forEach((key, value) ->
+                                filters.put(key, value != null ? String.valueOf(value) : ""));
+                        } catch (Exception e) {
+                            log.warn("Impossible de parser le JSON du filtre : {}", e.getMessage());
+                        }
+                    }
+                    // Ancien format : URL query string (rétrocompatibilité)
+                    else if (req.contains("?")) {
+                        String query = req.substring(req.indexOf("?") + 1);
+                        query = query.replace("%26", "&");
+                        Arrays.stream(query.split("&"))
+                            .map(param -> param.split("=", 2))
+                            .forEach(pair -> {
+                                String key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
+                                String value = pair.length > 1 ?
+                                    URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "";
+                                if (!key.equals("pageIndex") && !key.equals("pageSize")
+                                    && !key.equals("userId")) {
+                                    filters.put(key, value);
+                                }
+                            });
+                    }
                 }
 
-                return
-                    new CustomSearchViewDTO(
-                    customSearch.getId(),
-                    customSearch.getName(), filters);
+                return new CustomSearchViewDTO(customSearch.getId(), customSearch.getName(), filters);
             })
             .toList();
     }
