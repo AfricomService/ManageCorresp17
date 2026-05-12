@@ -410,8 +410,20 @@ public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
 
         Corresp corresp = correspOpt.get();
 
-        // Génération de la référence via ton service
-        String generatedReference = configManageRestClient.getNextNumber(corresp.getCorresptype().name());
+        // ✅ Passer le codeUniqueSociete au service de génération
+        String codeUniqueSociete = corresp.getCodeUniqueSociete();
+        String generatedReference;
+        try {
+            generatedReference = configManageRestClient.getNextNumber(
+                corresp.getCorresptype().name(),
+                codeUniqueSociete
+            );
+        } catch (Exception e) {
+            log.error("Erreur génération référence pour correspId={} type={} societe={} : {}",
+                id, corresp.getCorresptype().name(), codeUniqueSociete, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+
         corresp.setReference(generatedReference);
         corresp.setUpdatedDate(ZonedDateTime.now());
         corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
