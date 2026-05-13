@@ -732,7 +732,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String taskObject,
         String taskType,
         String taskCodeDept,
-        String codeUniqueSociete
+        String codeUniqueSociete,
+        String nomSociete,       // ← AJOUT
+        Long idSociete           // ← AJOUT
     ) {
         // --- Création de la Corresp ---
         Corresp correspToSave = new Corresp();
@@ -744,6 +746,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setSubject(subject);
         correspToSave.setSender(from);
         correspToSave.setCodeUniqueSociete(codeUniqueSociete);
+        correspToSave.setNomSociete(nomSociete);       // ← AJOUT
+        correspToSave.setIdSociete(idSociete);         // ← AJOUT
 
         try {
             correspToSave.setStatus(

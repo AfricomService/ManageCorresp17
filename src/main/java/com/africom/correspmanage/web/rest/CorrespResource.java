@@ -350,8 +350,9 @@ public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
         @RequestPart(value = "taskObject", required = false) String taskObject,
         @RequestPart(value = "taskType", required = false) String taskType,
         @RequestPart(value = "taskResponsableCodeDept", required = false) String taskResponsableCodeDept,
-        @RequestPart(value = "codeUniqueSociete", required = false) String codeUniqueSociete  // ← NOUVEAU
-
+        @RequestPart(value = "codeUniqueSociete", required = false) String codeUniqueSociete,
+        @RequestPart(value = "nomSociete", required = false) String nomSociete,      // ← AJOUT
+        @RequestPart(value = "idSociete", required = false) String idSocieteStr      // ← AJOUT (String car multipart)
     ) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -381,11 +382,19 @@ public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
                 }
             }
 
+            Long idSociete = null;
+            if (idSocieteStr != null && !idSocieteStr.isBlank()) {
+                try { idSociete = Long.parseLong(idSocieteStr.trim()); }
+                catch (NumberFormatException e) {
+                    log.warn("idSociete invalide reçu de N8N: {}", idSocieteStr);
+                }
+            }
+
             Corresp saved = correspService.saveCorrespWithPjN8N(
                 pjList, subject, from, bodyHtml,
                 receiverObj, copyToObj, status, corresptype,
                 dispatchType, taskObject, taskType, taskResponsableCodeDept,
-                codeUniqueSociete
+                codeUniqueSociete, nomSociete, idSociete     // ← AJOUT
             );
             log.debug("Corresp N8N créée avec id={}", saved.getId());
             return ResponseEntity.ok().build();
