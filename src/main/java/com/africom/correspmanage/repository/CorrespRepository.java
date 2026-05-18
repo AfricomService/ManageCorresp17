@@ -551,4 +551,48 @@ SELECT COUNT(*) FROM (
         Pageable pageable
     );
 
+    /**
+     * ROLE_CAN_SEE_ALL — tous les courriers sans filtre ACL, avec filtres métier uniquement.
+     */
+    @Query(
+        value = """
+SELECT c.id FROM corresp c
+WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
+  AND (:status       IS NULL OR c.status        = :status)
+  AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+  AND (:priority     IS NULL OR c.priority      = :priority)
+  AND (:reference    IS NULL OR LOWER(c.reference)   LIKE :reference)
+  AND (:nomSociete   IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+  AND (:startDate    IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+  AND (:endDate      IS NULL OR c.courrier_date <= CAST(:endDate   AS timestamp))
+  AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+ORDER BY c.date_created DESC, c.id DESC
+""",
+        countQuery = """
+SELECT COUNT(*) FROM corresp c
+WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
+  AND (:status       IS NULL OR c.status        = :status)
+  AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
+  AND (:priority     IS NULL OR c.priority      = :priority)
+  AND (:reference    IS NULL OR LOWER(c.reference)   LIKE :reference)
+  AND (:nomSociete   IS NULL OR LOWER(c.nom_societe) LIKE :nomSociete)
+  AND (:startDate    IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
+  AND (:endDate      IS NULL OR c.courrier_date <= CAST(:endDate   AS timestamp))
+  AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+""",
+        nativeQuery = true
+    )
+    Page<Number> findAllIdsFiltered(
+        @Param("corresptype")  String  corresptype,
+        @Param("status")       String  status,
+        @Param("dispatchType") String  dispatchType,
+        @Param("priority")     Boolean priority,
+        @Param("reference")    String  reference,
+        @Param("nomSociete")   String  nomSociete,
+        @Param("startDate")    String  startDate,
+        @Param("endDate")      String  endDate,
+        @Param("keyword")      String  keyword,
+        Pageable pageable
+    );
+
 }
