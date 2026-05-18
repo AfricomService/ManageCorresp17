@@ -963,6 +963,46 @@ public ResponseEntity<?> addTaskToCorresp(
     }
 
     /**
+     * GET /api/corresps/list-all
+     * Liste paginée de TOUS les courriers — réservé à ROLE_CAN_SEE_ALL.
+     * Aucun filtre ACL appliqué.
+     */
+    @GetMapping("/corresps/list-all")
+    public ResponseEntity<Map<String, Object>> getCorrespListAll(
+        @RequestParam(name = "userId")                           Long userId,
+        @RequestParam(name = "page",         defaultValue = "1")  int page,
+        @RequestParam(name = "size",         defaultValue = "15") int size,
+        @RequestParam(name = "q",            required = false, defaultValue = "") String q,
+        @RequestParam(name = "corresptype",  required = false)   String corresptype,
+        @RequestParam(name = "reference",    required = false)   String reference,
+        @RequestParam(name = "status",       required = false)   String status,
+        @RequestParam(name = "dispatchType", required = false)   String dispatchType,
+        @RequestParam(name = "priority",     required = false)   Boolean priority,
+        @RequestParam(name = "startDate",    required = false)   String startDate,
+        @RequestParam(name = "endDate",      required = false)   String endDate,
+        @RequestParam(name = "nomSociete",   required = false)   String nomSociete
+    ) {
+        log.debug("REST /corresps/list-all userId={} q='{}' page={} size={}", userId, q, page, size);
+
+        Page<CorrespListItemDTO> result = correspService.getCorrespListAll(
+            userId, q, corresptype, reference, status,
+            dispatchType, priority, startDate, endDate, nomSociete,
+            page, size
+        );
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("content",     result.getContent());
+        response.put("currentPage", page);
+        response.put("pageSize",    size);
+        response.put("totalItems",  result.getTotalElements());
+        response.put("totalPages",  result.getTotalPages());
+        response.put("hasNext",     result.hasNext());
+        response.put("hasPrevious", result.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * GET /api/corresps/export
      * Exporte la liste filtrée des correspondances en fichier Excel (.xlsx).
      * Accepte les mêmes paramètres que /api/corresps/list et /api/corresps/list-by-acl.
