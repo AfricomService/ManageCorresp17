@@ -2895,6 +2895,71 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     }
 
     /**
+     * ROLE_CAN_SEE_ALL — liste paginée de TOUS les courriers sans restriction ACL.
+     */
+    public Page<CorrespListItemDTO> getCorrespListAll(
+        Long userId,
+        String q,
+        String corresptype,
+        String reference,
+        String status,
+        String dispatchType,
+        Boolean priority,
+        String startDate,
+        String endDate,
+        String nomSociete,
+        int pageIndex,
+        int pageSize
+    ) {
+        Pageable pageable = PageRequest.of(Math.max(0, pageIndex - 1), pageSize);
+
+        String keywordParam     = (q != null && !q.isBlank())
+            ? "%" + q.trim().toLowerCase() + "%" : "";
+        String referenceParam   = (reference  != null && !reference.isBlank())
+            ? "%" + reference.trim().toLowerCase()  + "%" : null;
+        String nomSocieteParam  = (nomSociete != null && !nomSociete.isBlank())
+            ? "%" + nomSociete.trim().toLowerCase() + "%" : null;
+        String corresptypeParam = (corresptype  != null && !corresptype.isBlank())
+            ? corresptype.toUpperCase()  : null;
+        String statusParam      = (status       != null && !status.isBlank())
+            ? status.toUpperCase()       : null;
+        String dispatchTypeParam = (dispatchType != null && !dispatchType.isBlank())
+            ? dispatchType.toUpperCase() : null;
+        String startDateParam   = (startDate != null && !startDate.isBlank())
+            ? startDate.substring(0, 10) + " 00:00:00" : null;
+        String endDateParam     = (endDate   != null && !endDate.isBlank())
+            ? endDate.substring(0, 10)   + " 23:59:59" : null;
+
+        Page<Number> idsPage = correspRepository.findAllIdsFiltered(
+            corresptypeParam, statusParam, dispatchTypeParam, priority,
+            referenceParam, nomSocieteParam,
+            startDateParam, endDateParam,
+            keywordParam,
+            pageable
+        );
+
+        if (idsPage.isEmpty()) return Page.empty(pageable);
+
+        List<Long> ids = idsPage.getContent().stream()
+            .map(Number::longValue)
+            .collect(Collectors.toList());
+
+        List<Object[]> rows = correspRepository.findListItemsByIds(ids);
+
+        Map<Long, CorrespListItemDTO> dtoMap = rows.stream()
+            .map(this::mapRowToListItem)
+            .filter(d -> d.getId() != null)
+            .collect(Collectors.toMap(CorrespListItemDTO::getId, d -> d));
+
+        List<CorrespListItemDTO> ordered = ids.stream()
+            .map(dtoMap::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(ordered, pageable, idsPage.getTotalElements());
+    }
+
+    /**
      * Génère un fichier Excel (.xlsx) à partir de la liste des correspondances.
      * Respecte les filtres et les droits ACL selon le rôle de l'utilisateur.
      *
