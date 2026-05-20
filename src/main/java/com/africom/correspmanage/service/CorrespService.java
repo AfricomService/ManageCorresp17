@@ -2527,7 +2527,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         return tasksRepository
             .findById(taskId)
             .map(task -> task.getCorresps().stream().findFirst()
-                .map(c -> new CorrespSummaryDTO(c.getSubject(), c.getReference()))
+                .map(c -> new CorrespSummaryDTO(c.getSubject(), c.getReference(), c.getNomSociete()))
                 .orElse(new CorrespSummaryDTO()))
             .orElse(new CorrespSummaryDTO());
     }
