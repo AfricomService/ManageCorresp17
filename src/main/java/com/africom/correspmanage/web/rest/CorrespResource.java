@@ -523,6 +523,25 @@ public ResponseEntity<?> addTaskToCorresp(
         return correspService.changeTaskStatus(correspId, taskId, status);
     }
 
+//    /**
+//     * PATCH /api/corresps/{correspId}/auto-close-lecture-tasks
+//     * Clôture automatiquement les tâches LECTURE IN_PROGRESS d'une corresp
+//     * après lecture (appelé après 5s d'ouverture côté front).
+//     */
+//    @PatchMapping("/corresps/{correspId}/auto-close-lecture-tasks")
+//    public ResponseEntity<Map<String, Object>> autoCloseLectureTasks(
+//        @PathVariable Long correspId,
+//        @RequestBody List<Long> taskIds
+//    ) {
+//        log.debug("REST auto-close lecture tasks correspId={} taskIds={}", correspId, taskIds);
+//        int count = correspService.autoCloseLectureTasks(correspId, taskIds);
+//        return ResponseEntity.ok(Map.of(
+//            "correspId", correspId,
+//            "closedCount", count,
+//            "taskIds", taskIds
+//        ));
+//    }
+
     @PatchMapping("/correspsSoumettreCorresp")
     public Corresp soumettreCorresp(@RequestParam(name = "correspId") Long correspId) {
         return correspService.soumettreCorresp(correspId);
