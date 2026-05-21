@@ -1904,6 +1904,79 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         return existingCorresp;
     }
 
+//    /**
+//     * Clôture automatiquement toutes les tâches de type LECTURE en statut IN_PROGRESS
+//     * appartenant à la corresp, pour lesquelles l'utilisateur courant a un ACL.
+//     * Appelé après 5 secondes d'ouverture de la page de détail.
+//     *
+//     * @param correspId l'id de la correspondance
+//     * @param taskIds   les IDs des tâches lecture IN_PROGRESS accessibles par l'utilisateur
+//     * @return nombre de tâches clôturées
+//     */
+//    @Transactional
+//    public int autoCloseLectureTasks(Long correspId, List<Long> taskIds) {
+//        if (correspId == null || taskIds == null || taskIds.isEmpty()) return 0;
+//
+//        Corresp existingCorresp = correspRepository.findById(correspId)
+//            .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
+//
+//        int closedCount = 0;
+//        for (Long taskId : taskIds) {
+//            try {
+//                Tasks taskToUpdate = existingCorresp.getTasks().stream()
+//                    .filter(t -> t.getId().equals(taskId))
+//                    .findFirst()
+//                    .orElse(null);
+//
+//                if (taskToUpdate == null) continue;
+//
+//                // Vérifier que c'est bien une tâche LECTURE IN_PROGRESS
+//                boolean isLecture = "lecture".equalsIgnoreCase(taskToUpdate.getTaskType());
+//                boolean isInProgress = CorrespStatus.IN_PROGRESS.equals(taskToUpdate.getStatus());
+//
+//                if (!isLecture || !isInProgress) continue;
+//
+//                taskToUpdate.setStatus(CorrespStatus.CLOSED);
+//                taskToUpdate.setCloseDate(ZonedDateTime.now());
+//                taskToUpdate.setDateTraitement(ZonedDateTime.now());
+//                taskToUpdate.setUserTraitement(getCurrentUserId());
+//                tasksRepository.save(taskToUpdate);
+//
+//                // ACL : READ only (révoquer WRITE)
+//                try {
+//                    aclUtilService.ensureAclExists(taskToUpdate);
+//                    List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(taskId);
+//                    if (rawDeptCodes != null) {
+//                        for (String dept : rawDeptCodes) {
+//                            if (dept == null || dept.isBlank()) continue;
+//                            Sid authSid = new GrantedAuthoritySid(dept.trim());
+//                            aclUtilService.addPermissionIfNotExists(taskToUpdate, authSid, BasePermission.READ);
+//                            aclUtilService.deletePermissionBySid(taskToUpdate, authSid, BasePermission.WRITE);
+//                            // Sur la corresp aussi
+//                            aclUtilService.addPermissionIfNotExists(existingCorresp, authSid, BasePermission.READ);
+//                            aclUtilService.deletePermissionBySid(existingCorresp, authSid, BasePermission.WRITE);
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    log.warn("Erreur ACL auto-close tâche lecture {} : {}", taskId, e.getMessage());
+//                }
+//
+//                closedCount++;
+//                log.debug("Auto-clôture tâche lecture id={} pour corresp={}", taskId, correspId);
+//            } catch (Exception e) {
+//                log.warn("Erreur auto-clôture tâche lecture id={} : {}", taskId, e.getMessage());
+//            }
+//        }
+//
+//        if (closedCount > 0) {
+//            existingCorresp.setUpdatedDate(ZonedDateTime.now());
+//            existingCorresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+//            correspRepository.save(existingCorresp);
+//        }
+//
+//        return closedCount;
+//    }
+
     /**
      * Récupère l'ID de l'utilisateur actuellement connecté.
      * Retourne null si impossible à résoudre.
