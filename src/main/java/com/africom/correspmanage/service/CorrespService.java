@@ -2796,6 +2796,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String startDate,
         String endDate,
         String nomSociete,
+        String sender,
+        String labelDestinataire,
         int pageIndex,
         int pageSize
     ) {
@@ -2843,6 +2845,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String dispatchTypeParam = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
         String startDateParam   = (startDate != null && !startDate.isBlank()) ? startDate.substring(0, 10) + " 00:00:00" : null;
         String endDateParam     = (endDate   != null && !endDate.isBlank())   ? endDate.substring(0, 10)   + " 23:59:59" : null;
+        String senderParam          = (sender != null && !sender.isBlank()) ? "%" + sender.trim().toLowerCase() + "%" : null;
+        String labelDestinataireParam = (labelDestinataire != null && !labelDestinataire.isBlank()) ? "%" + labelDestinataire.trim().toLowerCase() + "%" : null;
 
         Page<Number> idsPage = correspRepository.findAllIdsByAclOrDraftOrDispatchFiltered(
             allSids, readMask, userLogin,
@@ -2850,6 +2854,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             referenceParam, nomSocieteParam,
             startDateParam, endDateParam,
             keywordParam,
+            senderParam, labelDestinataireParam,
             pageable
         );
 
@@ -2888,6 +2893,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String startDate,
         String endDate,
         String nomSociete,
+        String sender,
+        String labelDestinataire,
         int pageIndex,
         int pageSize
     ) {
@@ -2936,6 +2943,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String dispatchTypeParam = (dispatchType != null && !dispatchType.isBlank()) ? dispatchType.toUpperCase() : null;
         String startDateParam   = (startDate != null && !startDate.isBlank()) ? startDate.substring(0, 10) + " 00:00:00" : null;
         String endDateParam     = (endDate   != null && !endDate.isBlank())   ? endDate.substring(0, 10)   + " 23:59:59" : null;
+        String senderParam          = (sender != null && !sender.isBlank()) ? "%" + sender.trim().toLowerCase() + "%" : null;
+        String labelDestinataireParam = (labelDestinataire != null && !labelDestinataire.isBlank()) ? "%" + labelDestinataire.trim().toLowerCase() + "%" : null;
 
         Page<Number> idsPage = correspRepository.findAllIdsByAclForSidsOrDraftFiltered(
             allSids, readMask, loginForQuery,
@@ -2943,6 +2952,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             referenceParam, nomSocieteParam,
             startDateParam, endDateParam,
             keywordParam,
+            senderParam, labelDestinataireParam,
             pageable
         );
 
@@ -2981,6 +2991,8 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         String startDate,
         String endDate,
         String nomSociete,
+        String sender,
+        String labelDestinataire,
         int pageIndex,
         int pageSize
     ) {
@@ -3002,12 +3014,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             ? startDate.substring(0, 10) + " 00:00:00" : null;
         String endDateParam     = (endDate   != null && !endDate.isBlank())
             ? endDate.substring(0, 10)   + " 23:59:59" : null;
+        String senderParam          = (sender != null && !sender.isBlank()) ? "%" + sender.trim().toLowerCase() + "%" : null;
+        String labelDestinataireParam = (labelDestinataire != null && !labelDestinataire.isBlank()) ? "%" + labelDestinataire.trim().toLowerCase() + "%" : null;
 
         Page<Number> idsPage = correspRepository.findAllIdsFiltered(
             corresptypeParam, statusParam, dispatchTypeParam, priority,
             referenceParam, nomSocieteParam,
             startDateParam, endDateParam,
             keywordParam,
+            senderParam, labelDestinataireParam,
             pageable
         );
 
@@ -3070,12 +3085,12 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         if (isAdmin) {
             result = getCorrespListPaged(
                 userId, q, corresptype, reference, status, dispatchType,
-                priority, startDate, endDate, nomSociete, 1, exportPageSize
+                priority, startDate, endDate, nomSociete, null, null, 1, exportPageSize
             );
         } else {
             result = getCorrespListPagedByUserAcl(
                 userId, q, corresptype, reference, status, dispatchType,
-                priority, startDate, endDate, nomSociete, 1, exportPageSize
+                priority, startDate, endDate, nomSociete, null, null, 1, exportPageSize
             );
         }
 
