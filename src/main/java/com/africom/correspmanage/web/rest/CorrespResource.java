@@ -927,10 +927,12 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "priority",     required = false)  Boolean priority,
         @RequestParam(name = "startDate",    required = false)  String startDate,
         @RequestParam(name = "endDate",      required = false)  String endDate,
-        @RequestParam(name = "nomSociete",   required = false)  String nomSociete
+        @RequestParam(name = "nomSociete",          required = false)  String nomSociete,
+        @RequestParam(name = "sender",              required = false)  String sender,
+        @RequestParam(name = "labelDestinataire",   required = false)  String labelDestinataire
     ) {
         Page<CorrespListItemDTO> result = correspService.getCorrespListPaged(
-            userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, page, size
+            userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, sender, labelDestinataire, page, size
         );
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -962,12 +964,14 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "priority",     required = false)  Boolean priority,
         @RequestParam(name = "startDate",    required = false)  String startDate,
         @RequestParam(name = "endDate",      required = false)  String endDate,
-        @RequestParam(name = "nomSociete",   required = false)  String nomSociete
+        @RequestParam(name = "nomSociete",          required = false)  String nomSociete,
+        @RequestParam(name = "sender",              required = false)  String sender,
+        @RequestParam(name = "labelDestinataire",   required = false)  String labelDestinataire
     ) {
         log.debug("REST /corresps/list-by-acl userId={} q='{}' page={} size={}", userId, q, page, size);
 
         Page<CorrespListItemDTO> result =
-            correspService.getCorrespListPagedByUserAcl(userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, page, size);
+            correspService.getCorrespListPagedByUserAcl(userId, q, corresptype, reference, status, dispatchType, priority, startDate, endDate, nomSociete, sender, labelDestinataire, page, size);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("content",     result.getContent());
@@ -999,13 +1003,16 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "priority",     required = false)   Boolean priority,
         @RequestParam(name = "startDate",    required = false)   String startDate,
         @RequestParam(name = "endDate",      required = false)   String endDate,
-        @RequestParam(name = "nomSociete",   required = false)   String nomSociete
+        @RequestParam(name = "nomSociete",          required = false)   String nomSociete,
+        @RequestParam(name = "sender",              required = false)   String sender,
+        @RequestParam(name = "labelDestinataire",   required = false)   String labelDestinataire
     ) {
         log.debug("REST /corresps/list-all userId={} q='{}' page={} size={}", userId, q, page, size);
 
         Page<CorrespListItemDTO> result = correspService.getCorrespListAll(
             userId, q, corresptype, reference, status,
             dispatchType, priority, startDate, endDate, nomSociete,
+            sender, labelDestinataire,
             page, size
         );
 

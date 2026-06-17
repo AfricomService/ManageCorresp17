@@ -11,14 +11,9 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-/**
- * Spring Data JPA repository for the Corresp entity.
- *
- * When extending this class, extend CorrespRepositoryWithBagRelationships too.
- * For more information refer to https://github.com/jhipster/generator-jhipster/issues/17990.
- */
 @Repository
 public interface CorrespRepository extends CorrespRepositoryWithBagRelationships, JpaRepository<Corresp, Long> {
+
     default Optional<Corresp> findOneWithEagerRelationships(Long id) {
         return this.fetchBagRelationships(this.findById(id));
     }
@@ -45,7 +40,7 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
             "JOIN acl_entry ae ON ae.acl_object_identity = aoi.id " +
             "JOIN acl_sid sid ON sid.id = ae.sid " +
             "WHERE sid.sid = :deptCode " +
-            "AND (ae.mask & 1) <> 0", // READ bit set
+            "AND (ae.mask & 1) <> 0",
         nativeQuery = true
     )
     List<Corresp> findAllByAclForDept(@Param("deptCode") String deptCode);
@@ -130,7 +125,6 @@ public interface CorrespRepository extends CorrespRepositoryWithBagRelationships
         Pageable pageable
     );
 
-    // Récupérer les entités complètes par IDs (avec eager relationships si besoin)
     @Query("SELECT c FROM Corresp c WHERE c.id IN (:ids) ORDER BY c.dateCreated DESC")
     List<Corresp> findAllByIds(@Param("ids") List<Long> ids);
 
@@ -326,11 +320,6 @@ SELECT COUNT(*) FROM (
     """)
     Page<Corresp> searchByKeyword(@Param("search") String search, Pageable pageable);
 
-    /**
-     * Récupère les champs d'affichage de la liste (avec sender/receiver du message COURRIER)
-     * pour une liste d'IDs donnés.
-     * LEFT JOIN sur message pour ne pas exclure les corresps sans message.
-     */
     @Query(value = """
         SELECT
         c.id,
@@ -340,7 +329,7 @@ SELECT COUNT(*) FROM (
         c.subject,
         c.status,
         c.priority,
-        c.sender          AS msg_sender,
+        c.sender             AS msg_sender,
         c.label_destinataire AS msg_receiver,
         c.dispatch_type,
         c.nom_societe
@@ -351,7 +340,7 @@ SELECT COUNT(*) FROM (
         nativeQuery = true)
     List<Object[]> findListItemsByIds(@Param("ids") List<Long> ids);
 
-    // ── NOUVELLE MÉTHODE : Admin/BOC avec filtres en SQL ──────────────────────
+    // ── Admin/BOC avec filtres en SQL ─────────────────────────────────────────
     @Query(
         value = """
 SELECT combined.id FROM (
@@ -372,6 +361,8 @@ SELECT combined.id FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
@@ -385,6 +376,8 @@ SELECT combined.id FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE c.status = 'DISPATCH'
@@ -396,6 +389,8 @@ SELECT combined.id FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 ) combined
 ORDER BY combined.dc DESC, combined.cid DESC
 """,
@@ -418,6 +413,8 @@ SELECT COUNT(*) FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
@@ -431,6 +428,8 @@ SELECT COUNT(*) FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id FROM corresp c
     WHERE c.status = 'DISPATCH'
@@ -442,6 +441,8 @@ SELECT COUNT(*) FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 ) combined
 """,
         nativeQuery = true
@@ -459,10 +460,12 @@ SELECT COUNT(*) FROM (
         @Param("startDate") String startDate,
         @Param("endDate") String endDate,
         @Param("keyword") String keyword,
+        @Param("sender") String sender,
+        @Param("labelDestinataire") String labelDestinataire,
         Pageable pageable
     );
 
-    // ── NOUVELLE MÉTHODE : User simple avec filtres en SQL ────────────────────
+    // ── User simple avec filtres en SQL ───────────────────────────────────────
     @Query(
         value = """
 SELECT combined.id FROM (
@@ -483,6 +486,8 @@ SELECT combined.id FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
@@ -496,6 +501,8 @@ SELECT combined.id FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 ) combined
 ORDER BY combined.dc DESC, combined.cid DESC
 """,
@@ -518,6 +525,8 @@ SELECT COUNT(*) FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
     UNION
     SELECT c.id FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
@@ -531,6 +540,8 @@ SELECT COUNT(*) FROM (
       AND (:startDate IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
       AND (:endDate IS NULL OR c.courrier_date <= CAST(:endDate AS timestamp))
       AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+      AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+      AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 ) combined
 """,
         nativeQuery = true
@@ -548,12 +559,12 @@ SELECT COUNT(*) FROM (
         @Param("startDate") String startDate,
         @Param("endDate") String endDate,
         @Param("keyword") String keyword,
+        @Param("sender") String sender,
+        @Param("labelDestinataire") String labelDestinataire,
         Pageable pageable
     );
 
-    /**
-     * ROLE_CAN_SEE_ALL — tous les courriers sans filtre ACL, avec filtres métier uniquement.
-     */
+    // ── ROLE_CAN_SEE_ALL — tous les courriers sans filtre ACL ─────────────────
     @Query(
         value = """
 SELECT c.id FROM corresp c
@@ -566,6 +577,8 @@ WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
   AND (:startDate    IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
   AND (:endDate      IS NULL OR c.courrier_date <= CAST(:endDate   AS timestamp))
   AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+  AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+  AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 ORDER BY c.date_created DESC, c.id DESC
 """,
         countQuery = """
@@ -579,6 +592,8 @@ WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
   AND (:startDate    IS NULL OR c.courrier_date >= CAST(:startDate AS timestamp))
   AND (:endDate      IS NULL OR c.courrier_date <= CAST(:endDate   AS timestamp))
   AND (:keyword = '' OR LOWER(c.reference) LIKE :keyword OR LOWER(c.subject) LIKE :keyword)
+  AND (:sender IS NULL OR LOWER(c.sender) LIKE :sender)
+  AND (:labelDestinataire IS NULL OR LOWER(c.label_destinataire) LIKE :labelDestinataire)
 """,
         nativeQuery = true
     )
@@ -592,7 +607,8 @@ WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
         @Param("startDate")    String  startDate,
         @Param("endDate")      String  endDate,
         @Param("keyword")      String  keyword,
+        @Param("sender")       String  sender,
+        @Param("labelDestinataire") String labelDestinataire,
         Pageable pageable
     );
-
 }
