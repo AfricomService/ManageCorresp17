@@ -2,7 +2,7 @@
   "generator-jhipster": {
     "applicationIndex": 0,
     "applicationType": "microservice",
-    "authenticationType": "jwt",
+    "authenticationType": "oauth2",
     "baseName": "correspManage",
     "blueprints": [],
     "buildTool": "maven",
@@ -36,7 +36,7 @@
     "gradleEnterpriseHost": "",
     "jhiPrefix": "jhi",
     "jhipsterVersion": "7.9.3",
-    "jwtSecretKey": "OWUxYWY4ODBmODllODJlZjIyM2U0MmNhMTQ0YWMyNWM2YzNmZDQ2ZjgyMDFiNDU3MjYxZjI4MDkzODJkYTgyMmNlMzJmYzFiOWZlYjQyNzA4ZThkYTE0NWIyZTI5Nzk3Y2U0ZDllODYyZTY4ZGEzZTViMWIxMjFkMjlmZGE1OWU=",
+    "jwtSecretKey": "MDNlMzM5NzMzZjllNGNmMWQ5NGYwMjVjMjRmYzFhOWM4Y2JmNmVjZGI3YzcxOTVkOWZlNTNlZDhlNjdiNTY4YzJkNTc2MTkwMGY3MDhkYTQ1NWQwN2E5ODU2ODk0OWM5MTA0MTkyMmFlMDlmNjAwZGExYjFjMzRmODdiMmMzZDc=",
     "languages": ["en"],
     "lastLiquibaseTimestamp": 1775811944000,
     "messageBroker": false,
