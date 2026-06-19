@@ -6,7 +6,7 @@ public class UserFeignDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private Long id;
+    private String id;
     private String login;
     private String firstName;
     private String lastName;
@@ -16,7 +16,7 @@ public class UserFeignDTO implements Serializable {
         // nécessaire pour Jackson
     }
 
-    public UserFeignDTO(Long id, String login, String firstName, String lastName, String email) {
+    public UserFeignDTO(String id, String login, String firstName, String lastName, String email) {
         this.id = id;
         this.login = login;
         this.firstName = firstName;
@@ -25,8 +25,8 @@ public class UserFeignDTO implements Serializable {
     }
 
     // getters / setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public String getLogin() { return login; }
     public void setLogin(String login) { this.login = login; }
@@ -43,7 +43,7 @@ public class UserFeignDTO implements Serializable {
     @Override
     public String toString() {
         return "UserFeignDTO{" +
-            "id=" + id +
+            "id='" + id +
             ", login='" + login + '\'' +
             ", firstName='" + firstName + '\'' +
             ", lastName='" + lastName + '\'' +

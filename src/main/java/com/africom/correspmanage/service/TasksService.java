@@ -73,7 +73,7 @@ public class TasksService {
      * Récupère le login d'un utilisateur à partir de son id via le gateway.
      * Retourne null si impossible.
      */
-    private String getUserLogin(Long userId) {
+    private String getUserLogin(String userId) {
         try {
             Map<String, Object> userMap = correspGatewayRestClient.getUserById(userId);
             if (userMap != null) {
@@ -425,7 +425,7 @@ public class TasksService {
      * en appelant OrgaCare en bulk pour éviter les N+1.
      */
     @Transactional(readOnly = true)
-    public List<TasksDTO> getAllTasksByUserAcl(Long userId, CorrespStatus status) {
+    public List<TasksDTO> getAllTasksByUserAcl(String userId, CorrespStatus status) {
         if (userId == null) {
             return Collections.emptyList();
         }
@@ -581,7 +581,7 @@ public class TasksService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getAllTasksByUserAclPaged(Long userId, CorrespStatus status, int pageIndex, int pageSize) {
+    public Map<String, Object> getAllTasksByUserAclPaged(String userId, CorrespStatus status, int pageIndex, int pageSize) {
         if (userId == null) {
             return buildEmptyPageResponse(pageIndex, pageSize);
         }
@@ -869,7 +869,7 @@ public class TasksService {
 
 
     @Transactional(readOnly = true)
-    public List<TasksDTO> getAllTasksByUserAclAllStatuses(Long userId) {
+    public List<TasksDTO> getAllTasksByUserAclAllStatuses(String userId) {
         if (userId == null) {
             return Collections.emptyList();
         }
@@ -1011,7 +1011,7 @@ public class TasksService {
     }
 
     @Transactional(readOnly = true)
-    public List<TasksDTO> searchTasksByUserAcl(Long userId, String reference, String subject)
+    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject)
  {
         if (userId == null) {
             return Collections.emptyList();
@@ -1169,7 +1169,7 @@ public class TasksService {
      */
     @Transactional(readOnly = true)
     public List<TasksDTO> searchAdvancedTasksByUserAcl(
-        Long userId,
+        String userId,
         String subject,
         String responsible,
         String reference,
