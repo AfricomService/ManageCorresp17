@@ -24,7 +24,7 @@ public interface OrgaCareRestClient {
 //    List<String> getDepartementCodesByUserId(@PathVariable("userId") Long userId);
 
     @GetMapping("/api/departements/user/{userId}/affectations")
-    List<Map<String, Object>> getDepartementAffectationsByUserId(@PathVariable("userId") Long userId);
+    List<Map<String, Object>> getDepartementAffectationsByUserId(@PathVariable("userId") String userId);
 
     @GetMapping("/api/departements/by-code/{code}")
     Map<String, Object> getDepartementDtoByCode(@PathVariable("code") String code);

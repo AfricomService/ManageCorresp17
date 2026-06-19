@@ -300,7 +300,7 @@ public class CorrespService {
 //        return correspRepository.findAll(spec, pageable).map(correspMapper::toDto);
 //    }
 public Page<CorrespDTO> findAllCorrespByFilter(
-    Long userId,
+    String userId,
     String reference,
     String status,
     String dispatchType,
@@ -1981,7 +1981,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * Récupère l'ID de l'utilisateur actuellement connecté.
      * Retourne null si impossible à résoudre.
      */
-    private Long getCurrentUserId() {
+    private String getCurrentUserId() {
         String login = SecurityUtils.getCurrentUserLogin().orElse(null);
         if (login == null) return null;
         try {
@@ -2183,7 +2183,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         }
 
         // Récupérer l'userId via le gateway (même pattern que getAndEnsurePermissionsForCurrentUser)
-        Long userId = null;
+        String userId = null;
         try {
             UserFeignDTO userDto = correspGatewayRestClient.findUserByLogin(login);
             if (userDto != null) {
@@ -2231,7 +2231,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * @return liste de CorrespDTO accessibles
      */
     @Transactional(readOnly = true)
-    public List<CorrespDTO> getAllCorrespsByUserAcl(Long userId) {
+    public List<CorrespDTO> getAllCorrespsByUserAcl(String userId) {
         if (userId == null) {
             return Collections.emptyList();
         }
@@ -2321,7 +2321,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * @return Page de CorrespDTO
      */
     @Transactional(readOnly = true)
-    public Page<CorrespDTO> getAllCorrespsByUserAclPaged(Long userId, int pageIndex, int pageSize) {
+    public Page<CorrespDTO> getAllCorrespsByUserAclPaged(String userId, int pageIndex, int pageSize) {
         if (userId == null) {
             return Page.empty();
         }
@@ -2426,7 +2426,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             .orElseThrow(() -> new RuntimeException("Corresp not found with id " + correspId));
 
         String login = SecurityUtils.getCurrentUserLogin().orElse(null);
-        Long userId = null;
+        String userId = null;
 
         // try to get userId from gateway
         if (login != null) {
@@ -2635,7 +2635,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
     @Transactional(readOnly = true)
     public Page<CorrespDTO> searchByKeyword(
         String search,
-        Long userId,
+        String userId,
         int pageIndex,
         int pageSize
     ) {
@@ -2786,7 +2786,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * Inclut sender et receiver depuis le Message COURRIER.
      */
     public Page<CorrespListItemDTO> getCorrespListPaged(
-        Long userId,
+        String userId,
         String q,
         String corresptype,
         String reference,
@@ -2883,7 +2883,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * Retourne la liste paginée pour un utilisateur simple (ACL + DRAFT uniquement).
      */
     public Page<CorrespListItemDTO> getCorrespListPagedByUserAcl(
-        Long userId,
+        String userId,
         String q,
         String corresptype,
         String reference,
@@ -2981,7 +2981,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * ROLE_CAN_SEE_ALL — liste paginée de TOUS les courriers sans restriction ACL.
      */
     public Page<CorrespListItemDTO> getCorrespListAll(
-        Long userId,
+        String userId,
         String q,
         String corresptype,
         String reference,
@@ -3065,7 +3065,7 @@ public Page<CorrespDTO> findAllCorrespByFilter(
      * @return tableau de bytes du fichier Excel généré
      */
     public byte[] exportCorrespsToExcel(
-        Long userId,
+        String userId,
         boolean isAdmin,
         String q,
         String corresptype,

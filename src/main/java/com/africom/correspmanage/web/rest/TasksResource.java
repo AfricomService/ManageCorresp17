@@ -228,7 +228,7 @@ public class TasksResource {
     // retourne tasks pour les départements associés à un user (via OrgaCare)
     @GetMapping("/tasks/tasksByUserAcl")
     public ResponseEntity<List<TasksDTO>> getTasksByUserAcl(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "status", required = false) String status
     ) {
         log.debug("REST request to get Tasks by userId (ACL) : {} with status: {}", userId, status);
@@ -254,7 +254,7 @@ public class TasksResource {
 
     @GetMapping("/tasks/tasksByUserAclPaged")
     public ResponseEntity<Map<String, Object>> getTasksByUserAclPaged(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "status", required = false) String status,
         @RequestParam(name = "page", defaultValue = "1") int page,
         @RequestParam(name = "size", defaultValue = "10") int size
@@ -277,14 +277,14 @@ public class TasksResource {
     }
 
     @GetMapping("/tasks/tasksByUserAclAllStatuses")
-    public List<TasksDTO> getTasksByUserAclAllStatuses(@RequestParam(name = "userId") Long userId) {
+    public List<TasksDTO> getTasksByUserAclAllStatuses(@RequestParam(name = "userId") String userId) {
         log.debug("REST request to get Tasks by userId (ACL) all statuses : {}", userId);
         return tasksService.getAllTasksByUserAclAllStatuses(userId);
     }
 
     @GetMapping("/tasks/searchByUserAcl")
     public ResponseEntity<List<TasksDTO>> searchTasksByUserAcl(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "reference", required = false) String reference,
         @RequestParam(name = "subject",   required = false) String subject
     ) {
@@ -326,7 +326,7 @@ public class TasksResource {
      */
     @GetMapping("/tasks/advancedSearchByUserAcl")
     public ResponseEntity<List<TasksDTO>> advancedSearchTasksByUserAcl(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "subject",           required = false) String subject,
         @RequestParam(name = "responsible",        required = false) String responsible,
         @RequestParam(name = "reference",          required = false) String reference,
@@ -361,7 +361,7 @@ public class TasksResource {
 
     @GetMapping(value = "/tasks/tasksByUserAcl/export", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public ResponseEntity<byte[]> exportTasksByUserAclToExcel(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "status", required = false) String status
     ) {
         log.debug("REST request to export Tasks by userId (ACL) : {} with status: {}", userId, status);

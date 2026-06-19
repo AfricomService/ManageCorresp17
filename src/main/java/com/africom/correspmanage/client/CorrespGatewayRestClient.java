@@ -28,10 +28,10 @@ public interface CorrespGatewayRestClient {
     List<UserFeignDTO> findUsersByLogins(@RequestBody List<String> logins);
 
     @GetMapping(value = "/api/admin/users/id/{id}")
-    Map<String, Object> getUserById(@PathVariable("id") Long id);
+    Map<String, Object> getUserById(@PathVariable("id") String id);
 
-    @GetMapping(value = "/api/admin/users/me/email-password", produces = MediaType.TEXT_PLAIN_VALUE)
-    ResponseEntity<String> getCurrentUserEmailPassword();
+//    @GetMapping(value = "/api/admin/users/me/email-password", produces = MediaType.TEXT_PLAIN_VALUE)
+//    ResponseEntity<String> getCurrentUserEmailPassword();
 
 
 }
