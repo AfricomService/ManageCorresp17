@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
-@FeignClient(name = "CONFIGMANAGE")
+@AuthorizedFeignClient(name = "CONFIGMANAGE")
 public interface ConfigManageRestClient {
     @GetMapping("/api/typedocuments/{id}")
     TypeDocumentFeignDTO getTypeDocumentById(@PathVariable(name = "id") Long typeDocumentId);

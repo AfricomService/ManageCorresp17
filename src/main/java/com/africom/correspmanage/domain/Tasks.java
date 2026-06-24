@@ -14,7 +14,6 @@ import javax.validation.constraints.*;
  */
 @Entity
 @Table(name = "tasks")
-@SuppressWarnings("common-java:DuplicatedBlocks")
 public class Tasks implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -81,6 +80,9 @@ public class Tasks implements Serializable {
 
     @Column(name = "service_createur_task")
     private String serviceCreateurTask;
+
+    @Column(name = "user_keycloak_trait")
+    private String userKeycloakTrait;
 
     @ManyToOne
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
@@ -343,6 +345,19 @@ public class Tasks implements Serializable {
         this.serviceCreateurTask = serviceCreateurTask;
     }
 
+    public String getUserKeycloakTrait() {
+        return this.userKeycloakTrait;
+    }
+
+    public Tasks userKeycloakTrait(String userKeycloakTrait) {
+        this.setUserKeycloakTrait(userKeycloakTrait);
+        return this;
+    }
+
+    public void setUserKeycloakTrait(String userKeycloakTrait) {
+        this.userKeycloakTrait = userKeycloakTrait;
+    }
+
     public Corresp getParentDoc() {
         return this.parentDoc;
     }
@@ -442,6 +457,7 @@ public class Tasks implements Serializable {
             ", userTraitement=" + getUserTraitement() +
             ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
             ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
+            ", userKeycloakTrait='" + getUserKeycloakTrait() + "'" +
             "}";
     }
 }

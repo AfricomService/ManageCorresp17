@@ -77,6 +77,10 @@
     {
       "fieldName": "serviceCreateurTask",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "userKeycloakTrait",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,

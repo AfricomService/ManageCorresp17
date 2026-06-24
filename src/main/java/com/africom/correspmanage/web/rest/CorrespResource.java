@@ -252,7 +252,7 @@ public class CorrespResource {
 //    }
 @GetMapping("/corresps-filter")
 public ResponseEntity<Map<String, Object>> getRapportRequestSpec(
-    @RequestParam(name = "userId") Long userId,
+    @RequestParam(name = "userId") String userId,
     @RequestParam(name = "pageIndex", defaultValue = "1") Integer pageIndex,
     @RequestParam(name = "pageSize", defaultValue = "15") Integer pageSize,
     @RequestParam(name = "reference", required = false) String reference,
@@ -520,6 +520,7 @@ public ResponseEntity<?> addTaskToCorresp(
         @RequestParam(name = "taskId") Long taskId,
         @RequestParam(name = "status") String status
     ) {
+        log.debug("STARTED changeTaskStatus correspId={} taskId={} status={}", correspId, taskId, status);
         return correspService.changeTaskStatus(correspId, taskId, status);
     }
 
@@ -645,7 +646,7 @@ public ResponseEntity<?> addTaskToCorresp(
      * Retourne les correspondances accessibles par l'utilisateur via ses ACLs (départements + login).
      */
     @GetMapping("/corresps/correspsByUserAcl")
-    public ResponseEntity<List<CorrespDTO>> getCorrespsByUserAcl(@RequestParam(name = "userId") Long userId) {
+    public ResponseEntity<List<CorrespDTO>> getCorrespsByUserAcl(@RequestParam(name = "userId") String userId) {
         log.debug("REST request to get Corresps by userId (ACL) : {}", userId);
         List<CorrespDTO> corresps = correspService.getAllCorrespsByUserAcl(userId);
         return ResponseEntity.ok(corresps != null ? corresps : Collections.emptyList());
@@ -657,7 +658,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/correspsByUserAclPaged")
     public ResponseEntity<Map<String, Object>> getCorrespsByUserAclPaged(
-        @RequestParam(name = "userId") Long userId,
+        @RequestParam(name = "userId") String userId,
         @RequestParam(name = "page", defaultValue = "1") int page,
         @RequestParam(name = "size", defaultValue = "15") int size
     ) {
@@ -889,7 +890,7 @@ public ResponseEntity<?> addTaskToCorresp(
     @GetMapping("/corresps/search")
     public ResponseEntity<Map<String, Object>> searchCorresps(
         @RequestParam(name = "q",       required = false, defaultValue = "") String q,
-        @RequestParam(name = "userId")  Long userId,
+        @RequestParam(name = "userId")  String userId,
         @RequestParam(name = "page",    defaultValue = "1")  int page,
         @RequestParam(name = "size",    defaultValue = "15") int size
     ) {
@@ -916,7 +917,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/list")
     public ResponseEntity<Map<String, Object>> getCorrespList(
-        @RequestParam(name = "userId")                          Long userId,
+        @RequestParam(name = "userId")                          String userId,
         @RequestParam(name = "page",         defaultValue = "1")  int page,
         @RequestParam(name = "size",         defaultValue = "15") int size,
         @RequestParam(name = "q",            required = false, defaultValue = "") String q,
@@ -953,7 +954,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/list-by-acl")
     public ResponseEntity<Map<String, Object>> getCorrespListByAcl(
-        @RequestParam(name = "userId")                          Long userId,
+        @RequestParam(name = "userId")                          String userId,
         @RequestParam(name = "page",         defaultValue = "1")  int page,
         @RequestParam(name = "size",         defaultValue = "15") int size,
         @RequestParam(name = "q",            required = false, defaultValue = "") String q,
@@ -992,7 +993,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/list-all")
     public ResponseEntity<Map<String, Object>> getCorrespListAll(
-        @RequestParam(name = "userId")                           Long userId,
+        @RequestParam(name = "userId")                           String userId,
         @RequestParam(name = "page",         defaultValue = "1")  int page,
         @RequestParam(name = "size",         defaultValue = "15") int size,
         @RequestParam(name = "q",            required = false, defaultValue = "") String q,
@@ -1035,7 +1036,7 @@ public ResponseEntity<?> addTaskToCorresp(
      */
     @GetMapping("/corresps/export")
     public ResponseEntity<byte[]> exportCorresps(
-        @RequestParam(name = "userId")                           Long userId,
+        @RequestParam(name = "userId")                           String userId,
         @RequestParam(name = "isAdmin",      defaultValue = "false") boolean isAdmin,
         @RequestParam(name = "q",            required = false, defaultValue = "") String q,
         @RequestParam(name = "corresptype",  required = false)   String corresptype,

@@ -50,7 +50,7 @@ public class TasksDTO implements Serializable {
 
     private ZonedDateTime dateTraitement;
 
-    private Long userTraitement;
+    private String userKeycloakTrait;
 
     private String commentaireTraitement;
 
@@ -202,12 +202,12 @@ public class TasksDTO implements Serializable {
         this.dateTraitement = dateTraitement;
     }
 
-    public Long getUserTraitement() {
-        return userTraitement;
+    public String getUserKeycloakTrait() {
+        return userKeycloakTrait;
     }
 
-    public void setUserTraitement(Long userTraitement) {
-        this.userTraitement = userTraitement;
+    public void setUserKeycloakTrait(String userKeycloakTrait) {
+        this.userKeycloakTrait = userKeycloakTrait;
     }
 
     public String getCommentaireTraitement() {
@@ -290,7 +290,7 @@ public class TasksDTO implements Serializable {
             ", taskType='" + getTaskType() + "'" +
             ", commentaire='" + getCommentaire() + "'" +
             ", dateTraitement='" + getDateTraitement() + "'" +
-            ", userTraitement=" + getUserTraitement() +
+            ", userKeycloakTrait='" + getUserKeycloakTrait() + "'" +
             ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
             ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
             ", parentDoc=" + getParentDoc() +

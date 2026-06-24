@@ -6,7 +6,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.cloud.openfeign.FeignClientProperties;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "ORGACARE")
+@AuthorizedFeignClient(name = "ORGACARE")
 public interface OrgaCareRestClient {
     @GetMapping("/api/departement-code-with-children/{deptCode}")
     List<String> getDepartementAndChildrenCodes(@PathVariable(name = "deptCode") String deptCode);

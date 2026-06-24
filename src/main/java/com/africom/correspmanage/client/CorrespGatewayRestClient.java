@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(name = "CORRESPCARE")
+@AuthorizedFeignClient(name = "CORRESPCARE")
 public interface CorrespGatewayRestClient {
 
     /**
