@@ -1846,12 +1846,94 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         // CLOSED BLOCK
         // =========================
         if (tasksSaved.getStatus().equals(CorrespStatus.CLOSED)) {
+            List<String> rawDeptCodes = responsableTacheService.getResponsableCodeDeptByTacheId(tasksSaved.getId());
+            Set<String> deptCodes = (rawDeptCodes == null) ? Collections.emptySet()
+                : rawDeptCodes.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-            log.debug("ENTER CLOSED BLOCK | taskId={}", tasksSaved.getId());
+            List<String> matricules = responsableTacheService.getResponsablesMatriculePersByTacheId(tasksSaved.getId());
+            List<String> distinctMatricules = (matricules == null) ? Collections.emptyList()
+                : matricules.stream().filter(Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty()).distinct().collect(Collectors.toList());
 
-            // (je peux aussi te tracer toute la logique ACL CLOSED si tu veux)
+            Map<String, String> deptEffectiveCache = new HashMap<>();
 
-            log.debug("EXIT CLOSED BLOCK | taskId={}");
+            if (!deptCodes.isEmpty()) {
+                for (String dept : deptCodes) {
+                    if (dept.isBlank()) continue;
+                    String effectiveCode = deptEffectiveCache.computeIfAbsent(dept, d -> {
+                        try {
+                            Object dto = orgaCareRestClient.getDepartementDtoByCode(d);
+                            if (dto == null) return d;
+                            if (dto instanceof Map) {
+                                @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) dto;
+                                Object codeObj = map.get("code");
+                                return codeObj != null ? codeObj.toString().trim() : d;
+                            } else {
+                                try {
+                                    java.lang.reflect.Method m = dto.getClass().getMethod("getCode");
+                                    Object codeObj = m.invoke(dto);
+                                    return codeObj != null ? codeObj.toString().trim() : d;
+                                } catch (NoSuchMethodException nsme) { return d; }
+                            }
+                        } catch (Exception ex) {
+                            log.warn("OrgaCare failed for '{}': {} — fallback", d, ex.getMessage());
+                            return d;
+                        }
+                    });
+                    if (effectiveCode == null || effectiveCode.isBlank()) effectiveCode = dept;
+
+                    Sid authSid = new GrantedAuthoritySid(effectiveCode);
+                    try {
+                        aclUtilService.addPermissionIfNotExists(tasksSaved, authSid, BasePermission.READ);
+                        aclUtilService.deletePermissionBySid(tasksSaved, authSid, BasePermission.WRITE);
+                    } catch (Exception e) {
+                        log.warn("Erreur gestion ACL (dept) sur TACHE pour '{}': {}", effectiveCode, e.getMessage());
+                    }
+                    try {
+                        boolean hasReadOnCorresp = aclUtilService.hasPermissionForSid(existingCorresp, authSid, BasePermission.READ);
+                        if (!hasReadOnCorresp) {
+                            aclUtilService.addPermissionIfNotExists(existingCorresp, authSid, BasePermission.READ);
+                        }
+                        aclUtilService.deletePermissionBySid(existingCorresp, authSid, BasePermission.WRITE);
+                    } catch (Exception e) {
+                        log.warn("Erreur gestion ACL (dept) sur CORRESP pour '{}': {}", effectiveCode, e.getMessage());
+                    }
+                }
+            }
+
+            if (!distinctMatricules.isEmpty()) {
+                try {
+                    List<com.africom.correspmanage.client.UserFeignDTO> users =
+                        correspGatewayRestClient.findUsersByLogins(distinctMatricules);
+                    if (users != null && !users.isEmpty()) {
+                        Set<String> loginSet = users.stream()
+                            .filter(Objects::nonNull)
+                            .map(u -> u.getLogin() == null ? null : u.getLogin().trim().toLowerCase())
+                            .filter(Objects::nonNull).filter(s -> !s.isEmpty())
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                        for (String login : loginSet) {
+                            Sid principalSid = new PrincipalSid(login);
+                            try {
+                                aclUtilService.addPermissionIfNotExists(tasksSaved, principalSid, BasePermission.READ);
+                                aclUtilService.deletePermissionBySid(tasksSaved, principalSid, BasePermission.WRITE);
+                            } catch (Exception e) {
+                                log.warn("Erreur gestion ACL (user) sur TACHE pour '{}': {}", login, e.getMessage());
+                            }
+                            try {
+                                boolean hasReadOnCorresp = aclUtilService.hasPermissionForSid(existingCorresp, principalSid, BasePermission.READ);
+                                if (!hasReadOnCorresp) {
+                                    aclUtilService.addPermissionIfNotExists(existingCorresp, principalSid, BasePermission.READ);
+                                }
+                                aclUtilService.deletePermissionBySid(existingCorresp, principalSid, BasePermission.WRITE);
+                            } catch (Exception e) {
+                                log.warn("Erreur gestion ACL (user) sur CORRESP pour '{}': {}", login, e.getMessage());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Erreur findUsersByLogins pour tache CLOSED {} : {}", tasksSaved.getId(), e.getMessage());
+                }
+            }
         }
 
         correspRepository.save(existingCorresp);
