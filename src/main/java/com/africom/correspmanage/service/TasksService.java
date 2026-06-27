@@ -2,14 +2,12 @@ package com.africom.correspmanage.service;
 
 import com.africom.correspmanage.client.CorrespGatewayRestClient;
 import com.africom.correspmanage.client.OrgaCareRestClient;
-import com.africom.correspmanage.client.UserFeignDTO;
 import com.africom.correspmanage.domain.Corresp;
 import com.africom.correspmanage.domain.ResponsableTache;
 import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 import com.africom.correspmanage.repository.CorrespRepository;
 import com.africom.correspmanage.repository.TasksRepository;
-import com.africom.correspmanage.service.dto.CorrespDTO;
 import com.africom.correspmanage.service.dto.PagedTaskDTO;
 import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
@@ -29,6 +27,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import com.africom.correspmanage.security.SecurityUtils;
 
 /**
  * Service Implementation for managing {@link Tasks}.
@@ -1352,7 +1351,7 @@ public class TasksService {
             return false;
         }
 
-        String currentLogin = getCurrentUserLogin();
+        String currentLogin = com.africom.correspmanage.security.SecurityUtils.getCurrentUserLogin().orElse(null);
         if (!StringUtils.hasText(currentLogin)) {
             return false;
         }
