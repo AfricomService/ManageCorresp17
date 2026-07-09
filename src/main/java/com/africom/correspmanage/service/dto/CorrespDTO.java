@@ -5,12 +5,7 @@ import com.africom.correspmanage.domain.enumeration.CorrespType;
 import com.africom.correspmanage.domain.enumeration.DispatchType;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import javax.persistence.Lob;
 import javax.validation.constraints.*;
 
@@ -96,6 +91,8 @@ public class CorrespDTO implements Serializable {
     private String nomSociete;
 
     private String codeUniqueSociete;
+
+    private List<Map<String, String>> additionalInfo;
 
     private Set<DossierDTO> dossiers = new HashSet<>();
 
@@ -387,6 +384,14 @@ public class CorrespDTO implements Serializable {
         this.codeUniqueSociete = codeUniqueSociete;
     }
 
+    public List<Map<String, String>> getAdditionalInfo() {
+        return additionalInfo;
+    }
+
+    public void setAdditionalInfo(List<Map<String, String>> additionalInfo) {
+        this.additionalInfo = additionalInfo;
+    }
+
     public Set<DossierDTO> getDossiers() {
         return dossiers;
     }
@@ -498,6 +503,7 @@ public class CorrespDTO implements Serializable {
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
             ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
+            ", additionalInfo=" + getAdditionalInfo() +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +
             ", attachments=" + getAttachments() +

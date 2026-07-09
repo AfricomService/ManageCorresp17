@@ -27,6 +27,7 @@ public class CorrespListItemDTO implements Serializable {
     private DispatchType dispatchType;
 
     private String nomSociete;
+    private String montantTtc;
 
     public CorrespListItemDTO() {}
 
@@ -86,4 +87,7 @@ public class CorrespListItemDTO implements Serializable {
 
     public String getNomSociete() { return nomSociete; }
     public void setNomSociete(String nomSociete) { this.nomSociete = nomSociete; }
+
+    public String getMontantTtc() { return montantTtc; }
+    public void setMontantTtc(String montantTtc) { this.montantTtc = montantTtc; }
 }
