@@ -253,4 +253,25 @@ public class PjResource {
         pjService.softDelete(uniqueName);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * {@code PATCH /pjs/:id/rename} : Renomme une pièce jointe.
+     */
+    @PatchMapping("/pjs/{id}/rename")
+    public ResponseEntity<PjDTO> renamePj(
+        @PathVariable Long id,
+        @RequestBody com.africom.correspmanage.service.dto.PjRenameDTO renameDTO
+    ) {
+        log.debug("REST request to rename Pj {} : {}", id, renameDTO.getName());
+
+        if (!pjRepository.existsById(id)) {
+            throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
+        }
+
+        PjDTO result = pjService.renamePj(id, renameDTO.getName());
+        return ResponseEntity
+            .ok()
+            .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, id.toString()))
+            .body(result);
+    }
 }
