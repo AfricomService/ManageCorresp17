@@ -321,22 +321,23 @@ SELECT COUNT(*) FROM (
     Page<Corresp> searchByKeyword(@Param("search") String search, Pageable pageable);
 
     @Query(value = """
-        SELECT
-        c.id,
-        c.reference,
-        c.corresptype,
-        c.courrier_date,
-        c.subject,
-        c.status,
-        c.priority,
-        c.sender             AS msg_sender,
-        c.label_destinataire AS msg_receiver,
-        c.dispatch_type,
-        c.nom_societe
-    FROM corresp c
-    WHERE c.id IN (:ids)
-    ORDER BY c.date_created DESC
-    """,
+    SELECT
+    c.id,
+    c.reference,
+    c.corresptype,
+    c.courrier_date,
+    c.subject,
+    c.status,
+    c.priority,
+    c.sender             AS msg_sender,
+    c.label_destinataire AS msg_receiver,
+    c.dispatch_type,
+    c.nom_societe,
+    CAST(c.additional_info AS text) AS additional_info
+FROM corresp c
+WHERE c.id IN (:ids)
+ORDER BY c.date_created DESC
+""",
         nativeQuery = true)
     List<Object[]> findListItemsByIds(@Param("ids") List<Long> ids);
 

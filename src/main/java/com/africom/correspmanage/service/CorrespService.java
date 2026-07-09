@@ -615,6 +615,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         correspToSave.setNomSociete(correspDTO.getNomSociete());
         correspToSave.setCodeUniqueSociete(correspDTO.getCodeUniqueSociete());
 
+        // Persister les détails supplémentaires (additionalInfo) — uniquement pertinent pour INCOMING
+        correspToSave.setAdditionalInfo(correspDTO.getAdditionalInfo());
+
         // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
         // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
         if (correspDTO.getReference() != null && !correspDTO.getReference().isBlank()) {
@@ -1013,6 +1016,10 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         existing.setTypeDocumentId(typeDocumentDTO.getId());
         existing.setLabelDestinataire(correspDTO.getLabelDestinataire());
         existing.setLabelContactCC(correspDTO.getLabelContactCC());
+
+        // ✅ FIX : persister les détails supplémentaires (additionalInfo) — sinon toute
+        // modification faite depuis corresp-detail est perdue silencieusement
+        existing.setAdditionalInfo(correspDTO.getAdditionalInfo());
 
         existing.setUpdatedDate(ZonedDateTime.now());
         existing.setUpdatedBy(SecurityUtils.getCurrentUserLogin().get());
@@ -2759,7 +2766,39 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             dto.setNomSociete(row[10].toString());
         }
 
+        // row[11] = additional_info (jsonb en texte) → extraire "Montant TTC"
+        if (row.length > 11 && row[11] != null) {
+            dto.setMontantTtc(extractMontantTtcFromAdditionalInfo(row[11].toString()));
+        }
+
         return dto;
+    }
+
+    /**
+     * Parse la chaîne JSON additional_info et retourne la valeur associée
+     * au label "Montant TTC" (comparaison insensible à la casse), ou null si absent.
+     */
+    private String extractMontantTtcFromAdditionalInfo(String additionalInfoJson) {
+        if (additionalInfoJson == null || additionalInfoJson.isBlank() || "null".equals(additionalInfoJson.trim())) {
+            return null;
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            List<Map<String, Object>> entries = mapper.readValue(
+                additionalInfoJson,
+                new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}
+            );
+            for (Map<String, Object> entry : entries) {
+                Object labelObj = entry.get("label");
+                if (labelObj != null && "montant ttc".equalsIgnoreCase(labelObj.toString().trim())) {
+                    Object valueObj = entry.get("value");
+                    return valueObj != null ? valueObj.toString() : null;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Impossible de parser additionalInfo pour extraire Montant TTC : {}", e.getMessage());
+        }
+        return null;
     }
 
     /**
@@ -3148,11 +3187,11 @@ public Page<CorrespDTO> findAllCorrespByFilter(
             dataStyle.setBorderRight(BorderStyle.THIN);
             dataStyle.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
 
-            // ── Ligne d'en-têtes ───────────────────────────────────────────────
+// ── Ligne d'en-têtes ───────────────────────────────────────────────
             String[] headers = {
                 "N° Référence", "Type", "Date", "Objet",
                 "Expéditeur", "Destinataire(s)", "Statut",
-                "Type d'envoi", "Priorité", "Société"
+                "Type d'envoi", "Priorité", "Société", "Montant TTC"
             };
 
             Row headerRow = sheet.createRow(0);
@@ -3222,10 +3261,15 @@ public Page<CorrespDTO> findAllCorrespByFilter(
                 c8.setCellValue(Boolean.TRUE.equals(item.getPriority()) ? "Prioritaire" : "Normale");
                 c8.setCellStyle(dataStyle);
 
-                // Société
+// Société
                 Cell c9 = row.createCell(9);
                 c9.setCellValue(item.getNomSociete() != null ? item.getNomSociete() : "");
                 c9.setCellStyle(dataStyle);
+
+                // Montant TTC
+                Cell c10 = row.createCell(10);
+                c10.setCellValue(item.getMontantTtc() != null ? item.getMontantTtc() : "");
+                c10.setCellStyle(dataStyle);
             }
 
             // ── Ajustement automatique de la largeur des colonnes ──────────────
