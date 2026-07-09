@@ -78,7 +78,7 @@ public class TemplateRenderService {
 
         // Réinitialiser le matcher depuis le début
         matcher.reset();
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
 
         while (matcher.find()) {
             String typeStr = matcher.group(1); // ex: "CHEF", "MEMBRE", "ASSISTANT", "INTERIM"
