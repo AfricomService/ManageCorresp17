@@ -150,6 +150,10 @@
     {
       "fieldName": "codeUniqueSociete",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "additionalInfo",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,
