@@ -253,4 +253,29 @@ public class PjService {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Renomme une pièce jointe (seulement le champ "name", pas l'extension ni le uniqueName).
+     *
+     * @param id l'id de la Pj
+     * @param newName le nouveau nom (sans extension)
+     * @return la PjDTO mise à jour
+     */
+    public PjDTO renamePj(Long id, String newName) {
+        log.debug("Request to rename Pj {} -> {}", id, newName);
+
+        if (newName == null || newName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Le nom ne peut pas être vide");
+        }
+
+        Pj pj = pjRepository.findById(id)
+            .orElseThrow(() -> new javax.persistence.EntityNotFoundException("Pj not found with id " + id));
+
+        pj.setName(newName.trim());
+        pj.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
+        pj.setUpdatedDate(ZonedDateTime.now());
+
+        Pj saved = pjRepository.save(pj);
+        return pjMapper.toDto(saved);
+    }
 }

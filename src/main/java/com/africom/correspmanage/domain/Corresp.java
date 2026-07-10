@@ -6,18 +6,23 @@ import com.africom.correspmanage.domain.enumeration.DispatchType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.Serializable;
 import java.time.ZonedDateTime;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 import org.hibernate.annotations.Type;
+import org.hibernate.annotations.TypeDef;
+import org.hibernate.annotations.TypeDefs;
 
 /**
  * A Corresp.
  */
 @Entity
 @Table(name = "corresp")
+@TypeDefs({
+    @TypeDef(name = "jsonb", typeClass = JsonBinaryType.class)
+})
 @SuppressWarnings("common-java:DuplicatedBlocks")
 public class Corresp implements Serializable {
 
@@ -140,6 +145,10 @@ public class Corresp implements Serializable {
 
     @Column(name = "code_unique_societe")
     private String codeUniqueSociete;
+
+    @Type(type = "jsonb")
+    @Column(columnDefinition = "jsonb", name = "additional_info")
+    private List<Map<String, String>> additionalInfo;
 
     @ManyToMany
     @JoinTable(
@@ -621,6 +630,19 @@ public class Corresp implements Serializable {
         this.codeUniqueSociete = codeUniqueSociete;
     }
 
+    public List<Map<String, String>> getAdditionalInfo() {
+        return this.additionalInfo;
+    }
+
+    public Corresp additionalInfo(List<Map<String, String>> additionalInfo) {
+        this.setAdditionalInfo(additionalInfo);
+        return this;
+    }
+
+    public void setAdditionalInfo(List<Map<String, String>> additionalInfo) {
+        this.additionalInfo = additionalInfo;
+    }
+
     public Set<Dossier> getDossiers() {
         return this.dossiers;
     }
@@ -778,6 +800,7 @@ public class Corresp implements Serializable {
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
             ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
+            ", additionalInfo='" + getAdditionalInfo() + "'" +
             "}";
     }
 }
