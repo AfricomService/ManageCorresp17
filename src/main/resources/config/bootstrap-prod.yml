@@ -21,7 +21,7 @@ jhipster:
   registry:
     password: africomOrgaCareRegistryEureka
 
-hostserver: 172.30.1.113
+hostserver: 172.30.1.111
 hostserverKeyCloak: 172.30.1.111
 
 # ── OAuth2 / OIDC ─────────────────────────────────────
