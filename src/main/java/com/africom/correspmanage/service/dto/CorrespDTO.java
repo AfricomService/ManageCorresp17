@@ -92,6 +92,8 @@ public class CorrespDTO implements Serializable {
 
     private String codeUniqueSociete;
 
+    private String classStatus;
+
     private List<Map<String, String>> additionalInfo;
 
     private Set<DossierDTO> dossiers = new HashSet<>();
@@ -384,6 +386,14 @@ public class CorrespDTO implements Serializable {
         this.codeUniqueSociete = codeUniqueSociete;
     }
 
+    public String getClassStatus() {
+        return classStatus;
+    }
+
+    public void setClassStatus(String classStatus) {
+        this.classStatus = classStatus;
+    }
+
     public List<Map<String, String>> getAdditionalInfo() {
         return additionalInfo;
     }
@@ -503,6 +513,7 @@ public class CorrespDTO implements Serializable {
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
             ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
+            ", classStatus='" + getClassStatus() + "'" +
             ", additionalInfo=" + getAdditionalInfo() +
             ", dossiers=" + getDossiers() +
             ", bordereaux=" + getBordereaux() +

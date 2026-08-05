@@ -18,7 +18,13 @@ import org.springframework.stereotype.Repository;
 @SuppressWarnings("unused")
 @Repository
 public interface TasksRepository extends JpaRepository<Tasks, Long> {
-    List<Tasks> findAllByStatusEquals(CorrespStatus status);
+    @Query("""
+            SELECT DISTINCT t FROM Tasks t
+            JOIN t.corresps c
+            WHERE t.status = :status
+              AND (c.classStatus IS NULL OR c.classStatus <> 'SUPPRIMER')
+        """)
+    List<Tasks> findAllByStatusEquals(@Param("status") CorrespStatus status);
 
     List<Tasks> findAllByCorresps_Id(Long correspId);
 
@@ -58,6 +64,12 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
             WHERE ac.class = 'com.africom.correspmanage.domain.Tasks'
               AND sid.sid IN (:deptCodes)
               AND (ae.mask & :mask) <> 0
+              AND EXISTS (
+                  SELECT 1 FROM rel_corresp__tasks rct
+                  JOIN corresp c ON c.id = rct.corresp_id
+                  WHERE rct.tasks_id = t.id
+                    AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
+              )
             """,
         nativeQuery = true
     )
@@ -75,6 +87,7 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         JOIN acl_sid sid ON sid.id = ae.sid
         WHERE sid.sid IN (:deptCodes)
           AND (ae.mask & :mask) <> 0
+          AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
           AND (
             (:ref IS NULL OR LOWER(c.reference) LIKE LOWER(CONCAT('%', :ref, '%')))
             OR
@@ -130,6 +143,12 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
               AND sid.sid IN (:sids)
               AND (ae.mask & :mask) <> 0
               AND (:status IS NULL OR t.status = :status)
+              AND EXISTS (
+                  SELECT 1 FROM rel_corresp__tasks rct
+                  JOIN corresp c ON c.id = rct.corresp_id
+                  WHERE rct.tasks_id = t.id
+                    AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
+              )
         ) combined
         ORDER BY combined.dc DESC
         """,
@@ -144,6 +163,12 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
               AND sid.sid IN (:sids)
               AND (ae.mask & :mask) <> 0
               AND (:status IS NULL OR t.status = :status)
+              AND EXISTS (
+                  SELECT 1 FROM rel_corresp__tasks rct
+                  JOIN corresp c ON c.id = rct.corresp_id
+                  WHERE rct.tasks_id = t.id
+                    AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
+              )
         ) combined
         """,
         nativeQuery = true

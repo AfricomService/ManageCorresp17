@@ -618,6 +618,9 @@ public Page<CorrespDTO> findAllCorrespByFilter(
         // Persister les détails supplémentaires (additionalInfo) — uniquement pertinent pour INCOMING
         correspToSave.setAdditionalInfo(correspDTO.getAdditionalInfo());
 
+        // Statut de classification par défaut à la création
+        correspToSave.setClassStatus("ACTIVE");
+
         // === CHANGEMENT: on n'appelle PAS configManageRestClient.getNextNumber(...) ici.
         // Si le DTO contient une référence non vide, on l'utilise ; sinon on laisse la référence null.
         if (correspDTO.getReference() != null && !correspDTO.getReference().isBlank()) {
@@ -2162,35 +2165,18 @@ public Page<CorrespDTO> findAllCorrespByFilter(
 
     @Transactional
     public void deleteCorrespWithTasksAndPjs(Long correspId) {
-        Corresp corresp = correspRepository.findById(correspId).orElseThrow(() -> new EntityNotFoundException("Corresp not found"));
+        Corresp corresp = correspRepository.findById(correspId)
+            .orElseThrow(() -> new EntityNotFoundException("Corresp not found"));
 
-        Set<Pj> attachments = new HashSet<>(corresp.getAttachments());
-        Set<Tasks> tasks = new HashSet<>(corresp.getTasks());
-
-        corresp.getAttachments().clear();
-        corresp.getTasks().clear();
+        // Soft-delete : on ne supprime plus rien physiquement,
+        // on marque simplement la corresp comme supprimée logiquement
+        corresp.setClassStatus("SUPPRIMER");
+        corresp.setUpdatedDate(ZonedDateTime.now());
+        corresp.setUpdatedBy(SecurityUtils.getCurrentUserLogin().orElse("system"));
 
         correspRepository.save(corresp);
-        correspRepository.flush();
 
-        messageRepository.deleteByCorrespId(correspId);
-
-        for (Pj pj : attachments) {
-            pj.setPjDeleted(true);
-            pjRepository.save(pj);
-        }
-
-        for (Tasks task : tasks) {
-            long usageCount = tasksRepository.countCorrespsUsingTask(task.getId());
-
-            if (usageCount <= 1) {
-                aclUtilService.deleteAllPermissions(task);
-                tasksRepository.delete(task);
-            }
-        }
-
-        aclUtilService.deleteAllPermissions(corresp);
-        correspRepository.delete(corresp);
+        log.debug("Corresp {} marquée comme SUPPRIMER (soft-delete)", correspId);
     }
 
     private void deleteFileFromDisk(String path) {

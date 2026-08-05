@@ -139,13 +139,16 @@ SELECT combined.id FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE c.status = 'DISPATCH'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
 ) combined
 ORDER BY combined.dc DESC, combined.cid DESC
 """,
@@ -159,13 +162,16 @@ SELECT COUNT(*) FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
     UNION
     SELECT c.id FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
     UNION
     SELECT c.id FROM corresp c
     WHERE c.status = 'DISPATCH'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
 ) combined
 """,
         nativeQuery = true
@@ -353,6 +359,7 @@ SELECT combined.id FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -368,6 +375,7 @@ SELECT combined.id FROM (
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -382,6 +390,7 @@ SELECT combined.id FROM (
     UNION
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE c.status = 'DISPATCH'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
       AND (:priority IS NULL OR c.priority = :priority)
@@ -405,6 +414,7 @@ SELECT COUNT(*) FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -420,6 +430,7 @@ SELECT COUNT(*) FROM (
     SELECT c.id FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -434,6 +445,7 @@ SELECT COUNT(*) FROM (
     UNION
     SELECT c.id FROM corresp c
     WHERE c.status = 'DISPATCH'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
       AND (:priority IS NULL OR c.priority = :priority)
@@ -478,6 +490,7 @@ SELECT combined.id FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -493,6 +506,7 @@ SELECT combined.id FROM (
     SELECT c.id, c.date_created AS dc, c.id AS cid FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -517,6 +531,7 @@ SELECT COUNT(*) FROM (
     WHERE ac.class = 'com.africom.correspmanage.domain.Corresp'
       AND sid.sid IN (:sids)
       AND (ae.mask & :mask) <> 0
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -532,6 +547,7 @@ SELECT COUNT(*) FROM (
     SELECT c.id FROM corresp c
     WHERE LOWER(c.created_by) = LOWER(:login)
       AND c.status = 'DRAFT'
+      AND (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
       AND (:corresptype IS NULL OR c.corresptype = :corresptype)
       AND (:status IS NULL OR c.status = :status)
       AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
@@ -569,7 +585,8 @@ SELECT COUNT(*) FROM (
     @Query(
         value = """
 SELECT c.id FROM corresp c
-WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
+WHERE (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
+  AND (:corresptype  IS NULL OR c.corresptype   = :corresptype)
   AND (:status       IS NULL OR c.status        = :status)
   AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
   AND (:priority     IS NULL OR c.priority      = :priority)
@@ -584,7 +601,8 @@ ORDER BY c.date_created DESC, c.id DESC
 """,
         countQuery = """
 SELECT COUNT(*) FROM corresp c
-WHERE (:corresptype  IS NULL OR c.corresptype   = :corresptype)
+WHERE (c.class_status IS NULL OR c.class_status <> 'SUPPRIMER')
+  AND (:corresptype  IS NULL OR c.corresptype   = :corresptype)
   AND (:status       IS NULL OR c.status        = :status)
   AND (:dispatchType IS NULL OR c.dispatch_type = :dispatchType)
   AND (:priority     IS NULL OR c.priority      = :priority)
