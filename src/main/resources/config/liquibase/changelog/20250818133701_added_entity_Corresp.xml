@@ -3,7 +3,7 @@
     xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
     xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.6.xsd
                         http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
 
     <!--
@@ -102,6 +102,21 @@
                 <constraints nullable="true" />
             </column>
             <column name="label_contact_cc" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="id_societe" type="bigint">
+                <constraints nullable="true" />
+            </column>
+            <column name="nom_societe" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="code_unique_societe" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="additional_info" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="class_status" type="varchar(255)">
                 <constraints nullable="true" />
             </column>
             <!-- jhipster-needle-liquibase-add-column - JHipster will add columns here -->
@@ -205,6 +220,11 @@
             <column name="type_document_id" type="numeric"/>
             <column name="label_destinataire" type="string"/>
             <column name="label_contact_cc" type="string"/>
+            <column name="id_societe" type="numeric"/>
+            <column name="nom_societe" type="string"/>
+            <column name="code_unique_societe" type="string"/>
+            <column name="additional_info" type="string"/>
+            <column name="class_status" type="string"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

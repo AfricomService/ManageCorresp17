@@ -150,6 +150,9 @@ public class Corresp implements Serializable {
     @Column(columnDefinition = "jsonb", name = "additional_info")
     private List<Map<String, String>> additionalInfo;
 
+    @Column(name = "class_status")
+    private String classStatus;
+
     @ManyToMany
     @JoinTable(
         name = "rel_corresp__dossiers",
@@ -630,6 +633,19 @@ public class Corresp implements Serializable {
         this.codeUniqueSociete = codeUniqueSociete;
     }
 
+    public String getClassStatus() {
+        return this.classStatus;
+    }
+
+    public Corresp classStatus(String classStatus) {
+        this.setClassStatus(classStatus);
+        return this;
+    }
+
+    public void setClassStatus(String classStatus) {
+        this.classStatus = classStatus;
+    }
+
     public List<Map<String, String>> getAdditionalInfo() {
         return this.additionalInfo;
     }
@@ -800,6 +816,7 @@ public class Corresp implements Serializable {
             ", idSociete=" + getIdSociete() +
             ", nomSociete='" + getNomSociete() + "'" +
             ", codeUniqueSociete='" + getCodeUniqueSociete() + "'" +
+            ", classStatus='" + getClassStatus() + "'" +
             ", additionalInfo='" + getAdditionalInfo() + "'" +
             "}";
     }

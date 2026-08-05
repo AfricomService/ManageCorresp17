@@ -154,6 +154,10 @@
     {
       "fieldName": "additionalInfo",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "classStatus",
+      "fieldType": "String"
     }
   ],
   "fluentMethods": true,
