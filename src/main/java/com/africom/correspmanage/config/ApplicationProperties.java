@@ -15,7 +15,7 @@ public class ApplicationProperties {
     private String dir_pj;
     private String dir_body;
 
-    private String frontendUrl = "http://localhost:9000";
+    private String frontendUrl = "https://appafricom/cc";
 
     private final Mail mail = new Mail();
 
