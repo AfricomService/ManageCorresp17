@@ -15,7 +15,8 @@ public class ApplicationProperties {
     private String dir_pj;
     private String dir_body;
 
-    private String frontendUrl = "https://172.30.1.111/cc";
+//    private String frontendUrl = "https://172.30.1.111/cc";
+    private String frontendUrl = "http://localhost:9000";       //valeur par défaut pour le dev local
 
     private final Mail mail = new Mail();
 

@@ -188,7 +188,7 @@ application:
   slash: /
   dir_pj: /home/corresp/pjs
   dir_body: /home/corresp/body
-  frontend-url: https://172.30.1.111/cc
+  frontend-url: https://appafricom/cc
   mail:
     from-name: CorrespCare
     smtp-host: smtp.topnet.tn
