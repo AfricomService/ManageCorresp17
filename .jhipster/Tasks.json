@@ -81,6 +81,10 @@
     {
       "fieldName": "userKeycloakTrait",
       "fieldType": "String"
+    },
+    {
+      "fieldName": "datePriseEnCharge",
+      "fieldType": "ZonedDateTime"
     }
   ],
   "fluentMethods": true,

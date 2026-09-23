@@ -71,6 +71,9 @@
             <column name="user_keycloak_trait" type="varchar(255)">
                 <constraints nullable="true" />
             </column>
+            <column name="date_prise_en_charge" type="${datetimeType}">
+                <constraints nullable="true" />
+            </column>
             <column name="parent_doc_id" type="bigint">
                 <constraints nullable="true" />
             </column>
@@ -85,6 +88,7 @@
         <dropDefaultValue tableName="tasks" columnName="close_date" columnDataType="${datetimeType}"/>
         <dropDefaultValue tableName="tasks" columnName="updated_date" columnDataType="${datetimeType}"/>
         <dropDefaultValue tableName="tasks" columnName="date_traitement" columnDataType="${datetimeType}"/>
+        <dropDefaultValue tableName="tasks" columnName="date_prise_en_charge" columnDataType="${datetimeType}"/>
     </changeSet>
 
     <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
@@ -99,10 +103,10 @@
     -->
     <changeSet id="20250818134001-1-data" author="jhipster" context="faker">
         <loadData
-                  file="config/liquibase/fake-data/tasks.csv"
-                  separator=";"
-                  tableName="tasks"
-                  usePreparedStatements="true">
+            file="config/liquibase/fake-data/tasks.csv"
+            separator=";"
+            tableName="tasks"
+            usePreparedStatements="true">
             <column name="id" type="numeric"/>
             <column name="object" type="string"/>
             <column name="content" type="blob"/>
@@ -123,6 +127,7 @@
             <column name="commentaire_traitement" type="string"/>
             <column name="service_createur_task" type="string"/>
             <column name="user_keycloak_trait" type="string"/>
+            <column name="date_prise_en_charge" type="date"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

@@ -164,6 +164,25 @@ public class TasksService {
     }
 
     /**
+     * Marque une tâche comme prise en charge : persiste la date actuelle
+     * dans l'attribut datePriseEnCharge.
+     *
+     * @param id l'id de la tâche.
+     * @return la tâche mise à jour, ou Optional.empty() si non trouvée.
+     */
+    public Optional<TasksDTO> markPriseEnCharge(Long id) {
+        log.debug("Request to mark Tasks prise en charge : {}", id);
+        return tasksRepository
+            .findById(id)
+            .map(existingTask -> {
+                existingTask.setDatePriseEnCharge(ZonedDateTime.now());
+                return existingTask;
+            })
+            .map(tasksRepository::save)
+            .map(tasksMapper::toDto);
+    }
+
+    /**
      * Get all the tasks.
      *
      * @param pageable the pagination information.
@@ -281,6 +300,7 @@ public class TasksService {
             dto.setTaskType(task.getTaskType());
             dto.setCommentaire(task.getCommentaire());
             dto.setCommentaireTraitement(task.getCommentaireTraitement());
+            dto.setDatePriseEnCharge(task.getDatePriseEnCharge());
             return dto;
         }).collect(Collectors.toList());
 
@@ -666,16 +686,21 @@ public class TasksService {
     /** Mapping léger Tasks → PagedTaskDTO (sans content, sans parentDoc, etc.) */
     private PagedTaskDTO toPagedTaskDTO(Tasks task) {
         PagedTaskDTO dto = new PagedTaskDTO();
+
         dto.setId(task.getId());
         dto.setObject(task.getObject());
         dto.setCreationDate(task.getCreationDate());
         dto.setDueDate(task.getDueDate());
+        dto.setCloseDate(task.getCloseDate());
         dto.setStatus(task.getStatus());
         dto.setTaskType(task.getTaskType());
         dto.setCommentaire(task.getCommentaire());
         dto.setCommentaireTraitement(task.getCommentaireTraitement());
+        dto.setDatePriseEnCharge(task.getDatePriseEnCharge());
+
         // responsible brut conservé temporairement pour fallback enrichissement
         // (sera résolu dans enrichWithResponsablesLight)
+
         return dto;
     }
 
@@ -1011,17 +1036,17 @@ public class TasksService {
 
     @Transactional(readOnly = true)
     public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject)
- {
+    {
         if (userId == null) {
             return Collections.emptyList();
         }
 
-     String refTrim     = (reference != null && !reference.trim().isEmpty()) ? reference.trim() : null;
-     String subjectTrim = (subject   != null && !subject.trim().isEmpty())   ? subject.trim()   : null;
+        String refTrim     = (reference != null && !reference.trim().isEmpty()) ? reference.trim() : null;
+        String subjectTrim = (subject   != null && !subject.trim().isEmpty())   ? subject.trim()   : null;
 
-     if (refTrim == null && subjectTrim == null) {
-         return Collections.emptyList();
-     }
+        if (refTrim == null && subjectTrim == null) {
+            return Collections.emptyList();
+        }
 
         // 1) récupérer les deptCodes via OrgaCare (comme avant)
         List<String> deptCodes;
@@ -1057,7 +1082,7 @@ public class TasksService {
 
         // 2) repo natif: ACL + filtre référence LIKE (insensible à la casse)
         int readMask = BasePermission.READ.getMask();
-     List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespKeyword(allSids, readMask, refTrim, subjectTrim);
+        List<Tasks> tasks = tasksRepository.findAllByAclForDeptsAndCorrespKeyword(allSids, readMask, refTrim, subjectTrim);
         if (tasks == null || tasks.isEmpty()) {
             return Collections.emptyList();
         }
@@ -1187,11 +1212,11 @@ public class TasksService {
             List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
             deptCodes = (affectations == null || affectations.isEmpty()) ? new ArrayList<>()
                 : affectations.stream()
-                    .map(a -> a.get("departementCode"))
-                    .filter(Objects::nonNull)
-                    .map(Object::toString)
-                    .distinct()
-                    .collect(Collectors.toList());
+                .map(a -> a.get("departementCode"))
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Impossible de récupérer les deptCodes pour userId {} : {}", userId, e.getMessage());
             deptCodes = new ArrayList<>();

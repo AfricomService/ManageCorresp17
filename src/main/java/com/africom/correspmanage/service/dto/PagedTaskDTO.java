@@ -22,6 +22,8 @@ public class PagedTaskDTO implements Serializable {
 
     private ZonedDateTime dueDate;
 
+    private ZonedDateTime closeDate;
+
     private CorrespStatus status;
 
     private String taskType;
@@ -29,6 +31,8 @@ public class PagedTaskDTO implements Serializable {
     private String commentaire;
 
     private String commentaireTraitement;
+
+    private ZonedDateTime datePriseEnCharge;
 
     /** Nom affiché du/des responsable(s) — chaîne concaténée pour le fallback frontend */
     private String responsableName;
@@ -53,10 +57,25 @@ public class PagedTaskDTO implements Serializable {
     public ZonedDateTime getCreationDate() { return creationDate; }
     public void setCreationDate(ZonedDateTime creationDate) { this.creationDate = creationDate; }
 
-    public ZonedDateTime getDueDate() { return dueDate; }
-    public void setDueDate(ZonedDateTime dueDate) { this.dueDate = dueDate; }
+    public ZonedDateTime getDueDate() {
+        return dueDate;
+    }
 
-    public CorrespStatus getStatus() { return status; }
+    public void setDueDate(ZonedDateTime dueDate) {
+        this.dueDate = dueDate;
+    }
+
+    public ZonedDateTime getCloseDate() {
+        return closeDate;
+    }
+
+    public void setCloseDate(ZonedDateTime closeDate) {
+        this.closeDate = closeDate;
+    }
+
+    public CorrespStatus getStatus() {
+        return status;
+    }
     public void setStatus(CorrespStatus status) { this.status = status; }
 
     public String getTaskType() { return taskType; }
@@ -79,6 +98,14 @@ public class PagedTaskDTO implements Serializable {
 
     public void setCommentaireTraitement(String commentaireTraitement) {
         this.commentaireTraitement = commentaireTraitement;
+    }
+
+    public ZonedDateTime getDatePriseEnCharge() {
+        return datePriseEnCharge;
+    }
+
+    public void setDatePriseEnCharge(ZonedDateTime datePriseEnCharge) {
+        this.datePriseEnCharge = datePriseEnCharge;
     }
 
 //    public String getCorrespSubject() { return correspSubject; }

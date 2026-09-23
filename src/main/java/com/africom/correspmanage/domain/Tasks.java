@@ -84,6 +84,9 @@ public class Tasks implements Serializable {
     @Column(name = "user_keycloak_trait")
     private String userKeycloakTrait;
 
+    @Column(name = "date_prise_en_charge")
+    private ZonedDateTime datePriseEnCharge;
+
     @ManyToOne
     @JsonIgnoreProperties(value = { "dossiers", "bordereaux", "attachments", "tasks" }, allowSetters = true)
     private Corresp parentDoc;
@@ -358,6 +361,19 @@ public class Tasks implements Serializable {
         this.userKeycloakTrait = userKeycloakTrait;
     }
 
+    public ZonedDateTime getDatePriseEnCharge() {
+        return this.datePriseEnCharge;
+    }
+
+    public Tasks datePriseEnCharge(ZonedDateTime datePriseEnCharge) {
+        this.setDatePriseEnCharge(datePriseEnCharge);
+        return this;
+    }
+
+    public void setDatePriseEnCharge(ZonedDateTime datePriseEnCharge) {
+        this.datePriseEnCharge = datePriseEnCharge;
+    }
+
     public Corresp getParentDoc() {
         return this.parentDoc;
     }
@@ -458,6 +474,7 @@ public class Tasks implements Serializable {
             ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
             ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
             ", userKeycloakTrait='" + getUserKeycloakTrait() + "'" +
+            ", datePriseEnCharge='" + getDatePriseEnCharge() + "'" +
             "}";
     }
 }

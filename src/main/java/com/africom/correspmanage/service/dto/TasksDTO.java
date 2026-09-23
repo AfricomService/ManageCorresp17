@@ -56,6 +56,8 @@ public class TasksDTO implements Serializable {
 
     private String serviceCreateurTask;
 
+    private ZonedDateTime datePriseEnCharge;
+
     private CorrespDTO parentDoc;
 
     private TasksDTO parentTask;
@@ -226,6 +228,14 @@ public class TasksDTO implements Serializable {
         this.serviceCreateurTask = serviceCreateurTask;
     }
 
+    public ZonedDateTime getDatePriseEnCharge() {
+        return datePriseEnCharge;
+    }
+
+    public void setDatePriseEnCharge(ZonedDateTime datePriseEnCharge) {
+        this.datePriseEnCharge = datePriseEnCharge;
+    }
+
     public CorrespDTO getParentDoc() {
         return parentDoc;
     }
@@ -293,6 +303,7 @@ public class TasksDTO implements Serializable {
             ", userKeycloakTrait='" + getUserKeycloakTrait() + "'" +
             ", commentaireTraitement='" + getCommentaireTraitement() + "'" +
             ", serviceCreateurTask='" + getServiceCreateurTask() + "'" +
+            ", datePriseEnCharge='" + getDatePriseEnCharge() + "'" +
             ", parentDoc=" + getParentDoc() +
             ", parentTask=" + getParentTask() +
             ", responsablesCount=" + (responsables != null ? responsables.size() : 0) +

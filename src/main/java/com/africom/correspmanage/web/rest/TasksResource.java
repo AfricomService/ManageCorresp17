@@ -152,6 +152,20 @@ public class TasksResource {
     }
 
     /**
+     * {@code PATCH  /tasks/:id/prise-en-charge} : marque la tâche comme prise en charge (persiste la date actuelle).
+     *
+     * @param id l'id de la tâche.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated tasksDTO,
+     * or with status {@code 404 (Not Found)}.
+     */
+    @PatchMapping("/tasks/{id}/prise-en-charge")
+    public ResponseEntity<TasksDTO> markTaskPriseEnCharge(@PathVariable Long id) {
+        log.debug("REST request to mark Tasks prise en charge : {}", id);
+        Optional<TasksDTO> result = tasksService.markPriseEnCharge(id);
+        return ResponseUtil.wrapOrNotFound(result);
+    }
+
+    /**
      * {@code GET  /tasks} : get all the tasks.
      *
      * @param pageable the pagination information.
