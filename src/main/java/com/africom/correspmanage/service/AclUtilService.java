@@ -18,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.africom.correspmanage.security.SecurityUtils;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -45,7 +46,8 @@ public class AclUtilService {
         ObjectIdentity oid = new ObjectIdentityImpl(domainObject.getClass(), getId(domainObject));
         log.debug("createAcl for {}", domainObject);
         try {
-            aclService.createAcl(oid);
+            MutableAcl acl = aclService.createAcl(oid);
+            fixOwnerToLogin(acl);
         } catch (AlreadyExistsException ignored) {
             // already created
             log.debug("ACL already exists for {}", oid);
@@ -59,7 +61,8 @@ public class AclUtilService {
             aclService.readAclById(oid);
         } catch (NotFoundException nfe) {
             log.debug("ACL not found for {}, creating", oid);
-            aclService.createAcl(oid);
+            MutableAcl acl = aclService.createAcl(oid);
+            fixOwnerToLogin(acl);
         }
     }
 
@@ -80,6 +83,7 @@ public class AclUtilService {
             acl = (MutableAcl) aclService.readAclById(oid);
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
+            fixOwnerToLogin(acl);
         }
 // ── NOUVEAU ──
         insertAceAsOwner(acl, acl.getEntries().size(), permission, sid);
@@ -100,6 +104,7 @@ public class AclUtilService {
             acl = (MutableAcl) aclService.readAclById(oid);
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
+            fixOwnerToLogin(acl);
         }
 // ── NOUVEAU ──
         insertAceAsOwner(acl, acl.getEntries().size(), permission, sid);
@@ -159,6 +164,7 @@ public class AclUtilService {
             acl = (MutableAcl) aclService.readAclById(oid);
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
+            fixOwnerToLogin(acl);
         }
 
         boolean exists = acl.getEntries().stream().anyMatch(e -> e.getSid().equals(effectiveSid) && e.getPermission().equals(permission));
@@ -221,6 +227,22 @@ public class AclUtilService {
         } finally {
             SecurityContextHolder.setContext(original);
         }
+    }
+
+        /**
+     * Force le propriétaire de l'ACL au login (matricule) de l'utilisateur courant,
+     * au lieu de l'UUID Keycloak assigné par défaut par Spring (authentication.getName()
+     * renvoie le claim "sub" pour un JwtAuthenticationToken). Rétablit la logique
+     * d'avant la migration Keycloak. Appelé juste après aclService.createAcl(oid).
+     */
+    private void fixOwnerToLogin(MutableAcl acl) {
+        String login = SecurityUtils.getCurrentUserLogin().orElse(null);
+        if (login == null || login.isBlank()) return;
+        String normalized = login.trim().toLowerCase();
+        Sid ownerSid = new PrincipalSid(normalized);
+        ensureSidExists(ownerSid, normalized);
+        acl.setOwner(ownerSid);
+        aclService.updateAcl(acl);
     }
 
     private void ensureSidExists(Sid sid, String sidValue) {
