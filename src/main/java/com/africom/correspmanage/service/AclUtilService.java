@@ -14,10 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -81,8 +77,7 @@ public class AclUtilService {
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
         }
-// ── NOUVEAU ──
-        insertAceAsOwner(acl, acl.getEntries().size(), permission, sid);
+        acl.insertAce(acl.getEntries().size(), permission, sid, true);
         aclService.updateAcl(acl);
     }
 
@@ -101,8 +96,7 @@ public class AclUtilService {
         } catch (NotFoundException nfe) {
             acl = aclService.createAcl(oid);
         }
-// ── NOUVEAU ──
-        insertAceAsOwner(acl, acl.getEntries().size(), permission, sid);
+        acl.insertAce(acl.getEntries().size(), permission, sid, true);
         aclService.updateAcl(acl);
     }
 
@@ -118,8 +112,7 @@ public class AclUtilService {
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
                 if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
-// ── NOUVEAU ──
-                    deleteAceAsOwner(acl, i);
+                    acl.deleteAce(i);
                     aclService.updateAcl(acl);
                     break;
                 }
@@ -170,56 +163,13 @@ public class AclUtilService {
         ensureSidExists(effectiveSid, sidValue);
 
         try {
-// ── NOUVEAU ──
-            insertAceAsOwner(acl, acl.getEntries().size(), permission, effectiveSid);
+            acl.insertAce(acl.getEntries().size(), permission, effectiveSid, true);
             aclService.updateAcl(acl);
             log.debug("Inserted ACE (sid={}) on {}", sidValue, oid);
         } catch (DuplicateKeyException dke) {
             log.info("DuplicateKeyException while inserting sid '{}'. Reloading ACL and aborting current attempt.", sidValue);
         } catch (DataAccessException dae) {
             log.warn("Erreur lors de updateAcl pour sid '{}': {}", sidValue, dae.getMessage());
-        }
-    }
-
-    // -------------------------
-    // Modification d'ACL sous l'identité du propriétaire
-    // -------------------------
-
-    /**
-     * Spring n'autorise insertAce / deleteAce qu'au propriétaire de l'ACL (celui qui l'a créée),
-     * à une autorité admin configurée, ou à un porteur de la permission ADMINISTRATION.
-     * Le propriétaire est ici le BOC, alors que les modifications suivantes sont faites par
-     * d'autres utilisateurs (Achats, Comptabilité...). On exécute donc la modification
-     * sous l'identité du propriétaire, uniquement le temps de l'appel.
-     */
-    private void insertAceAsOwner(MutableAcl acl, int index, Permission permission, Sid sid) {
-        runAsAclOwner(acl, () -> acl.insertAce(index, permission, sid, true));
-    }
-
-    private void deleteAceAsOwner(MutableAcl acl, int index) {
-        runAsAclOwner(acl, () -> acl.deleteAce(index));
-    }
-
-    private void runAsAclOwner(MutableAcl acl, Runnable action) {
-        Sid owner = acl.getOwner();
-        if (!(owner instanceof PrincipalSid)) {
-            action.run();
-            return;
-        }
-        SecurityContext original = SecurityContextHolder.getContext();
-        try {
-            SecurityContext ownerContext = SecurityContextHolder.createEmptyContext();
-            ownerContext.setAuthentication(
-                new UsernamePasswordAuthenticationToken(
-                    ((PrincipalSid) owner).getPrincipal(),
-                    "N/A",
-                    AuthorityUtils.NO_AUTHORITIES
-                )
-            );
-            SecurityContextHolder.setContext(ownerContext);
-            action.run();
-        } finally {
-            SecurityContextHolder.setContext(original);
         }
     }
 
@@ -300,8 +250,7 @@ public class AclUtilService {
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
                 if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
-// ── NOUVEAU ──
-                    deleteAceAsOwner(acl, i);
+                    acl.deleteAce(i);
                     aclService.updateAcl(acl);
                     break;
                 }
@@ -330,8 +279,7 @@ public class AclUtilService {
             for (int i = 0; i < acl.getEntries().size(); i++) {
                 AccessControlEntry entry = acl.getEntries().get(i);
                 if (entry.getSid().equals(effectiveSid) && entry.getPermission().equals(permission)) {
-// ── NOUVEAU ──
-                    deleteAceAsOwner(acl, i);
+                    acl.deleteAce(i);
                     aclService.updateAcl(acl);
                     break;
                 }
