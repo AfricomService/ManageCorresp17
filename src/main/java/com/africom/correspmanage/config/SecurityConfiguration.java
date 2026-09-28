@@ -5,6 +5,7 @@ import com.africom.correspmanage.security.SecurityUtils;
 import com.africom.correspmanage.security.oauth2.AudienceValidator;
 import com.africom.correspmanage.security.oauth2.JwtGrantedAuthorityConverter;
 import java.util.*;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -22,6 +23,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.zalando.problem.spring.web.advice.security.SecurityProblemSupport;
 import tech.jhipster.config.JHipsterProperties;
+
 
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true)
@@ -75,9 +77,15 @@ public class SecurityConfiguration {
     }
 
     Converter<Jwt, AbstractAuthenticationToken> authenticationConverter() {
-        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(new JwtGrantedAuthorityConverter());
-        return jwtAuthenticationConverter;
+        JwtGrantedAuthorityConverter authoritiesConverter = new JwtGrantedAuthorityConverter();
+        return jwt -> {
+            // Nom d'authentification = matricule (preferred_username), sub en secours
+            String name = jwt.getClaimAsString("preferred_username");
+            if (name == null || name.isBlank()) {
+                name = jwt.getSubject();
+            }
+            return new JwtAuthenticationToken(jwt, authoritiesConverter.convert(jwt), name);
+        };
     }
 
     @Bean
