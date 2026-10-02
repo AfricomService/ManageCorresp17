@@ -12,6 +12,10 @@ import com.africom.correspmanage.service.dto.PagedTaskDTO;
 import com.africom.correspmanage.service.dto.ResponsableTacheDTO;
 import com.africom.correspmanage.service.dto.TasksDTO;
 import com.africom.correspmanage.service.mapper.TasksMapper;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -600,7 +604,14 @@ public class TasksService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> getAllTasksByUserAclPaged(String userId, CorrespStatus status, int pageIndex, int pageSize) {
+    public Map<String, Object> getAllTasksByUserAclPaged(
+        String userId,
+        CorrespStatus status,
+        int pageIndex,
+        int pageSize,
+        LocalDate startDateFrom,
+        LocalDate startDateTo
+    ) {
         if (userId == null) {
             return buildEmptyPageResponse(pageIndex, pageSize);
         }
@@ -637,8 +648,17 @@ public class TasksService {
         String statusStr = (status != null) ? status.name() : null;
 
         // 3) Requête paginée sur les IDs uniquement
+        // Filtre sur start_date : début inclus (00:00), fin inclusive => borne exclusive = fin + 1 jour
+        int dateFilter = (startDateFrom != null || startDateTo != null) ? 1 : 0;
+        LocalDateTime startFrom = startDateFrom != null
+            ? toUtcLocalDateTime(startDateFrom)
+            : LocalDateTime.of(1900, 1, 1, 0, 0);
+        LocalDateTime startToExclusive = startDateTo != null
+            ? toUtcLocalDateTime(startDateTo.plusDays(1))
+            : LocalDateTime.of(2999, 12, 31, 0, 0);
+
         Page<Object> idsPage = tasksRepository.findAllIdsByAclForSidsAndStatusPaged(
-            allSids, readMask, statusStr, pageable
+            allSids, readMask, statusStr, dateFilter, startFrom, startToExclusive, pageable
         );
 
         if (idsPage.isEmpty()) {
@@ -802,6 +822,11 @@ public class TasksService {
         }
 
         return dtos;
+    }
+
+    /** Début de journée (fuseau du serveur) converti en UTC, car Hibernate écrit les dates en UTC (jdbc.time_zone=UTC). */
+    private LocalDateTime toUtcLocalDateTime(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
     private Map<String, Object> buildEmptyPageResponse(int pageIndex, int pageSize) {

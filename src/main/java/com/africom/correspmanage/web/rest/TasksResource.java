@@ -10,6 +10,7 @@ import com.africom.correspmanage.web.rest.errors.BadRequestAlertException;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -271,7 +272,11 @@ public class TasksResource {
         @RequestParam(name = "userId") String userId,
         @RequestParam(name = "status", required = false) String status,
         @RequestParam(name = "page", defaultValue = "1") int page,
-        @RequestParam(name = "size", defaultValue = "10") int size
+        @RequestParam(name = "size", defaultValue = "10") int size,
+        @RequestParam(name = "startDateFrom", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateFrom,
+        @RequestParam(name = "startDateTo", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateTo
     ) {
         log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}",
             userId, status, page, size);
@@ -286,7 +291,11 @@ public class TasksResource {
             }
         }
 
-        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size);
+        if (startDateFrom != null && startDateTo != null && startDateFrom.isAfter(startDateTo)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size, startDateFrom, startDateTo);
         return ResponseEntity.ok(result);
     }
 

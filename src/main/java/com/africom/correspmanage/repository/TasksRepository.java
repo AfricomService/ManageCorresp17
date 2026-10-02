@@ -4,6 +4,7 @@ import com.africom.correspmanage.domain.Tasks;
 import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 
 import org.springframework.data.domain.Pageable;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -131,6 +132,7 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         @Param("reference") String reference
     );
 
+
     @Query(
         value = """
         SELECT combined.id FROM (
@@ -143,6 +145,7 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
               AND sid.sid IN (:sids)
               AND (ae.mask & :mask) <> 0
               AND (:status IS NULL OR t.status = :status)
+              AND (:dateFilter = 0 OR (t.start_date >= :startFrom AND t.start_date < :startToExclusive))
               AND EXISTS (
                   SELECT 1 FROM rel_corresp__tasks rct
                   JOIN corresp c ON c.id = rct.corresp_id
@@ -163,6 +166,7 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
               AND sid.sid IN (:sids)
               AND (ae.mask & :mask) <> 0
               AND (:status IS NULL OR t.status = :status)
+              AND (:dateFilter = 0 OR (t.start_date >= :startFrom AND t.start_date < :startToExclusive))
               AND EXISTS (
                   SELECT 1 FROM rel_corresp__tasks rct
                   JOIN corresp c ON c.id = rct.corresp_id
@@ -177,6 +181,9 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
         @Param("sids") List<String> sids,
         @Param("mask") int mask,
         @Param("status") String status,
+        @Param("dateFilter") int dateFilter,                        // <-- NEW (0 = pas de filtre, 1 = filtre actif)
+        @Param("startFrom") LocalDateTime startFrom,                // <-- NEW
+        @Param("startToExclusive") LocalDateTime startToExclusive,  // <-- NEW
         Pageable pageable
     );
 
