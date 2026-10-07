@@ -48,6 +48,10 @@ public interface OrgaCareRestClient {
     @GetMapping("/api/societes/by-matricule/{matricule}")
     List<Map<String, Object>> getSocietesByMatricule(@PathVariable("matricule") String matricule);
 
+    // Sociétés de l'utilisateur connecté (token relayé par AuthorizedFeignClient)
+    @GetMapping("/api/societes/mes-societes")
+    List<Map<String, Object>> getMesSocietes();
+
     @GetMapping("/api/societes/list")
     List<Map<String, Object>> getAllSocietesIdAndRaisonSociale();
 
@@ -56,5 +60,11 @@ public interface OrgaCareRestClient {
 
     @GetMapping("/api/departements/by-matricule/{matricule}")
     Map<String, Object> getDepartementByMatricule(@PathVariable("matricule") String matricule);
+
+    // Arbre limité aux départements de l'utilisateur + leurs sous-départements (dans l'organigramme donné)
+    @GetMapping("/api/departements/tree-by-user/{organigrammeCode}")
+    List<Map<String, Object>> getMyDepartementTree(
+        @PathVariable("organigrammeCode") String organigrammeCode,
+        @RequestParam("userId") String userId);
 
 }

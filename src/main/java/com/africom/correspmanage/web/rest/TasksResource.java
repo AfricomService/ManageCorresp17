@@ -276,10 +276,11 @@ public class TasksResource {
         @RequestParam(name = "startDateFrom", required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateFrom,
         @RequestParam(name = "startDateTo", required = false)
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateTo
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateTo,
+        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren
     ) {
-        log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}",
-            userId, status, page, size);
+        log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}, includeChildren={}",
+            userId, status, page, size, includeChildren);
 
         CorrespStatus cs = null;
         if (status != null && !status.isBlank()) {
@@ -295,7 +296,7 @@ public class TasksResource {
             return ResponseEntity.badRequest().build();
         }
 
-        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size, startDateFrom, startDateTo);
+        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size, startDateFrom, startDateTo, includeChildren);
         return ResponseEntity.ok(result);
     }
 
@@ -309,9 +310,10 @@ public class TasksResource {
     public ResponseEntity<List<TasksDTO>> searchTasksByUserAcl(
         @RequestParam(name = "userId") String userId,
         @RequestParam(name = "reference", required = false) String reference,
-        @RequestParam(name = "subject",   required = false) String subject
+        @RequestParam(name = "subject",   required = false) String subject,
+        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren
     ) {
-        log.debug("REST request to search Tasks by userId (ACL) : {} - reference: {}", userId, reference);
+        log.debug("REST request to search Tasks by userId (ACL) : {} - reference: {} - includeChildren: {}", userId, reference, includeChildren);
 
         boolean referenceBlank = (reference == null || reference.isBlank());
         boolean subjectBlank   = (subject   == null || subject.isBlank());
@@ -322,7 +324,7 @@ public class TasksResource {
         }
 
         try {
-            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference, subject);
+            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference, subject, includeChildren);
 
             if (results == null) {
                 results = Collections.emptyList();
@@ -595,6 +597,23 @@ public class TasksResource {
             log.error("Erreur lors de l'export Excel des tâches pour user {} : {}", userId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    // GET /api/tasks/mesSocietes : sociétés de l'utilisateur connecté (via OrgaCare)
+    @GetMapping("/tasks/mesSocietes")
+    public ResponseEntity<List<Map<String, Object>>> getMesSocietes() {
+        log.debug("REST request to get mes societes");
+        return ResponseEntity.ok(tasksService.getMesSocietes());
+    }
+
+    // GET /api/tasks/mesDepartements?userId=...&orgaCode=... : mon département + mes sous-départements (via OrgaCare)
+    @GetMapping("/tasks/mesDepartements")
+    public ResponseEntity<List<Map<String, Object>>> getMesDepartements(
+        @RequestParam(name = "userId") String userId,
+        @RequestParam(name = "orgaCode") String orgaCode
+    ) {
+        log.debug("REST request to get mes departements : userId={}, orgaCode={}", userId, orgaCode);
+        return ResponseEntity.ok(tasksService.getMesDepartementsTree(userId, orgaCode));
     }
 
     // GET /api/tasks/{id}/can-modify

@@ -603,6 +603,7 @@ public class TasksService {
         return filtered;
     }
 
+    /** Compatibilité : l'ancien appel (page Home) reste identique, sans sous-départements. */
     @Transactional(readOnly = true)
     public Map<String, Object> getAllTasksByUserAclPaged(
         String userId,
@@ -612,31 +613,26 @@ public class TasksService {
         LocalDate startDateFrom,
         LocalDate startDateTo
     ) {
+        return getAllTasksByUserAclPaged(userId, status, pageIndex, pageSize, startDateFrom, startDateTo, false);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllTasksByUserAclPaged(
+        String userId,
+        CorrespStatus status,
+        int pageIndex,
+        int pageSize,
+        LocalDate startDateFrom,
+        LocalDate startDateTo,
+        boolean includeChildren
+    ) {
         if (userId == null) {
             return buildEmptyPageResponse(pageIndex, pageSize);
         }
 
-        // 1) Récupérer les SIDs (deptCodes + login)
-        List<String> deptCodes;
-        try {
-            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
-            deptCodes = (affectations == null || affectations.isEmpty()) ? new ArrayList<>()
-                : affectations.stream()
-                .map(a -> a.get("departementCode"))
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("Impossible de récupérer les deptCodes pour userId {} : {}", userId, e.getMessage());
-            deptCodes = new ArrayList<>();
-        }
-
-        String userLogin = getUserLogin(userId);
-        List<String> allSids = new ArrayList<>(deptCodes);
-        if (userLogin != null && !allSids.contains(userLogin)) {
-            allSids.add(userLogin);
-        }
+        // 1) SIDs = départements de l'utilisateur (+ sous-départements si demandé) + login
+        List<String> allSids = buildSidsForUser(userId, includeChildren);
+        log.debug("getAllTasksByUserAclPaged userId={} includeChildren={} sids={}", userId, includeChildren, allSids);
 
         if (allSids.isEmpty()) {
             return buildEmptyPageResponse(pageIndex, pageSize);
@@ -827,6 +823,58 @@ public class TasksService {
     /** Début de journée (fuseau du serveur) converti en UTC, car Hibernate écrit les dates en UTC (jdbc.time_zone=UTC). */
     private LocalDateTime toUtcLocalDateTime(LocalDate date) {
         return date.atStartOfDay(ZoneId.systemDefault()).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    /**
+     * SIDs ACL d'un utilisateur :
+     * codes de ses départements (+ tous leurs sous-départements si includeChildren) + son login (minuscules).
+     */
+    private List<String> buildSidsForUser(String userId, boolean includeChildren) {
+        Set<String> sids = new LinkedHashSet<>();
+
+        // 1) Départements de l'utilisateur (toutes sociétés confondues)
+        List<String> userDeptCodes = new ArrayList<>();
+        try {
+            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
+            if (affectations != null) {
+                affectations.stream()
+                    .map(a -> a.get("departementCode"))
+                    .filter(Objects::nonNull)
+                    .map(o -> o.toString().trim())
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .forEach(userDeptCodes::add);
+            }
+        } catch (Exception e) {
+            log.warn("buildSidsForUser: départements indisponibles pour userId {} : {}", userId, e.getMessage());
+        }
+        sids.addAll(userDeptCodes);
+
+        // 2) Sous-départements (OrgaCare renvoie le code lui-même + tous les descendants)
+        if (includeChildren) {
+            for (String code : userDeptCodes) {
+                try {
+                    List<String> codes = orgaCareRestClient.getDepartementAndChildrenCodes(code);
+                    if (codes != null) {
+                        codes.stream()
+                            .filter(Objects::nonNull)
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .forEach(sids::add);
+                    }
+                } catch (Exception e) {
+                    log.warn("buildSidsForUser: sous-départements indisponibles pour '{}' : {}", code, e.getMessage());
+                }
+            }
+        }
+
+        // 3) Login (PrincipalSid)
+        String userLogin = getUserLogin(userId);
+        if (userLogin != null && !userLogin.isEmpty()) {
+            sids.add(userLogin);
+        }
+
+        return new ArrayList<>(sids);
     }
 
     private Map<String, Object> buildEmptyPageResponse(int pageIndex, int pageSize) {
@@ -1059,8 +1107,14 @@ public class TasksService {
         return all;
     }
 
+    /** Compatibilité : appel existant (page Home), sans sous-départements. */
     @Transactional(readOnly = true)
-    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject)
+    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject) {
+        return searchTasksByUserAcl(userId, reference, subject, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject, boolean includeChildren)
     {
         if (userId == null) {
             return Collections.emptyList();
@@ -1073,33 +1127,8 @@ public class TasksService {
             return Collections.emptyList();
         }
 
-        // 1) récupérer les deptCodes via OrgaCare (comme avant)
-        List<String> deptCodes;
-        try {
-            List<Map<String, Object>> affectations = orgaCareRestClient.getDepartementAffectationsByUserId(userId);
-            if (affectations == null || affectations.isEmpty()) {
-                deptCodes = new ArrayList<>();
-            } else {
-                deptCodes = affectations.stream()
-                    .map(a -> a.get("departementCode"))
-                    .filter(Objects::nonNull)
-                    .map(Object::toString)
-                    .distinct()
-                    .collect(Collectors.toList());
-            }
-        } catch (Exception e) {
-            log.warn("Impossible de récupérer les codes des départements pour userId {} : {}", userId, e.getMessage());
-            deptCodes = new ArrayList<>();
-        }
-
-        // Récupérer aussi le login de l'utilisateur pour les ACLs PrincipalSid
-        String userLogin = getUserLogin(userId);
-
-        // Construire la liste complète des SIDs : deptCodes + login utilisateur
-        List<String> allSids = new ArrayList<>(deptCodes);
-        if (userLogin != null && !allSids.contains(userLogin)) {
-            allSids.add(userLogin);
-        }
+        // 1) SIDs : départements (+ sous-départements si demandé) + login
+        List<String> allSids = buildSidsForUser(userId, includeChildren);
 
         if (allSids.isEmpty()) {
             return Collections.emptyList();
@@ -1374,6 +1403,38 @@ public class TasksService {
                 && dto.getDueDate().isAfter(dueDateTo)) return false;
             return true;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Sociétés de l'utilisateur connecté, récupérées depuis OrgaCare (Feign).
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getMesSocietes() {
+        try {
+            List<Map<String, Object>> societes = orgaCareRestClient.getMesSocietes();
+            return societes != null ? societes : Collections.emptyList();
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer les sociétés de l'utilisateur depuis OrgaCare : {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Arbre des départements de l'utilisateur (son département + ses sous-départements)
+     * dans l'organigramme donné, récupéré depuis OrgaCare.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getMesDepartementsTree(String userId, String orgaCode) {
+        if (userId == null || userId.trim().isEmpty() || orgaCode == null || orgaCode.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            List<Map<String, Object>> tree = orgaCareRestClient.getMyDepartementTree(orgaCode.trim(), userId.trim());
+            return tree != null ? tree : Collections.emptyList();
+        } catch (Exception e) {
+            log.warn("Impossible de récupérer l'arbre des départements (userId={}, orga={}) : {}", userId, orgaCode, e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     @Transactional(readOnly = true)
