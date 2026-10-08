@@ -626,12 +626,28 @@ public class TasksService {
         LocalDate startDateTo,
         boolean includeChildren
     ) {
+        return getAllTasksByUserAclPaged(userId, status, pageIndex, pageSize, startDateFrom, startDateTo, includeChildren, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllTasksByUserAclPaged(
+        String userId,
+        CorrespStatus status,
+        int pageIndex,
+        int pageSize,
+        LocalDate startDateFrom,
+        LocalDate startDateTo,
+        boolean includeChildren,
+        String deptCode
+    ) {
         if (userId == null) {
             return buildEmptyPageResponse(pageIndex, pageSize);
         }
 
-        // 1) SIDs = départements de l'utilisateur (+ sous-départements si demandé) + login
-        List<String> allSids = buildSidsForUser(userId, includeChildren);
+        // 1) SIDs : département choisi (+ sous-départements) OU périmètre complet de l'utilisateur + login
+        List<String> allSids = (deptCode != null && !deptCode.trim().isEmpty())
+            ? buildSidsForDepartment(userId, deptCode, includeChildren)
+            : buildSidsForUser(userId, includeChildren);
         log.debug("getAllTasksByUserAclPaged userId={} includeChildren={} sids={}", userId, includeChildren, allSids);
 
         if (allSids.isEmpty()) {
@@ -877,6 +893,43 @@ public class TasksService {
         return new ArrayList<>(sids);
     }
 
+    /**
+     * SIDs ACL pour un département choisi : son code (+ ses sous-départements si includeChildren).
+     * Le login n'est pas ajouté : on ne veut que les tâches de ce département.
+     * Sécurité : le département doit faire partie du périmètre de l'utilisateur.
+     */
+    private List<String> buildSidsForDepartment(String userId, String deptCode, boolean includeChildren) {
+        String code = deptCode.trim();
+        if (code.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // périmètre autorisé = mes départements + tous leurs descendants (+ login, sans effet ici)
+        Set<String> allowed = new HashSet<>(buildSidsForUser(userId, true));
+        if (!allowed.contains(code)) {
+            log.warn("buildSidsForDepartment: département '{}' hors périmètre de userId {}", code, userId);
+            return Collections.emptyList();
+        }
+
+        Set<String> sids = new LinkedHashSet<>();
+        sids.add(code);
+        if (includeChildren) {
+            try {
+                List<String> codes = orgaCareRestClient.getDepartementAndChildrenCodes(code);
+                if (codes != null) {
+                    codes.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .forEach(sids::add);
+                }
+            } catch (Exception e) {
+                log.warn("buildSidsForDepartment: sous-départements indisponibles pour '{}' : {}", code, e.getMessage());
+            }
+        }
+        return new ArrayList<>(sids);
+    }
+
     private Map<String, Object> buildEmptyPageResponse(int pageIndex, int pageSize) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("content", Collections.emptyList());
@@ -1114,7 +1167,12 @@ public class TasksService {
     }
 
     @Transactional(readOnly = true)
-    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject, boolean includeChildren)
+    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject, boolean includeChildren) {
+        return searchTasksByUserAcl(userId, reference, subject, includeChildren, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TasksDTO> searchTasksByUserAcl(String userId, String reference, String subject, boolean includeChildren, String deptCode)
     {
         if (userId == null) {
             return Collections.emptyList();
@@ -1127,8 +1185,10 @@ public class TasksService {
             return Collections.emptyList();
         }
 
-        // 1) SIDs : départements (+ sous-départements si demandé) + login
-        List<String> allSids = buildSidsForUser(userId, includeChildren);
+        // 1) SIDs : département choisi (+ sous-départements) OU périmètre complet de l'utilisateur + login
+        List<String> allSids = (deptCode != null && !deptCode.trim().isEmpty())
+            ? buildSidsForDepartment(userId, deptCode, includeChildren)
+            : buildSidsForUser(userId, includeChildren);
 
         if (allSids.isEmpty()) {
             return Collections.emptyList();

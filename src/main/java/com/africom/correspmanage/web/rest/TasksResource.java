@@ -277,10 +277,11 @@ public class TasksResource {
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateFrom,
         @RequestParam(name = "startDateTo", required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateTo,
-        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren
+        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren,
+        @RequestParam(name = "deptCode", required = false) String deptCode
     ) {
-        log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}, includeChildren={}",
-            userId, status, page, size, includeChildren);
+        log.debug("REST request to get Tasks paged by userId (ACL) : {}, status={}, page={}, size={}, includeChildren={}, deptCode={}",
+            userId, status, page, size, includeChildren, deptCode);
 
         CorrespStatus cs = null;
         if (status != null && !status.isBlank()) {
@@ -296,7 +297,7 @@ public class TasksResource {
             return ResponseEntity.badRequest().build();
         }
 
-        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size, startDateFrom, startDateTo, includeChildren);
+        Map<String, Object> result = tasksService.getAllTasksByUserAclPaged(userId, cs, page, size, startDateFrom, startDateTo, includeChildren, deptCode);
         return ResponseEntity.ok(result);
     }
 
@@ -311,9 +312,10 @@ public class TasksResource {
         @RequestParam(name = "userId") String userId,
         @RequestParam(name = "reference", required = false) String reference,
         @RequestParam(name = "subject",   required = false) String subject,
-        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren
+        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren,
+        @RequestParam(name = "deptCode", required = false) String deptCode
     ) {
-        log.debug("REST request to search Tasks by userId (ACL) : {} - reference: {} - includeChildren: {}", userId, reference, includeChildren);
+        log.debug("REST request to search Tasks by userId (ACL) : {} - reference: {} - includeChildren: {} - deptCode: {}", userId, reference, includeChildren, deptCode);
 
         boolean referenceBlank = (reference == null || reference.isBlank());
         boolean subjectBlank   = (subject   == null || subject.isBlank());
@@ -324,7 +326,7 @@ public class TasksResource {
         }
 
         try {
-            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference, subject, includeChildren);
+            List<TasksDTO> results = tasksService.searchTasksByUserAcl(userId, reference, subject, includeChildren, deptCode);
 
             if (results == null) {
                 results = Collections.emptyList();
