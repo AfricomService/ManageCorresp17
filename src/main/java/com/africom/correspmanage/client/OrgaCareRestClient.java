@@ -29,6 +29,10 @@ public interface OrgaCareRestClient {
     @GetMapping("/api/departements/by-code/{code}")
     Map<String, Object> getDepartementDtoByCode(@PathVariable("code") String code);
 
+    // Département parent (N+1) : id, code, nom, email (objet vide si pas de parent)
+    @GetMapping("/api/departements/parent-by-code/{code}")
+    Map<String, Object> getParentDepartementByCode(@PathVariable("code") String code);
+
     // Récupérer map codeDept -> nomDepartement (bulk)
     @PostMapping("/api/departements/names-by-codes")
     Map<String, String> getDepartementNamesByCodes(@RequestBody List<String> deptCodes);

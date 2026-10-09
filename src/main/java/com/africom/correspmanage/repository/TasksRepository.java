@@ -5,6 +5,7 @@ import com.africom.correspmanage.domain.enumeration.CorrespStatus;
 
 import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -189,5 +190,19 @@ public interface TasksRepository extends JpaRepository<Tasks, Long> {
 
     @Query("SELECT t FROM Tasks t WHERE t.id IN (:ids)")
     List<Tasks> findAllByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * Tâches IN_PROGRESS avec échéance <= limit (proches ET dépassées),
+     * dont au moins une corresp n'est pas SUPPRIMER.
+     */
+    @Query("""
+            SELECT DISTINCT t FROM Tasks t
+            JOIN t.corresps c
+            WHERE t.status = :status
+              AND t.dueDate IS NOT NULL
+              AND t.dueDate <= :limit
+              AND (c.classStatus IS NULL OR c.classStatus <> 'SUPPRIMER')
+        """)
+    List<Tasks> findInProgressDueBefore(@Param("status") CorrespStatus status, @Param("limit") ZonedDateTime limit);
 
 }
