@@ -32,6 +32,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import com.africom.correspmanage.security.SecurityUtils;
+import com.africom.correspmanage.service.dto.CorrespSummaryDTO;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.time.format.DateTimeFormatter;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 /**
  * Service Implementation for managing {@link Tasks}.
@@ -1463,6 +1478,199 @@ public class TasksService {
                 && dto.getDueDate().isAfter(dueDateTo)) return false;
             return true;
         }).collect(Collectors.toList());
+    }
+
+    // ------------------------------------------------------------------ Export Excel
+
+    /** Ligne intermédiaire de l'export (même contenu que le tableau). */
+    private static final class ExportRow {
+        final Long id;
+        final String object;
+        final String taskType;
+        final String responsable;
+        final CorrespStatus status;
+        final ZonedDateTime creationDate;
+        final ZonedDateTime dueDate;
+        final ZonedDateTime datePriseEnCharge;
+
+        ExportRow(Long id, String object, String taskType, String responsable, CorrespStatus status,
+                  ZonedDateTime creationDate, ZonedDateTime dueDate, ZonedDateTime datePriseEnCharge) {
+            this.id = id;
+            this.object = object;
+            this.taskType = taskType;
+            this.responsable = responsable;
+            this.status = status;
+            this.creationDate = creationDate;
+            this.dueDate = dueDate;
+            this.datePriseEnCharge = datePriseEnCharge;
+        }
+    }
+
+    private String joinResponsables(String responsableName, List<ResponsableTacheDTO> responsables) {
+        if (responsableName != null && !responsableName.trim().isEmpty()) {
+            return responsableName.trim();
+        }
+        if (responsables == null) return "";
+        return responsables.stream()
+            .map(r -> {
+                if (r.getPersonneName() != null && !r.getPersonneName().trim().isEmpty()) return r.getPersonneName().trim();
+                if (r.getDeptName() != null && !r.getDeptName().trim().isEmpty()) return r.getDeptName().trim();
+                if (r.getCodeDept() != null && !r.getCodeDept().trim().isEmpty()) return r.getCodeDept().trim();
+                if (r.getMatriculePers() != null && !r.getMatriculePers().trim().isEmpty()) return r.getMatriculePers().trim();
+                return "";
+            })
+            .filter(s -> !s.isEmpty())
+            .distinct()
+            .collect(Collectors.joining(", "));
+    }
+
+    private String statusLabelFr(CorrespStatus s) {
+        if (s == null) return "";
+        switch (s) {
+            case DRAFT: return "Brouillon";
+            case IN_PROGRESS: return "En cours";
+            case DISPATCH: return "Dispatch";
+            case CLOSED: return "Terminée";
+            case CANCELLED: return "Annulée";
+            default: return s.name();
+        }
+    }
+
+    private String fmtDate(ZonedDateTime d, DateTimeFormatter f) {
+        return d == null ? "" : d.withZoneSameInstant(ZoneId.systemDefault()).format(f);
+    }
+
+    /**
+     * Export Excel des tâches avec exactement les mêmes filtres que la liste paginée
+     * (statut, période sur start_date, département, périmètre) + mot-clé de recherche optionnel.
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportTasksToExcel(
+        String userId,
+        CorrespStatus status,
+        LocalDate startDateFrom,
+        LocalDate startDateTo,
+        boolean includeChildren,
+        String deptCode,
+        String keyword
+    ) throws IOException {
+        List<ExportRow> rows = new ArrayList<>();
+
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            // Mode recherche : même logique que l'écran (recherche, puis filtres statut/dates en mémoire)
+            String kw = keyword.trim();
+            List<TasksDTO> found = searchTasksByUserAcl(userId, kw, kw, includeChildren, deptCode);
+            for (TasksDTO t : found) {
+                if (status != null && !status.equals(t.getStatus())) continue;
+                if (startDateFrom != null || startDateTo != null) {
+                    if (t.getStartDate() == null) continue;
+                    LocalDate d = t.getStartDate().withZoneSameInstant(ZoneId.systemDefault()).toLocalDate();
+                    if (startDateFrom != null && d.isBefore(startDateFrom)) continue;
+                    if (startDateTo != null && d.isAfter(startDateTo)) continue;
+                }
+                rows.add(new ExportRow(
+                    t.getId(), t.getObject(), t.getTaskType(),
+                    joinResponsables(t.getResponsableName(), t.getResponsables()),
+                    t.getStatus(), t.getCreationDate(), t.getDueDate(), t.getDatePriseEnCharge()
+                ));
+            }
+            Comparator<ExportRow> byCreationDesc = Comparator.comparing(
+                (ExportRow r) -> r.creationDate, Comparator.nullsLast(Comparator.<ZonedDateTime>reverseOrder())
+            );
+            rows.sort(byCreationDesc);
+        } else {
+            // Mode normal : on réutilise la requête paginée avec une très grande page
+            Map<String, Object> page = getAllTasksByUserAclPaged(
+                userId, status, 1, 10_000, startDateFrom, startDateTo, includeChildren, deptCode
+            );
+            @SuppressWarnings("unchecked")
+            List<PagedTaskDTO> content = (List<PagedTaskDTO>) page.get("content");
+            if (content != null) {
+                for (PagedTaskDTO t : content) {
+                    rows.add(new ExportRow(
+                        t.getId(), t.getObject(), t.getTaskType(),
+                        t.getResponsableName() != null ? t.getResponsableName() : "",
+                        t.getStatus(), t.getCreationDate(), t.getDueDate(), t.getDatePriseEnCharge()
+                    ));
+                }
+            }
+        }
+
+        // Infos de la corresp liée (référence, objet, société, expéditeur, destinataire)
+        List<Long> ids = rows.stream().map(r -> r.id).filter(Objects::nonNull).collect(Collectors.toList());
+        Map<Long, CorrespSummaryDTO> summaries = correspService.findCorrespSummariesByTaskIds(ids);
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Tâches");
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+
+            String[] headers = {
+                "Référence", "Objet", "Type", "Responsable", "Société", "Expéditeur",
+                "Destinataire", "Création", "Date limite", "Prise en charge", "Statut"
+            };
+            Row headerRow = sheet.createRow(0);
+            headerRow.setHeightInPoints(22);
+            for (int i = 0; i < headers.length; i++) {
+                Cell c = headerRow.createCell(i);
+                c.setCellValue(headers[i]);
+                c.setCellStyle(headerStyle);
+            }
+
+            int rowNum = 1;
+            for (ExportRow r : rows) {
+                CorrespSummaryDTO s = summaries.get(r.id);
+                String subject = (s != null && s.getSubject() != null && !s.getSubject().isEmpty()) ? s.getSubject() : r.object;
+
+                String[] values = {
+                    s != null && s.getReference() != null ? s.getReference() : "",
+                    subject != null ? subject : "",
+                    r.taskType != null ? r.taskType : "",
+                    r.responsable,
+                    s != null && s.getNomSociete() != null ? s.getNomSociete() : "",
+                    s != null && s.getSender() != null ? s.getSender() : "",
+                    s != null && s.getLabelDestinataire() != null ? s.getLabelDestinataire() : "",
+                    fmtDate(r.creationDate, dtf),
+                    fmtDate(r.dueDate, dtf),
+                    fmtDate(r.datePriseEnCharge, dtf),
+                    statusLabelFr(r.status)
+                };
+
+                Row row = sheet.createRow(rowNum++);
+                for (int i = 0; i < values.length; i++) {
+                    Cell c = row.createCell(i);
+                    c.setCellValue(values[i]);
+                    c.setCellStyle(dataStyle);
+                }
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+                int w = sheet.getColumnWidth(i);
+                if (w < 3000) sheet.setColumnWidth(i, 3000);
+                if (w > 15000) sheet.setColumnWidth(i, 15000);
+            }
+
+            workbook.write(out);
+            return out.toByteArray();
+        }
     }
 
     /**

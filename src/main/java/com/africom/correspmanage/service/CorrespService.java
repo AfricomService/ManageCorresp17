@@ -2682,7 +2682,13 @@ public class CorrespService {
         return tasksRepository
             .findById(taskId)
             .map(task -> task.getCorresps().stream().findFirst()
-                .map(c -> new CorrespSummaryDTO(c.getSubject(), c.getReference(), c.getNomSociete()))
+                .map(c -> new CorrespSummaryDTO(
+                    c.getSubject(),
+                    c.getReference(),
+                    c.getNomSociete(),
+                    c.getSender(),
+                    c.getLabelDestinataire()
+                ))
                 .orElse(new CorrespSummaryDTO()))
             .orElse(new CorrespSummaryDTO());
     }

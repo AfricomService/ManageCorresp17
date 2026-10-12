@@ -301,6 +301,57 @@ public class TasksResource {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Export Excel avec les mêmes filtres que la liste paginée (+ mot-clé de recherche optionnel).
+     */
+    @GetMapping(
+        value = "/tasks/tasksByUserAclPaged/export",
+        produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    public ResponseEntity<byte[]> exportTasksByUserAclPaged(
+        @RequestParam(name = "userId") String userId,
+        @RequestParam(name = "status", required = false) String status,
+        @RequestParam(name = "startDateFrom", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateFrom,
+        @RequestParam(name = "startDateTo", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateTo,
+        @RequestParam(name = "includeChildren", required = false, defaultValue = "false") boolean includeChildren,
+        @RequestParam(name = "deptCode", required = false) String deptCode,
+        @RequestParam(name = "keyword", required = false) String keyword
+    ) {
+        log.debug("REST request to export Tasks (ACL) : userId={}, status={}, includeChildren={}, deptCode={}, keyword={}",
+            userId, status, includeChildren, deptCode, keyword);
+
+        CorrespStatus cs = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                cs = CorrespStatus.valueOf(status.trim());
+            } catch (IllegalArgumentException ex) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+        if (startDateFrom != null && startDateTo != null && startDateFrom.isAfter(startDateTo)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            byte[] bytes = tasksService.exportTasksToExcel(
+                userId, cs, startDateFrom, startDateTo, includeChildren, deptCode, keyword
+            );
+            String fileName = "taches_" + java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmm")) + ".xlsx";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDisposition(ContentDisposition.builder("attachment").filename(fileName).build());
+            headers.setContentLength(bytes.length);
+            return ResponseEntity.ok().headers(headers).body(bytes);
+        } catch (Exception e) {
+            log.error("Erreur export Excel des tâches pour userId {} : {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @GetMapping("/tasks/tasksByUserAclAllStatuses")
     public List<TasksDTO> getTasksByUserAclAllStatuses(@RequestParam(name = "userId") String userId) {
         log.debug("REST request to get Tasks by userId (ACL) all statuses : {}", userId);
