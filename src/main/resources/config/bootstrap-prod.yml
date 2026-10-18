@@ -25,7 +25,7 @@ hostserver: 172.30.1.111
 hostserverKeyCloak: 172.30.1.111
 
 # ── OAuth2 / OIDC ─────────────────────────────────────
-OAUTH2_ISSUER_URI: http://appafricom/auth/realms/Africom
+OAUTH2_ISSUER_URI: https://appafricom/auth/realms/Africom
 OAUTH2_CLIENT_ID: correspcare_internal
 OAUTH2_CLIENT_SECRET: D8jXUZ4aLkSDMslFXCbM4xdOrwnaBPfP
 OAUTH2_SCOPE: openid,profile,email,offline_access
